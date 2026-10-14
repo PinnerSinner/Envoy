@@ -13,19 +13,25 @@ namespace Envoy.App.ViewModels;
 
 public sealed record Option(object Value, string Label);
 
-public sealed class OcrLanguageItem(OcrLanguageStatus status, bool selected, Action changed) : INotifyPropertyChanged
+public sealed class OcrLanguageItem(OcrLanguageStatus status, bool selected, bool isMine, Action changed) : INotifyPropertyChanged
 {
     private bool _selected = selected;
     public string Code => status.Code;
     public string Name => status.Name;
     public bool Installed => status.Installed;
-    public string StatusText => Installed ? "Installed" : "Not installed";
+    public bool IsMine => isMine;
+
+    /// <summary>Only installed languages can be toggled; your own language is always read.</summary>
+    public bool CanToggle => Installed && !isMine;
+
+    public string StatusText => isMine ? "your language · always on" : Installed ? "" : "not installed";
 
     public bool IsSelected
     {
-        get => _selected;
+        get => isMine || (_selected && Installed);
         set
         {
+            if (!CanToggle) return;
             _selected = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
             changed();
@@ -224,12 +230,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         catch (Exception) { statuses = []; }
 
         var selected = new HashSet<string>(Settings.Capture.OcrLanguages, StringComparer.OrdinalIgnoreCase);
-        return statuses.Select(s => new OcrLanguageItem(s, selected.Contains(s.Code), OnOcrSelectionChanged));
+        // Latin-script languages are all read by any Latin OCR pack (e.g. English), so only list them if installed.
+        return statuses
+            .Where(s => s.Installed || LanguageCatalog.Find(s.Code) is not { Script: Script.Latin } || s.Code == "vi")
+            .OrderByDescending(s => s.Code == Settings.MyLanguage)
+            .ThenByDescending(s => s.Installed)
+            .Select(s => new OcrLanguageItem(s, selected.Contains(s.Code), s.Code == Settings.MyLanguage, OnOcrSelectionChanged));
     }
 
     private void OnOcrSelectionChanged()
     {
-        Settings.Capture.OcrLanguages = OcrLanguages.Where(l => l.IsSelected).Select(l => l.Code).ToList();
+        // Keep wanted-but-not-installed languages in the list so they activate as soon as they're installed.
+        var notInstalled = Settings.Capture.OcrLanguages.Where(c => OcrLanguages.Any(l => l.Code == c && !l.Installed));
+        Settings.Capture.OcrLanguages = OcrLanguages.Where(l => l.Installed && !l.IsMine && l.IsSelected).Select(l => l.Code)
+            .Concat(notInstalled).Distinct().ToList();
         Host.ApplySettings();
         Notify(nameof(OcrSummary));
     }

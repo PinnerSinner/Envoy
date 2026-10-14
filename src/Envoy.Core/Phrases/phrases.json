@@ -22,7 +22,7 @@
   {
     "id": "hello",
     "category": "Greetings",
-    "icon": "👋",
+    "icon": "☺",
     "text": {
       "en": "Hello!",
       "zh-CN": "你好！",
@@ -42,7 +42,7 @@
   {
     "id": "translator",
     "category": "Greetings",
-    "icon": "🌐",
+    "icon": "✎",
     "text": {
       "en": "I don't speak your language — I'm using a translator.",
       "zh-CN": "我不会说你的语言，我在用翻译器。",
@@ -62,7 +62,7 @@
   {
     "id": "ggwp",
     "category": "Endgame",
-    "icon": "🏳",
+    "icon": "♛",
     "text": {
       "en": "Good game, well played!",
       "zh-CN": "好局，打得漂亮！",
@@ -82,7 +82,7 @@
   {
     "id": "surrender",
     "category": "Endgame",
-    "icon": "🏳",
+    "icon": "⚑",
     "text": {
       "en": "I surrender. Good game.",
       "zh-CN": "我投降，好局。",
@@ -102,7 +102,7 @@
   {
     "id": "rematch",
     "category": "Endgame",
-    "icon": "🔁",
+    "icon": "↻",
     "text": {
       "en": "Rematch?",
       "zh-CN": "再来一局？",
@@ -122,7 +122,7 @@
   {
     "id": "bye",
     "category": "Endgame",
-    "icon": "👋",
+    "icon": "✋",
     "text": {
       "en": "Bye!",
       "zh-CN": "再见！",
@@ -142,7 +142,7 @@
   {
     "id": "thanks",
     "category": "Courtesy",
-    "icon": "🙏",
+    "icon": "♥",
     "text": {
       "en": "Thanks!",
       "zh-CN": "谢谢！",
@@ -162,7 +162,7 @@
   {
     "id": "sorry",
     "category": "Courtesy",
-    "icon": "🙇",
+    "icon": "☹",
     "text": {
       "en": "Sorry!",
       "zh-CN": "抱歉！",
@@ -182,7 +182,7 @@
   {
     "id": "nice",
     "category": "Courtesy",
-    "icon": "👏",
+    "icon": "★",
     "text": {
       "en": "Nice move!",
       "zh-CN": "漂亮！",
@@ -202,7 +202,7 @@
   {
     "id": "wait",
     "category": "Match",
-    "icon": "⏳",
+    "icon": "⌛",
     "text": {
       "en": "One moment, please.",
       "zh-CN": "请稍等。",
@@ -242,7 +242,7 @@
   {
     "id": "lag",
     "category": "Match",
-    "icon": "📶",
+    "icon": "⚠",
     "text": {
       "en": "I'm lagging.",
       "zh-CN": "我卡了。",
@@ -262,7 +262,7 @@
   {
     "id": "attack",
     "category": "Team",
-    "icon": "🗡",
+    "icon": "⚔",
     "text": {
       "en": "Where should we attack?",
       "zh-CN": "我们打哪里？",
@@ -282,7 +282,7 @@
   {
     "id": "help",
     "category": "Team",
-    "icon": "🛡",
+    "icon": "⛨",
     "text": {
       "en": "Help me, please!",
       "zh-CN": "请帮帮我！",
@@ -302,7 +302,7 @@
   {
     "id": "coming",
     "category": "Team",
-    "icon": "🐎",
+    "icon": "➜",
     "text": {
       "en": "I'm coming!",
       "zh-CN": "我来了！",

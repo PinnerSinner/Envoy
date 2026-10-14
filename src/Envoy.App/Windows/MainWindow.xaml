@@ -400,7 +400,8 @@
                             <StackPanel>
                                 <TextBlock Text="Languages to recognise" Style="{StaticResource Text.H2}" />
                                 <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,10">
-                                    Windows needs the OCR pack for each language. Tick the scripts your opponents use; your own language is always on.
+                                    Windows needs the OCR pack for each script. Tick the ones your opponents use; your own language is always on.
+                                    Latin-script languages (Spanish, German, French…) are read by any Latin pack such as English.
                                     Missing ones can be installed from Windows Settings → Time &amp; language → Language &amp; region, or with the Install button (asks for admin).
                                 </TextBlock>
                                 <ItemsControl ItemsSource="{Binding OcrLanguages}">
@@ -412,10 +413,10 @@
                                             <DockPanel Margin="0,2,16,2">
                                                 <Button DockPanel.Dock="Right" Content="Install" Padding="10,2" FontSize="11" Click="OnInstallOcr" Tag="{Binding Code}"
                                                         Visibility="{Binding Installed, Converter={StaticResource InverseBoolToVisibility}}" />
-                                                <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding Installed}">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{Binding Name}" />
-                                                        <TextBlock Text="{Binding StatusText}" Margin="8,0,0,0" Foreground="{DynamicResource Text.Muted}" FontSize="11" VerticalAlignment="Center" />
+                                                <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanToggle}">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource Text.Muted}" FontSize="11" />
                                                     </StackPanel>
                                                 </CheckBox>
                                             </DockPanel>
