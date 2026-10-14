@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Envoy.Core.Security;
 
 namespace Envoy.Core.Updates;
 
@@ -20,9 +21,17 @@ public sealed class UpdateChecker(HttpClient http, string ownerAndRepo)
         if (!response.IsSuccessStatusCode) return null; // private repo, no releases yet, rate limited…
         var json = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         var latest = Parse(json);
-        return latest is not null && latest.Version > Normalize(current) ? latest : null;
+        // A release must belong to the configured repository; so must its download.
+        if (latest is null || !ReleaseUrlPolicy.IsTrusted(latest.PageUrl, Repository)) return null;
+        if (!ReleaseUrlPolicy.IsTrusted(latest.DownloadUrl, Repository)) latest = latest with { DownloadUrl = null };
+        return latest.Version > Normalize(current) ? latest : null;
     }
 
+    /// <summary>
+    /// Parses a GitHub "latest release" response. Returns null for drafts, prereleases, unparseable tags and releases
+    /// whose page URL is not a trusted GitHub release URL (<see cref="ReleaseUrlPolicy"/>); an untrusted download URL
+    /// becomes null.
+    /// </summary>
     public static UpdateInfo? Parse(string json)
     {
         using var doc = JsonDocument.Parse(json);
@@ -31,6 +40,8 @@ public sealed class UpdateChecker(HttpClient http, string ownerAndRepo)
         if (root.TryGetProperty("prerelease", out var pre) && pre.GetBoolean()) return null;
         var tag = root.GetProperty("tag_name").GetString() ?? "";
         if (!TryParseVersion(tag, out var version)) return null;
+        var page = root.TryGetProperty("html_url", out var html) ? html.GetString() : null;
+        if (!ReleaseUrlPolicy.IsTrusted(page)) return null;
 
         string? download = null;
         if (root.TryGetProperty("assets", out var assets))
@@ -40,13 +51,14 @@ public sealed class UpdateChecker(HttpClient http, string ownerAndRepo)
                 var name = asset.GetProperty("name").GetString() ?? "";
                 if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                 {
-                    download = asset.GetProperty("browser_download_url").GetString();
+                    var url = asset.GetProperty("browser_download_url").GetString();
+                    download = ReleaseUrlPolicy.IsTrusted(url) ? url : null;
                     break;
                 }
             }
         }
 
-        return new UpdateInfo(version, tag, root.GetProperty("html_url").GetString() ?? "", download,
+        return new UpdateInfo(version, tag, page!, download,
             root.TryGetProperty("body", out var body) ? body.GetString() : null);
     }
 
