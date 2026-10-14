@@ -35,8 +35,9 @@ them.
 **Remember translations between sessions** (Translation page) is off unless you turn it on. When it is on,
 `translation-cache.json` keeps recent translations so a repeated line like "gg wp" is translated instantly and, with a
 paid provider, for free. The file holds translations of chat lines you received, in your language, plus a one-way
-fingerprint of each original line. It never leaves this PC. The fingerprint stops casual reading of the original
-lines, but someone with the file could still guess short, common ones, so treat the file like your chat transcripts.
+fingerprint of each original line; reply-box translations (what you type and its back-translation) are never saved.
+It never leaves this PC. The fingerprint stops casual reading of the original lines, but someone with the file could
+still guess short, common ones, so treat the file like your chat transcripts.
 It holds at most 2,000 entries (and 1 MiB), forgets entries after 30 days, and never stores messages longer than 200
 characters. Turning the option off, or **Clear saved translations**, deletes the file.
 

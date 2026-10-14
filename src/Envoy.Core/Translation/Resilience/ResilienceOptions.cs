@@ -71,12 +71,16 @@ public sealed record ResilienceOptions
         };
         if (lane == TranslationLane.Chat) return chat;
 
-        // The reply box retries naturally on the next typing pause, so it never queues or retries (spec §4).
+        // The reply box never queues for a slot or retries: a newer typing pause cancels the older preview anyway. A
+        // preview costs two requests (translation, then back-translation), so a keyless provider gets 1 token/s with a
+        // burst of 4, and the latest preview waits up to 3 s for its tokens instead of failing once typing stops
+        // (spec 03 Deviations).
         var keyless = chat.TokensPerSecond > 0;
         return chat with
         {
-            TokensPerSecond = keyless ? 0.5 : 0,
-            Burst = keyless ? 2 : 0,
+            TokensPerSecond = keyless ? 1 : 0,
+            Burst = keyless ? 4 : 0,
+            MaxQueueWait = keyless ? TimeSpan.FromSeconds(3) : chat.MaxQueueWait,
             MaxConcurrency = 1,
             MaxQueued = 1,
             MaxAttempts = 1,

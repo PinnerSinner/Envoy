@@ -44,6 +44,9 @@ public sealed class ResilientTranslator : ITranslator
 
         var probeSettled = !isProbe;
         var holdsSlot = false;
+        // The token we get is linked to the overall deadline: only the real caller's cancellation is "cancelled"
+        // (nothing recorded); the deadline running out is a Timeout failure like any other (REQ-TRR-6, 16).
+        bool CallerCancelled() => TranslationDeadline.CallerCancelled(cancellationToken);
         using var deadlineCts = TranslationDeadline.Remaining(_clock) is { } left ? new CancellationTokenSource(left, _clock) : null;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadlineCts?.Token ?? CancellationToken.None);
         try
@@ -57,21 +60,21 @@ public sealed class ResilientTranslator : ITranslator
             {
                 gotToken = await lane.Bucket.TakeAsync(maxWait, linked.Token).ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (!CallerCancelled())
             {
                 throw DeadlineTimeout();
             }
-            if (!gotToken) throw Reject(ProviderState.Throttled, null, callStart);
+            if (!gotToken) throw Reject(ProviderState.Throttled, null, callStart, local: true);
 
             // 3. Lane gate, bounded by the queue limit, the deadline and the caller's token.
             if (!lane.Gate.Wait(0, CancellationToken.None))
             {
-                if (!lane.TryEnqueue()) throw Reject(ProviderState.Throttled, null, callStart, busy: true);
+                if (!lane.TryEnqueue()) throw Reject(ProviderState.Throttled, null, callStart, local: true, busy: true);
                 try
                 {
                     await lane.Gate.WaitAsync(linked.Token).ConfigureAwait(false);
                 }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                catch (OperationCanceledException) when (!CallerCancelled())
                 {
                     throw DeadlineTimeout();
                 }
@@ -108,14 +111,14 @@ public sealed class ResilientTranslator : ITranslator
                         Report("success", null, null, attempt, attemptStart);
                         return result;
                     }
-                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    catch (OperationCanceledException) when (CallerCancelled())
                     {
                         Report("cancelled", null, null, attempt, attemptStart);
                         throw;
                     }
                     catch (Exception ex)
                     {
-                        error = Classify(ex, deadlineCts?.IsCancellationRequested == true);
+                        error = Classify(ex, deadlineCts?.IsCancellationRequested == true || TranslationDeadline.Remaining(_clock) == TimeSpan.Zero);
                     }
                 }
 
@@ -127,7 +130,7 @@ public sealed class ResilientTranslator : ITranslator
                 {
                     if (wait > TimeSpan.Zero) await Task.Delay(wait, _clock, linked.Token).ConfigureAwait(false);
                 }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                catch (OperationCanceledException) when (!CallerCancelled())
                 {
                     error = DeadlineTimeout();
                     break;
@@ -163,13 +166,20 @@ public sealed class ResilientTranslator : ITranslator
         _guard.Health.RecordFailure(error, state, breaker.OpenUntil, counted);
     }
 
-    /// <summary>A local rejection: health records the state (raising StateChanged on a transition), no network call.</summary>
-    private ProviderUnavailableException Reject(ProviderState state, DateTimeOffset? retryAt, long callStart, bool busy = false)
+    /// <summary>
+    /// A rejection without a network call. Health records the state (raising StateChanged on a transition), except for
+    /// the reply box's own pacing (<paramref name="local"/> in the compose lane): that is Envoy's limit, not the
+    /// provider's, so it leaves the shared health alone and says so (REQ-TRR-29).
+    /// </summary>
+    private ProviderUnavailableException Reject(ProviderState state, DateTimeOffset? retryAt, long callStart, bool local = false,
+                                                bool busy = false)
     {
-        _guard.Health.RecordRejection(state, retryAt);
+        var paced = local && _lane == TranslationLane.Compose;
+        if (!paced) _guard.Health.RecordRejection(state, retryAt);
         Report("skipped", TranslationErrorKind.Unavailable, null, 0, callStart);
-        var message = busy
-            ? TranslationErrorText.Format(TranslationErrorText.SkippedBusy, ("provider", ProviderCatalog.NameOf(Id)))
+        var provider = ("provider", ProviderCatalog.NameOf(Id));
+        var message = paced ? TranslationErrorText.Format(TranslationErrorText.SkippedComposePaced, provider)
+            : busy ? TranslationErrorText.Format(TranslationErrorText.SkippedBusy, provider)
             : TranslationErrorText.ForSkip(state, Id);
         return new ProviderUnavailableException(Id, state, retryAt, message);
     }

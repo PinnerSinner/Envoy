@@ -45,9 +45,17 @@ public sealed class TranslatorFactory
     public static string CacheNamespace(TranslationSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        return settings.Primary == ProviderCatalog.Claude
-            ? settings.Primary + "/" + (string.IsNullOrWhiteSpace(settings.ClaudeModel) ? ClaudeTranslator.DefaultModel : settings.ClaudeModel)
-            : settings.Primary;
+        return CacheNamespace(settings.Primary, settings);
+    }
+
+    /// <summary>The cache namespace of <paramref name="providerId"/>: its id, plus the model for Claude.</summary>
+    public static string CacheNamespace(string providerId, TranslationSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(providerId);
+        ArgumentNullException.ThrowIfNull(settings);
+        return providerId == ProviderCatalog.Claude
+            ? providerId + "/" + (string.IsNullOrWhiteSpace(settings.ClaudeModel) ? ClaudeTranslator.DefaultModel : settings.ClaudeModel)
+            : providerId;
     }
 
     /// <summary>
@@ -69,6 +77,11 @@ public sealed class TranslatorFactory
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(joined)));
     }
 
+    /// <summary>
+    /// Builds one lane's stack. Both lanes share the runtime's breakers, health and memory cache; only the chat lane's
+    /// results can be saved to disk (the reply box's entries are memory-only). The cache namespace is the first provider
+    /// that could be built, and only its results are cached (REQ-TRR-19).
+    /// </summary>
     public ITranslator Build(TranslationSettings settings, Action<string, Exception>? onProviderFailed = null,
                              TranslationLane lane = TranslationLane.Chat)
     {
@@ -82,7 +95,7 @@ public sealed class TranslatorFactory
             ITranslator? provider;
             try
             {
-                provider = Create(id, settings);
+                provider = Runtime.SharedProvider(id, Fingerprint(id, settings), () => Create(id, settings));
             }
             catch (TranslationException ex)
             {
@@ -102,10 +115,16 @@ public sealed class TranslatorFactory
         var fallback = new FallbackTranslator(chain, () => runtime.Options.RequestTimeout, clock, runtime.Health.Redactor);
         if (onProviderFailed is not null) fallback.ProviderFailed += onProviderFailed;
         var coalescing = new CoalescingTranslator(fallback, r => TranslationCache.Key("", r));
-        return new CachingTranslator(coalescing, Runtime.Cache, CacheNamespace(settings));
+        // A primary that is "Not set up" is not in the chain: the first provider that is gets the namespace.
+        var primary = chain.Count > 0 ? chain[0].Id : settings.Primary;
+        return new CachingTranslator(coalescing, Runtime.Cache, CacheNamespace(primary, settings), primary,
+            persist: lane == TranslationLane.Chat);
     }
 
-    /// <summary>The bare provider for <paramref name="id"/> (no resilience), or null for an unknown id.</summary>
+    /// <summary>
+    /// A new bare provider for <paramref name="id"/> (no resilience), or null for an unknown id. The caller owns it
+    /// (an <see cref="IDisposable"/> one must be disposed); <see cref="Build"/> shares them through the runtime instead.
+    /// </summary>
     /// <exception cref="TranslationException">Kind <see cref="TranslationErrorKind.Configuration"/>: a key is missing.</exception>
     public ITranslator? Create(string id, TranslationSettings s)
     {

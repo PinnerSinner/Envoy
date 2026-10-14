@@ -21,6 +21,7 @@ public sealed class TranslationRuntime : IDisposable
 
     private readonly object _gate = new();
     private readonly Dictionary<string, ProviderGuard> _guards = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (string Fingerprint, ITranslator Provider)> _shared = new(StringComparer.Ordinal);
     private readonly TranslationCacheStore? _store;
     private readonly SemaphoreSlim _saveLock = new(1, 1);
     private readonly ILog _log;
@@ -171,13 +172,69 @@ public sealed class TranslationRuntime : IDisposable
     /// <summary>Saves now if remembering is on, the cache is dirty and persistence is not suppressed.</summary>
     public void Flush() => SaveIfDirty();
 
-    /// <summary>Flushes (unless suppressed) and stops the save timer.</summary>
+    /// <summary>Flushes (unless suppressed), stops the save timer and disposes the shared providers.</summary>
     public void Dispose()
     {
         if (_disposed) return;
         StopTimer();
         SaveIfDirty();
         _disposed = true;
+        List<ITranslator> providers;
+        lock (_gate)
+        {
+            providers = [.. _shared.Values.Select(v => v.Provider)];
+            _shared.Clear();
+        }
+        foreach (var provider in providers) (provider as IDisposable)?.Dispose();
+    }
+
+    /// <summary>
+    /// The provider for <paramref name="providerId"/>, shared by every stack built with the same
+    /// <paramref name="configFingerprint"/> (both lanes, every rebuild). Only providers that own resources
+    /// (<see cref="IDisposable"/>, e.g. the AWS client) are kept; the one they replace on a fingerprint change, and all of
+    /// them at <see cref="Dispose"/>, are disposed. Others are cheap and made fresh by <paramref name="create"/>.
+    /// </summary>
+    internal ITranslator? SharedProvider(string providerId, string configFingerprint, Func<ITranslator?> create)
+    {
+        ArgumentNullException.ThrowIfNull(create);
+        lock (_gate)
+        {
+            if (_shared.TryGetValue(providerId, out var kept) && kept.Fingerprint == configFingerprint) return kept.Provider;
+        }
+
+        ITranslator? created;
+        try
+        {
+            created = create();
+        }
+        catch
+        {
+            ReleaseShared(providerId, null); // e.g. its key was removed: the old client is no longer used
+            throw;
+        }
+        if (created is not IDisposable) return created;
+        return ReleaseShared(providerId, (configFingerprint, created));
+    }
+
+    /// <summary>Stores <paramref name="next"/> (or removes the entry) and disposes the provider it replaces.</summary>
+    private ITranslator? ReleaseShared(string providerId, (string Fingerprint, ITranslator Provider)? next)
+    {
+        (string Fingerprint, ITranslator Provider) old;
+        bool hadOld;
+        lock (_gate)
+        {
+            hadOld = _shared.TryGetValue(providerId, out old);
+            if (hadOld && next is { } n && old.Fingerprint == n.Fingerprint)
+            {
+                // Another build raced us with the same configuration: keep the stored one.
+                (n.Provider as IDisposable)?.Dispose();
+                return old.Provider;
+            }
+            if (next is { } value && !_disposed) _shared[providerId] = value;
+            else _shared.Remove(providerId);
+        }
+        if (hadOld) (old.Provider as IDisposable)?.Dispose();
+        return next?.Provider;
     }
 
     /// <summary>

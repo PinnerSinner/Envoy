@@ -195,14 +195,87 @@ public class ResilientTranslatorTests
     [Fact]
     public async Task Compose_lane_never_takes_chat_tokens()
     {
-        var s = new ResilientSetup(ProviderCatalog.GoogleFree); // compose: 0.5/s, burst 2
-        await s.Compose.TranslateAsync(Request);
-        await s.Compose.TranslateAsync(Request);
-        var ex = await Assert.ThrowsAsync<ProviderUnavailableException>(() => s.Compose.TranslateAsync(Request));
+        var s = new ResilientSetup(ProviderCatalog.GoogleFree); // compose: 1/s, burst 4, wait ≤ 3 s
+        using var cts = new CancellationTokenSource();
+        for (var i = 0; i < 4; i++) await s.Compose.TranslateAsync(Request);
+        var waiting = Enumerable.Range(0, 3).Select(_ => s.Compose.TranslateAsync(Request, cts.Token)).ToList(); // 1, 2, 3 s
+        Assert.All(waiting, t => Assert.False(t.IsCompleted));
+        var ex = await Assert.ThrowsAsync<ProviderUnavailableException>(() => s.Compose.TranslateAsync(Request)); // 4 s: too long
         Assert.Equal(ProviderState.Throttled, ex.State);
 
         var chat = Enumerable.Range(0, 6).Select(_ => s.Chat.TranslateAsync(Request)).ToList();
         Assert.All(chat, t => Assert.True(t.IsCompletedSuccessfully)); // the chat burst is untouched
+        cts.Cancel();
+        foreach (var t in waiting) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => t);
+    }
+
+    [Fact]
+    public async Task Compose_pacing_does_not_blame_the_provider()
+    {
+        var s = new ResilientSetup(ProviderCatalog.GoogleFree);
+        using var cts = new CancellationTokenSource();
+        for (var i = 0; i < 4; i++) await s.Compose.TranslateAsync(Request);
+        var waiting = Enumerable.Range(0, 3).Select(_ => s.Compose.TranslateAsync(Request, cts.Token)).ToList();
+
+        var ex = await Assert.ThrowsAsync<ProviderUnavailableException>(() => s.Compose.TranslateAsync(Request));
+        Assert.Equal("Envoy is pacing reply-box requests to Google Translate (free). Try again in a moment.", ex.Message);
+        Assert.Equal(ProviderState.Healthy, s.Health.State); // the shared health is not marked Throttled
+        Assert.DoesNotContain(s.Transitions, t => t.State == ProviderState.Throttled);
+        cts.Cancel();
+        foreach (var t in waiting) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => t);
+    }
+
+    [Fact]
+    public async Task Reply_box_preview_after_steady_typing_succeeds()
+    {
+        // Spec 03 REQ-TRR-29: a typing pause every second, each preview = translation + back-translation (as
+        // ComposeWindow does), each newer pause cancelling the older preview; then typing stops.
+        var clock = TestClock.Create();
+        var google = new ResilientSetup(ProviderCatalog.GoogleFree, clock);
+        var edge = new ResilientSetup(ProviderCatalog.EdgeFree, clock);
+        var chain = new FallbackTranslator([google.Compose, edge.Compose], () => TimeSpan.FromSeconds(15), clock);
+
+        async Task<string> Preview(int n, CancellationToken ct)
+        {
+            var forward = await chain.TranslateAsync(new TranslationRequest("meet at my base " + n, "zh-CN", "en"), ct);
+            var back = await chain.TranslateAsync(new TranslationRequest(forward.Text, "en", "zh-CN"), ct);
+            return back.Text;
+        }
+
+        CancellationTokenSource? previous = null;
+        var previews = new List<Task<string>>();
+        for (var pause = 0; pause < 12; pause++)
+        {
+            previous?.Cancel();
+            previous = new CancellationTokenSource();
+            previews.Add(Preview(pause, previous.Token));
+            for (var step = 0; step < 10; step++)
+            {
+                await Task.Delay(1);
+                clock.Advance(TimeSpan.FromMilliseconds(100));
+            }
+        }
+        previous?.Cancel();
+
+        using var last = new CancellationTokenSource();
+        var final = Preview(99, last.Token);
+        await clock.RunUntil(final, TimeSpan.FromMilliseconds(100));
+        Assert.Equal("[en] [zh-CN] meet at my base 99", await final);
+        Assert.True(clock.GetUtcNow() - TestClock.Start <= TimeSpan.FromSeconds(12 + 3));
+
+        foreach (var p in previews)
+        {
+            try
+            {
+                await p;
+            }
+            catch (OperationCanceledException)
+            {
+                // a newer pause cancelled it
+            }
+        }
+        Assert.NotEqual(ProviderState.Throttled, google.Health.State);
+        Assert.NotEqual(ProviderState.Throttled, edge.Health.State);
     }
 
     [Fact]

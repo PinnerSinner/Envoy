@@ -326,7 +326,7 @@ are code constants, not settings, so they can be tuned after release without a s
 
 **Compose lane** (SHOULD, REQ-TRR-29): keyless providers 0.5 tokens/s, burst 2; every provider `MaxConcurrency = 1`,
 `MaxQueued = 1`, `MaxAttempts = 1` (the reply box retries naturally on the next typing pause). The worst-case rate to
-a keyless endpoint is therefore 2.5 requests/s.
+a keyless endpoint is therefore 2.5 requests/s. (As built: 1 token/s, burst 4, 3 s token wait; see Deviation 21.)
 
 ### 5. Health (`Resilience/ProviderHealthRegistry.cs`, `ProviderHealthText.cs`, new)
 
@@ -872,3 +872,25 @@ Everything in the requirements table is built except REQ-TRR-27 (COULD). Differe
 19. **Manual steps** M1–M4 are in `docs/releasing.md` as M-TRR-1…4 (following 02's precedent); 08b orders them.
 20. `TranslationTestText.Failure` is unchanged (an existing test pins its behaviour); the stack now only throws
     `TranslationErrorText` sentences, so the "Try it" box shows them.
+21. **Compose lane sized for two requests per preview.** Every reply-box preview is a translation plus a
+    back-translation, so the §4 compose budget (0.5 tokens/s, burst 2, 1.5 s wait, no retry) failed every other preview
+    at one typing pause a second, and the last one once typing stopped, with nothing to retry it. Keyless providers now
+    get 1 token/s, burst 4, and a 3 s token wait in the compose lane (the latest preview waits; older ones are
+    cancelled by the next pause and give their token back). The worst-case rate to a keyless endpoint is 3 requests/s.
+    A compose-lane bucket or queue rejection is Envoy's own pacing: it does not change the shared health and says
+    "Envoy is pacing reply-box requests to {provider}. Try again in a moment." (`TranslationErrorText.SkippedComposePaced`).
+    `Reply_box_preview_after_steady_typing_succeeds` and `Compose_pacing_does_not_blame_the_provider` pin this.
+22. **Reply-box cache entries are memory-only.** `CachingTranslator` takes `persist`; the compose stack passes false,
+    so what you type and its back-translation share the memory cache with chat (REQ-TRR-29) but never reach
+    `translation-cache.json` (§6 privacy wording). `Compose_lane_results_are_never_saved`.
+23. **Only the primary's results are cached** (REQ-TRR-19). `CachingTranslator` takes the primary's id and stores only
+    results that provider served, so a fallback's output is never kept (or saved for 30 days) under the primary's
+    namespace. The namespace is the first provider that could be built: a primary that is "Not set up" hands it to the
+    next one. Repeats during a primary outage therefore go to the fallback each time.
+24. **Overall deadline vs caller cancellation.** `TranslationDeadline` also carries the real caller's token, so
+    `ResilientTranslator` reports an attempt cut off by the overall deadline as a recorded `Timeout` failure (breaker
+    and health) instead of "cancelled". `Deadline_hit_during_an_attempt_is_a_recorded_timeout_not_a_cancellation`.
+25. **Disposable providers are shared.** `TranslationRuntime.SharedProvider` keeps one `AwsTranslator` (which owns an
+    SDK client) per configuration fingerprint for both lanes and every rebuild, disposes the one a new fingerprint
+    replaces, and disposes the rest with the runtime. `TranslatorFactory.Create` still returns a new, caller-owned
+    instance.

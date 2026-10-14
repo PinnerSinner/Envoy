@@ -54,6 +54,42 @@ public class FallbackDeadlineTests
     }
 
     [Fact]
+    public async Task Deadline_hit_during_an_attempt_is_a_recorded_timeout_not_a_cancellation()
+    {
+        var s = new ResilientSetup(ProviderCatalog.Claude, jitter: 0); // 12 s attempts: the 5 s deadline cuts the first one off
+        s.Inner.Default = Hang;
+        var chain = new FallbackTranslator([s.Chat], () => TimeSpan.FromSeconds(5), s.Clock);
+
+        var call = chain.TranslateAsync(Request);
+        await TestClock.Settle();
+        s.Clock.Advance(TimeSpan.FromSeconds(5));
+        var ex = await Assert.ThrowsAsync<TranslationException>(() => call.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.Equal(TranslationErrorKind.Timeout, ex.Kind);
+        Assert.DoesNotContain(s.Diagnostics, d => d.Outcome == "cancelled");
+        Assert.Contains(s.Diagnostics, d => d.Outcome == "failure" && d.Kind == TranslationErrorKind.Timeout);
+        Assert.Equal(1, s.Health.ConsecutiveFailures);
+        Assert.Equal(TranslationErrorKind.Timeout, s.Health.LastErrorKind);
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_inside_a_deadline_is_not_recorded()
+    {
+        var s = new ResilientSetup(ProviderCatalog.Claude, jitter: 0);
+        s.Inner.Default = Hang;
+        var chain = new FallbackTranslator([s.Chat], () => TimeSpan.FromSeconds(5), s.Clock);
+        using var cts = new CancellationTokenSource();
+
+        var call = chain.TranslateAsync(Request, cts.Token);
+        await TestClock.Settle();
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.Contains(s.Diagnostics, d => d.Outcome == "cancelled");
+        Assert.Equal(0, s.Health.ConsecutiveFailures);
+    }
+
+    [Fact]
     public async Task Deadline_follows_Configure()
     {
         var clock = TestClock.Create();

@@ -33,6 +33,9 @@ public static class TranslationErrorText
     public const string SkippedQuota = "{provider} has no quota left for now.";
     public const string SkippedBusy = "{provider} is busy with other messages.";
 
+    /// <summary>The reply box's own request pacing (compose lane), not a limit set by the provider.</summary>
+    public const string SkippedComposePaced = "Envoy is pacing reply-box requests to {provider}. Try again in a moment.";
+
     public const string NoProviders = "No translation provider is configured.";
 
     /// <summary>{reasons} = the whole-sentence message of each provider that failed, in chain order.</summary>

@@ -43,7 +43,7 @@ public sealed class FallbackTranslator : ITranslator
         var limit = _deadline?.Invoke();
         using var deadlineCts = limit is { } d ? new CancellationTokenSource(d, _clock) : null;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadlineCts?.Token ?? CancellationToken.None);
-        using var scope = limit is { } span ? TranslationDeadline.Begin(_clock.GetUtcNow() + span) : (TranslationDeadline.Scope?)null;
+        using var scope = limit is { } span ? TranslationDeadline.Begin(_clock.GetUtcNow() + span, cancellationToken) : (TranslationDeadline.Scope?)null;
 
         var errors = new List<(string Id, Exception Error)>();
         foreach (var translator in _chain)

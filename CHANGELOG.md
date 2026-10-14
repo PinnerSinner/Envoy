@@ -45,7 +45,7 @@ versioning: [SemVer](https://semver.org/).
 - **Clear error messages.** Translation errors are short sentences such as "Google Translate (free) sent a reply Envoy
   could not read." instead of raw server or parser text.
 - The translation cache now survives settings changes, and switching provider no longer serves the old provider's
-  cached translations.
+  cached translations (a fallback's translation is not kept as your main provider's).
 - Characters a paid provider never received (a skipped provider, a connection that failed before sending) no longer
   count against the daily cap. Claude and Amazon Translate no longer retry on their own behind Envoy's back.
 - **Errors no longer open dialogs.** A problem shows as a small pop-up in the bottom-right corner that never takes

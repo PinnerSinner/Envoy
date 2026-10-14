@@ -74,7 +74,8 @@ or change without notice. If one stops working, the other takes over. If both do
 **Translation → Saved translations → Remember translations between sessions** is off by default. When it is on,
 Envoy saves its translation cache to `translation-cache.json` in its data folder, at most every 30 seconds and when it
 closes, so "gg wp" next match is instant (and free with a paid provider). The file holds translations of chat lines
-you received, in your language, plus a one-way fingerprint of each original line. It never leaves this PC. The
+you received, in your language, plus a one-way fingerprint of each original line. Reply-box translations (what you
+type and its back-translation) are never saved. It never leaves this PC. The
 fingerprint stops casual reading of the original lines, but someone with the file could guess short common ones, so
 treat it like a chat transcript.
 

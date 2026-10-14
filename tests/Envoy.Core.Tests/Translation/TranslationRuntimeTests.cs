@@ -203,4 +203,118 @@ public sealed class TranslationRuntimeTests : IDisposable
         Assert.Equal(150, runtime.Cache.Capacity);
         Assert.Equal(150, runtime.Options.CacheMaxEntries);
     }
+
+    [Fact]
+    public async Task Compose_lane_results_are_never_saved()
+    {
+        var clock = TestClock.Create();
+        var handler = new FakeHttpHandler().Respond(ProviderFixture.Load("google-free", "success"));
+        using var runtime = new TranslationRuntime(CachePath, clock);
+        runtime.Configure(TranslationRuntimeOptions.Default with { RememberTranslations = true });
+        var factory = new TranslatorFactory(handler.Client(), new UsageTracker(clock), runtime);
+        var settings = new TranslationSettings();
+
+        var compose = factory.Build(settings, lane: TranslationLane.Compose);
+        await compose.TranslateAsync(new("meet me at my base, my discord is joe1234", "zh-CN", "en"));
+        await compose.TranslateAsync(new("见我在我的基地", "en", "zh-CN")); // the back-translation: your own words
+        Assert.Equal(2, runtime.Cache.Count); // still shared in memory with chat (REQ-TRR-29)
+        runtime.Flush();
+        Assert.Empty(runtime.Store!.Load());
+
+        await factory.Build(settings).TranslateAsync(new("你好", "en")); // a received chat line is saved
+        runtime.Flush();
+        Assert.Single(runtime.Store!.Load());
+    }
+
+    [Fact]
+    public async Task Fallback_results_are_not_cached_under_the_primary()
+    {
+        var clock = TestClock.Create();
+        var handler = new FakeHttpHandler().Then((req, _) => Task.FromResult(req.RequestUri!.Host.Contains("deepl", StringComparison.Ordinal)
+            ? ProviderFixture.Load("deepl", "auth").ToResponse()
+            : ProviderFixture.Load("google-free", "success").ToResponse()));
+        using var runtime = new TranslationRuntime(clock: clock);
+        var factory = new TranslatorFactory(handler.Client(), new UsageTracker(clock), runtime);
+        var settings = new TranslationSettings { Primary = ProviderCatalog.DeepL, Fallbacks = [], DeepLKey = "bad-key-000001" };
+
+        var first = await factory.Build(settings).TranslateAsync(new("gg", "en"));
+        var second = await factory.Build(settings).TranslateAsync(new("gg", "en"));
+
+        Assert.Equal(ProviderCatalog.GoogleFree, first.ProviderId);
+        Assert.False(second.FromCache);
+        Assert.Equal(0, runtime.Cache.Count);
+    }
+
+    [Fact]
+    public async Task Primary_that_is_not_set_up_gives_the_namespace_to_the_first_working_provider()
+    {
+        var clock = TestClock.Create();
+        var handler = new FakeHttpHandler().Respond(ProviderFixture.Load("google-free", "success"));
+        using var runtime = new TranslationRuntime(clock: clock);
+        var factory = new TranslatorFactory(handler.Client(), new UsageTracker(clock), runtime);
+        var noKey = new TranslationSettings { Primary = ProviderCatalog.DeepL, Fallbacks = [] };
+
+        await factory.Build(noKey).TranslateAsync(new("gg", "en"));
+        Assert.True((await factory.Build(noKey).TranslateAsync(new("gg", "en"))).FromCache);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public void Disposable_providers_are_shared_per_fingerprint_and_disposed()
+    {
+        var runtime = new TranslationRuntime(clock: TestClock.Create());
+        var created = new List<DisposableTranslator>();
+        DisposableTranslator Create()
+        {
+            var t = new DisposableTranslator();
+            created.Add(t);
+            return t;
+        }
+
+        var a = runtime.SharedProvider(ProviderCatalog.Aws, "fp1", Create);
+        Assert.Same(a, runtime.SharedProvider(ProviderCatalog.Aws, "fp1", Create)); // chat and compose, every rebuild
+        Assert.Single(created);
+
+        var b = runtime.SharedProvider(ProviderCatalog.Aws, "fp2", Create); // a new key: the old client is disposed
+        Assert.NotSame(a, b);
+        Assert.True(created[0].Disposed);
+        Assert.False(created[1].Disposed);
+
+        var plain = new FakeTranslator(ProviderCatalog.GoogleFree);
+        Assert.Same(plain, runtime.SharedProvider(ProviderCatalog.GoogleFree, "fp", () => plain)); // not kept
+        Assert.NotSame(plain, runtime.SharedProvider(ProviderCatalog.GoogleFree, "fp", () => new FakeTranslator(ProviderCatalog.GoogleFree)));
+
+        runtime.Dispose();
+        Assert.True(created[1].Disposed);
+    }
+
+    [Fact]
+    public void Aws_client_is_built_once_for_both_lanes()
+    {
+        var clock = TestClock.Create();
+        var runtime = new TranslationRuntime(clock: clock);
+        var factory = new TranslatorFactory(new FakeHttpHandler().Client(), new UsageTracker(clock), runtime);
+        var settings = new TranslationSettings
+        {
+            Primary = ProviderCatalog.Aws, Fallbacks = [], AwsAccessKeyId = "AKIAEXAMPLE0001", AwsSecretAccessKey = "secret-0001", AwsRegion = "us-east-1",
+        };
+        factory.Build(settings);
+        factory.Build(settings, lane: TranslationLane.Compose);
+        var fingerprint = TranslatorFactory.Fingerprint(ProviderCatalog.Aws, settings);
+        var shared = runtime.SharedProvider(ProviderCatalog.Aws, fingerprint, () => throw new InvalidOperationException("not reused"));
+        Assert.IsType<Envoy.Core.Translation.Providers.AwsTranslator>(shared);
+        runtime.Dispose();
+    }
+
+    private sealed class DisposableTranslator : ITranslator, IDisposable
+    {
+        public bool Disposed { get; private set; }
+        public string Id => ProviderCatalog.Aws;
+        public bool IsMetered => true;
+
+        public Task<TranslationResult> TranslateAsync(TranslationRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new TranslationResult(request.Text, null, Id));
+
+        public void Dispose() => Disposed = true;
+    }
 }
