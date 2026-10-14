@@ -14,4 +14,7 @@ public enum HotkeyStatus
 
     /// <summary>The combination could not be parsed.</summary>
     Invalid,
+
+    /// <summary>Not registered because Envoy started in safe mode (02; display text <c>SafeModeText.HotkeysOff</c>).</summary>
+    SkippedSafeMode,
 }

@@ -1,6 +1,7 @@
 <UserControl x:Class="Envoy.App.Pages.AboutPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Order (contract §8.6): Version & updates → Setup guide (07a) → Troubleshooting → Privacy and licences. -->
     <ScrollViewer Padding="32,24">
         <StackPanel MaxWidth="760">
             <Image Source="pack://application:,,,/Envoy;component/Assets/envoy.png" Width="96" Height="96" HorizontalAlignment="Left" Margin="0,0,0,12" />
@@ -11,6 +12,57 @@
                 Envoy is an unofficial fan tool. It is not affiliated with or endorsed by Microsoft, Xbox Game Studios, World's Edge,
                 Relic Entertainment or Forgotten Empires. Age of Empires and Age of Mythology are trademarks of Microsoft.
             </TextBlock>
+
+            <!-- ===== Troubleshooting (REQ-REL-27) ===== -->
+            <ContentControl x:Name="TroubleshootingFrame" Style="{StaticResource OrnateFrame}" Margin="0,6,0,16">
+                <StackPanel>
+                    <TextBlock Text="Troubleshooting" Style="{StaticResource Text.H2}" />
+                    <TextBlock Text="{Binding DiagnosticsPrivacyText, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,10" />
+                    <WrapPanel>
+                        <Button Content="Copy diagnostics" Command="{Binding CopyDiagnosticsCommand}" AutomationProperties.Name="Copy diagnostics" Margin="0,0,8,8" />
+                        <Button Content="Export diagnostics…" Command="{Binding ExportDiagnosticsCommand}" AutomationProperties.Name="Export diagnostics" Margin="0,0,8,8" />
+                        <Button Content="Open log folder" Command="{Binding OpenLogsCommand}" AutomationProperties.Name="Open log folder" Margin="0,0,8,8" />
+                        <Button Content="Restart in safe mode" Command="{Binding RestartSafeModeCommand}" AutomationProperties.Name="Restart in safe mode" Margin="0,0,8,8"
+                                Visibility="{Binding IsSafeMode, Mode=OneWay, Converter={StaticResource InverseBoolToVisibility}}" />
+                        <Button Content="Restart normally" Command="{Binding RestartNormallyCommand}" AutomationProperties.Name="Restart normally" Margin="0,0,8,8"
+                                Visibility="{Binding IsSafeMode, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding DiagnosticsStatus, Mode=OneWay}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Accent}" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                    <CheckBox Content="Show a pop-up when something goes wrong" IsChecked="{Binding Settings.Diagnostics.ShowErrorToasts}"
+                              AutomationProperties.Name="Show error pop-ups" Margin="0,4,0,4" />
+                    <CheckBox Content="Detailed logging" IsChecked="{Binding Settings.Diagnostics.VerboseLogging}"
+                              AutomationProperties.Name="Detailed logging" Margin="0,4,0,4" />
+                    <CheckBox Content="Include chat text in logs" IsChecked="{Binding Settings.Diagnostics.LogChatText}"
+                              AutomationProperties.Name="Include chat text in logs" Margin="0,4,0,0" />
+                    <TextBlock Text="Off by default. Only turn this on if a developer asks; the log will then contain your chat." Style="{StaticResource Text.Caption}"
+                               TextWrapping="Wrap" Margin="26,0,0,10" />
+
+                    <!-- Recent problems and the last crash (REQ-REL-28) -->
+                    <TextBlock Text="Recent problems" Style="{StaticResource Text.Label}" FontWeight="SemiBold" Margin="0,4,0,4"
+                               Visibility="{Binding HasRecentProblems, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+                    <ItemsControl ItemsSource="{Binding RecentProblems, Mode=OneWay}" Margin="0,0,0,8"
+                                  Visibility="{Binding HasRecentProblems, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Mode=OneWay}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <DockPanel Margin="0,0,0,8">
+                        <Button DockPanel.Dock="Right" Content="Dismiss" Command="{Binding DismissCrashCommand}" AutomationProperties.Name="Dismiss last crash"
+                                Padding="10,3" Visibility="{Binding HasLastCrash, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock Text="{Binding LastCrashText, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <WrapPanel Margin="0,4,0,0">
+                        <Button Content="Reset settings…" Command="{Binding ResetSettingsCommand}" AutomationProperties.Name="Reset settings" Margin="0,0,8,0" />
+                        <Button Content="Delete all Envoy data…" Command="{Binding DeleteAllDataCommand}" AutomationProperties.Name="Delete all Envoy data" />
+                    </WrapPanel>
+                </StackPanel>
+            </ContentControl>
+
+            <!-- ===== Privacy and licences ===== -->
             <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap" Margin="0,0,0,12">
                 <Bold>How it stays safe:</Bold> Envoy never reads or writes game memory, injects code, or modifies game files. It reads
                 pixels from your screen (like streaming software) and sends keystrokes (like an on-screen keyboard). Chat text is sent only

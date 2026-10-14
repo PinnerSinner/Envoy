@@ -6,7 +6,9 @@
       "user32!GetWindowRect", "user32!RegisterHotKey", "user32!UnregisterHotKey", "user32!SendInput",
       "user32!MapVirtualKeyW", "user32!GetDC", "user32!ReleaseDC",
       "gdi32!CreateCompatibleDC", "gdi32!CreateCompatibleBitmap", "gdi32!SelectObject", "gdi32!DeleteObject",
-      "gdi32!DeleteDC", "gdi32!SetStretchBltMode", "gdi32!StretchBlt", "gdi32!GetDIBits"
+      "gdi32!DeleteDC", "gdi32!SetStretchBltMode", "gdi32!StretchBlt", "gdi32!GetDIBits",
+      "user32!GetAsyncKeyState", "user32!MonitorFromPoint", "user32!MonitorFromWindow", "user32!GetMonitorInfoW",
+      "shcore!GetDpiForMonitor"
     ],
     "denied": [
       "ReadProcessMemory", "WriteProcessMemory", "OpenProcess", "OpenThread", "VirtualAllocEx", "VirtualProtectEx",

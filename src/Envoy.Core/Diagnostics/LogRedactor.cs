@@ -75,7 +75,7 @@ public sealed partial class LogRedactor
         return result;
     }
 
-    /// <summary><c>https://user:pass@host/x?q=1#f</c> → <c>https://[redacted]@host/x?[redacted]</c>.</summary>
+    /// <summary>A URL like <c>scheme://user:pass@host/x?q=1</c> becomes <c>scheme://[redacted]@host/x?[redacted]</c>.</summary>
     private static string RedactUrl(string url)
     {
         var schemeEnd = url.IndexOf("://", StringComparison.Ordinal);

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -7,10 +8,13 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Envoy.App.Controls;
+using Envoy.App.Interop;
 using Envoy.App.Pages;
 using Envoy.App.Services;
 using Envoy.App.ViewModels;
 using Envoy.App.Windows;
+using Envoy.Core.Diagnostics;
+using Envoy.Core.Notifications;
 using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
 using Envoy.Core.Translation;
@@ -25,7 +29,9 @@ namespace Envoy.App;
 /// <remarks>
 /// Three phases (contract §6): setup and once-only work; one pass per <see cref="ThemeManager.PaletteIds"/> entry
 /// (pages, MainWindow-dependent checks, close, other windows, binding errors); teardown. Every section logs
-/// <c>[smoke] {section} ok elapsed_ms={n}</c>. New windows and pages are exercised in the per-palette phase.
+/// <c>[smoke] {section} ok elapsed_ms={n}</c>. New windows and pages are exercised in the per-palette phase. Every host
+/// runs on its own folder under <c>%TEMP%\envoy-smoke-{guid}</c>, which is deleted at the end, so the smoke test never
+/// reads or writes the user's real Envoy data.
 /// </remarks>
 internal static class SmokeTest
 {
@@ -61,12 +67,14 @@ internal static class SmokeTest
     private const string ComposeSample = "good game! one more?";
 
     private static string _logPath = "";
+    private static ILog _smokeLog = NullLog.Instance;
 
     public static bool IsRunning { get; private set; }
 
-    public static async void Run(App app, string[] args)
+    public static async void Run(App app, string[] args, LogHub log, MemoryLogSink recent)
     {
         IsRunning = true;
+        _smokeLog = log.For("Smoke");
         _logPath = ArgValue(args, "--smoke-test") ?? Path.Combine(Environment.CurrentDirectory, "smoke-test.log");
         var shots = ArgValue(args, "--screenshots");
         if (shots is not null) Directory.CreateDirectory(shots);
@@ -77,14 +85,22 @@ internal static class SmokeTest
         var total = Stopwatch.StartNew();
         string? root = null;
         AppHost? host = null;
+        AppHost? safeHost = null;
+        RollingFileSink? file = null;
         try
         {
             // ================= 1. Setup and once-only work =================
             var sw = Stopwatch.StartNew();
             root = Path.Combine(Path.GetTempPath(), $"envoy-smoke-{Guid.NewGuid():N}");
-            var settingsPath = Path.Combine(root, "settings.json");
-            host = new AppHost(settingsPath, app.Dispatcher);
+            var data = Path.Combine(root, "data");
+            var settingsPath = Path.Combine(data, "settings.json");
+            host = new AppHost(settingsPath, app.Dispatcher, new AppHostOptions { DataFolder = data, Log = log, RecentLog = recent });
             App.Host = host;
+            // The file sink goes on right before the header, so the header is envoy.log's first line (log-tail checks it).
+            file = new RollingFileSink(host.LogsFolder);
+            log.AddSink(file);
+            LogBootstrap.WriteHeader(log, null, host.SettingsLoad);
+            Check(host.DataFolder.StartsWith(root, StringComparison.OrdinalIgnoreCase), $"host data folder {host.DataFolder} is outside the smoke root");
             Section("host", sw);
 
             Log("ocr languages: " + string.Join(", ", OcrService.InstalledLanguages().Select(l => l.WindowsTag)));
@@ -103,6 +119,14 @@ internal static class SmokeTest
             Check(PageIds.All.SequenceEqual(LegacyPageNames), $"PageIds.All is [{string.Join(", ", PageIds.All)}], expected the legacy names in order");
             Section("page-ids", sw);
 
+            // ---- 02: safe host, diagnostics, handler wiring ----
+            safeHost = CheckSafeHost(app, root, log, recent);
+            Section("safe-host", sw);
+            CheckDiagnostics(host, root);
+            Section("diagnostics", sw);
+            CheckHandlers(app);
+            Section("handlers", sw);
+
             // Binding errors fail the run. Refresh() turns WPF tracing on in release builds; set the level after it.
             PresentationTraceSources.Refresh();
             PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error;
@@ -111,12 +135,14 @@ internal static class SmokeTest
             var first = true;
             foreach (var palette in ThemeManager.PaletteIds)
             {
-                await RunPaletteAsync(host, settingsPath, palette, first, shots);
+                await RunPaletteAsync(host, safeHost, settingsPath, palette, first, shots);
                 first = false;
             }
 
             // ================= 3. Teardown =================
             sw.Restart();
+            safeHost.Dispose();
+            safeHost = null;
             host.Dispose();
             host = null;
             if (shots is not null)
@@ -125,7 +151,16 @@ internal static class SmokeTest
                 var actual = Directory.GetFiles(shots, "*-settings-*.png").Length;
                 Check(actual == expected, $"expected {expected} settings screenshots, found {actual}");
             }
+            log.RemoveSink(file);
+            file.Dispose();
+            var envoyLog = File.ReadAllLines(file.CurrentPath);
+            file = null;
+            DeleteTempRoot(root);
+            Check(!Directory.Exists(root), $"the smoke temp root {root} still exists");
             Section("teardown", sw);
+
+            CheckLogTail(envoyLog);
+            Section("log-tail", sw);
             Log("SMOKE TEST PASSED");
         }
         catch (Exception ex)
@@ -136,9 +171,16 @@ internal static class SmokeTest
         }
         finally
         {
+            try { safeHost?.Dispose(); }
+            catch (Exception ex) { Warn($"safe host dispose failed: {ex.Message}"); }
             try { host?.Dispose(); }
             catch (Exception ex) { Warn($"host dispose failed: {ex.Message}"); }
-            if (root is not null) DeleteTempRoot(root);
+            if (file is not null)
+            {
+                log.RemoveSink(file);
+                file.Dispose();
+            }
+            if (root is not null && Directory.Exists(root)) DeleteTempRoot(root);
             Log($"[smoke] total elapsed_ms={total.ElapsedMilliseconds}");
             if (total.Elapsed > TotalBudget) Warn($"total {total.Elapsed.TotalSeconds:0} s exceeds the {TotalBudget.TotalSeconds:0} s budget");
         }
@@ -146,7 +188,7 @@ internal static class SmokeTest
         app.Shutdown(exitCode);
     }
 
-    private static async Task RunPaletteAsync(AppHost host, string settingsPath, string palette, bool first, string? shots)
+    private static async Task RunPaletteAsync(AppHost host, AppHost safeHost, string settingsPath, string palette, bool first, string? shots)
     {
         var paletteTime = Stopwatch.StartNew();
         var sw = Stopwatch.StartNew();
@@ -181,6 +223,11 @@ internal static class SmokeTest
                 await CheckAutoApplyAsync(host, main);
                 Section($"autoapply({palette})", sw);
             }
+            Check(main.SafeModeBanner.Visibility == Visibility.Collapsed, "the safe-mode banner shows on a normal host");
+            await CheckSafeBannerAsync(safeHost, palette, shots);
+            Section($"safe-banner({palette})", sw);
+            await CheckToastAsync(main, palette, shots);
+            Section($"toast({palette})", sw);
 
             // ---- close ----
             if (first)
@@ -278,6 +325,123 @@ internal static class SmokeTest
         {
             Warn($"provider warm-up failed: {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    // ---------------- 02 checks ----------------
+
+    /// <summary>A second host in safe mode on its own data folder: Start() must not start capture (REQ-REL-40).</summary>
+    private static AppHost CheckSafeHost(App app, string root, LogHub log, MemoryLogSink recent)
+    {
+        var data = Path.Combine(root, "safe-data");
+        var safeHost = new AppHost(Path.Combine(data, "settings.json"), app.Dispatcher,
+            new AppHostOptions { DataFolder = data, Log = log, RecentLog = recent, SafeMode = SafeModeReason.CommandLine });
+        Check(safeHost.DataFolder.StartsWith(root, StringComparison.OrdinalIgnoreCase), "the safe host's data folder is outside the smoke root");
+        Check(safeHost.Settings.StartCapturingAutomatically, "the safe host's defaults should ask for automatic capture");
+        safeHost.Start();
+        Check(safeHost.IsSafeMode, "the safe host is not in safe mode");
+        Check(!safeHost.Watcher.IsRunning, "safe mode started capture");
+        return safeHost;
+    }
+
+    /// <summary>Copy diagnostics builds from the smoke host, and Export writes a zip with report.txt (REQ-REL-23, 24).</summary>
+    private static void CheckDiagnostics(AppHost host, string root)
+    {
+        var text = host.BuildDiagnosticsText(DiagnosticsCollector.Collect(host));
+        Check(text.Contains(DiagnosticsReport.Header, StringComparison.Ordinal), "the diagnostics report has no header");
+        Check(text.Length <= DiagnosticsReport.MaxClipboardChars, $"the diagnostics report has {text.Length} characters");
+        foreach (var section in DiagnosticsReport.Sections)
+            Check(text.Contains("### " + section, StringComparison.Ordinal), $"the diagnostics report has no {section} section");
+
+        var zip = Path.Combine(root, "diag.zip");
+        DiagnosticsCollector.ExportBundle(host, zip);
+        using var archive = ZipFile.OpenRead(zip);
+        var names = archive.Entries.Select(e => e.FullName).ToList();
+        Check(names.Contains(DiagnosticsBundle.ReportEntry), $"the diagnostics zip has no report.txt ({string.Join(", ", names)})");
+        Check(names.Contains(DiagnosticsBundle.SettingsEntry), "the diagnostics zip has no settings.redacted.json");
+        Check(names.All(n => n is DiagnosticsBundle.ReportEntry or DiagnosticsBundle.SettingsEntry or DiagnosticsBundle.CrashEntry || n.StartsWith("logs/envoy", StringComparison.Ordinal)),
+            $"unexpected entries in the diagnostics zip: {string.Join(", ", names)}");
+        Log($"diagnostics: {text.Length} chars, zip [{string.Join(", ", names)}]");
+    }
+
+    /// <summary>All four global handlers are wired (REQ-REL-11/12/13). Wiring only; their bodies are Core-tested.</summary>
+    private static void CheckHandlers(App app)
+    {
+        var installed = app.Handlers?.InstalledSources ?? [];
+        foreach (var source in Enum.GetValues<UnhandledSource>())
+            Check(installed.Contains(source), $"the {source} exception handler is not installed");
+    }
+
+    /// <summary>A MainWindow on the safe host shows the banner (REQ-REL-40).</summary>
+    private static async Task CheckSafeBannerAsync(AppHost safeHost, string palette, string? shots)
+    {
+        var safeMain = new MainWindow(safeHost);
+        safeMain.Show();
+        safeMain.Navigate(PageIds.Hotkeys);
+        await Pump();
+        Check(safeMain.SafeModeBanner.IsVisible && safeMain.SafeModeBanner.ActualHeight > 0, "the safe-mode banner is not visible");
+        if (shots is not null) Save(safeMain, Path.Combine(shots, $"{palette}-safe-mode.png"));
+        safeMain.Close();
+        await Pump();
+    }
+
+    /// <summary>
+    /// A problem toast never takes focus and is themed; Details opens About › Troubleshooting; a fourth toast closes the
+    /// oldest (REQ-REL-18, 27).
+    /// </summary>
+    private static async Task CheckToastAsync(MainWindow main, string palette, string? shots)
+    {
+        main.Navigate(PageIds.Dashboard);
+        main.Activate();
+        await Pump();
+        var before = Native.GetForegroundWindow();
+        var mainHandle = new System.Windows.Interop.WindowInteropHelper(main).Handle;
+        if (before != mainHandle) Warn($"MainWindow is not the foreground window before the toast ({palette}); checking that the toast leaves it unchanged");
+
+        var toast = new ToastWindow(new ProblemReport("smoke", "Smoke test", "Sample problem for the screenshot."));
+        toast.Show();
+        await Pump();
+        var style = Native.GetWindowLongPtr(toast.Handle, Native.GWL_EXSTYLE).ToInt64();
+        Check((style & Native.WS_EX_NOACTIVATE) != 0, "the toast lacks WS_EX_NOACTIVATE");
+        Check((style & Native.WS_EX_TOOLWINDOW) != 0, "the toast lacks WS_EX_TOOLWINDOW");
+        Check(!toast.IsActive, "the toast was activated");
+        var after = Native.GetForegroundWindow();
+        Check(after == before && after != toast.Handle, "showing a toast changed the foreground window");
+        if (shots is not null) Save(toast, Path.Combine(shots, $"{palette}-toast.png"), Backdrop());
+        toast.Close();
+
+        void OpenTroubleshooting()
+        {
+            main.Navigate(PageIds.About);
+            ((AboutPage)main.PageFor(PageIds.About)).TroubleshootingFrame.BringIntoView();
+        }
+        var toasts = new ToastService(main.Dispatcher, new NotificationThrottle(), () => true, () => IntPtr.Zero, OpenTroubleshooting, _smokeLog);
+        for (var i = 1; i <= 4; i++)
+            toasts.Show(new ProblemReport($"smoke-{i}", "Smoke test", "Sample problem " + i + ".", i % 2 == 0 ? LogLevel.Warning : LogLevel.Error));
+        await Pump();
+        Check(toasts.Open.Count == NotificationThrottle.MaxVisibleToasts, $"{toasts.Open.Count} toasts open after four, expected {NotificationThrottle.MaxVisibleToasts}");
+        Check(toasts.Open[0].Report.Key == "smoke-2", "the oldest toast was not the one closed");
+
+        toasts.Open[0].RequestDetails();
+        await Pump();
+        var about = (AboutPage)main.PageFor(PageIds.About);
+        Check(about.IsVisible, "Details did not open the About page");
+        Check(about.TroubleshootingFrame.IsVisible, "the Troubleshooting section is not visible");
+        Check(toasts.Open.Count == NotificationThrottle.MaxVisibleToasts - 1, "Details did not close its toast");
+        toasts.CloseAll();
+        await Pump();
+        Check(toasts.Open.Count == 0, "CloseAll left toasts open");
+    }
+
+    /// <summary>Prints the end of envoy.log; its first line is the session header without the user or machine name.</summary>
+    private static void CheckLogTail(string[] lines)
+    {
+        Log("--- envoy.log tail ---");
+        foreach (var line in lines.TakeLast(50)) Log(line);
+        Log("--- end of envoy.log ---");
+        Check(lines.Length > 0, "envoy.log is empty");
+        Check(lines[0].Contains("[App] " + LogBootstrap.HeaderMessage, StringComparison.Ordinal), $"envoy.log line 1 is not the session header: {lines[0]}");
+        foreach (var name in new[] { Environment.UserName, Environment.MachineName }.Where(n => n.Length >= 3))
+            Check(!lines[0].Contains(name, StringComparison.OrdinalIgnoreCase), "the session header contains the user or machine name");
     }
 
     // ---------------- 01 checks ----------------
@@ -425,7 +589,11 @@ internal static class SmokeTest
         sw.Restart();
     }
 
-    private static void Warn(string message) => Log($"[smoke] WARNING {message}");
+    private static void Warn(string message)
+    {
+        Log($"[smoke] WARNING {message}");
+        _smokeLog.Warn(message);
+    }
 
     private static void Check(bool condition, string failure)
     {

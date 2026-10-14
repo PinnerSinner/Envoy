@@ -10,6 +10,18 @@ public class HotkeyTextTests
         new(id, HotkeyText.ActionName(id), combo, status);
 
     [Fact]
+    public void StatusLine_SafeMode_SaysHotkeysAreOff()
+    {
+        var safe = new[] { R("Compose", "Ctrl+Shift+T", HotkeyStatus.SkippedSafeMode), R("ToggleOverlay", "Ctrl+Shift+O", HotkeyStatus.SkippedSafeMode) };
+        Assert.Equal(Envoy.Core.Diagnostics.SafeModeText.HotkeysOff, HotkeyText.StatusLine(safe));
+        Assert.Equal("", HotkeyText.TakenSummary(safe));
+
+        var taken = new[] { R("Compose", "Ctrl+Shift+T", HotkeyStatus.Taken) };
+        Assert.Equal(HotkeyText.TakenSummary(taken), HotkeyText.StatusLine(taken));
+        Assert.Equal("", HotkeyText.StatusLine([]));
+    }
+
+    [Fact]
     public void TakenSummary_AllRegisteredOrNotSet_Empty()
     {
         var results = new[]

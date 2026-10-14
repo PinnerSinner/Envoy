@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Threading;
 using Envoy.App.Controls;
 using Envoy.App.Pages;
@@ -42,7 +43,15 @@ public partial class MainWindow : Window
         AddHandler(ToggleButton.UncheckedEvent, new RoutedEventHandler(OnEdited));
         AddHandler(RangeBase.ValueChangedEvent, new RoutedEventHandler(OnEdited));
         AddHandler(PasswordBox.PasswordChangedEvent, new RoutedEventHandler(OnEdited));
+#if DEBUG
+        // Manual step M4 (docs/specs/02-reliability-observability.md): Ctrl+Alt+Shift+F12 throws on the UI thread.
+        InputBindings.Add(new KeyBinding(new Core.Mvvm.RelayCommand(() => throw new InvalidOperationException("Test error from MainWindow.")),
+            Key.F12, ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Shift));
+#endif
     }
+
+    /// <summary>Applies an edit still waiting for its debounce (exit path).</summary>
+    public void FlushPendingEdits() => _applier.FlushIfPending();
 
     /// <summary>Page ids, in sidebar order (the smoke test walks them).</summary>
     public IReadOnlyList<string> PageNames => PageIds.All;
@@ -91,10 +100,14 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _statusTimer.Stop();
-        _applier.FlushIfPending();
+        // After a reset or "Delete all Envoy data" nothing may be applied or written again (contract §4).
+        if (!_host.SaveSuppressed)
+        {
+            _applier.FlushIfPending();
+            _host.Settings.FirstRunCompleted = true;
+            _host.SaveNow();
+        }
         _vm.Dispose();
-        _host.Settings.FirstRunCompleted = true;
-        _host.SaveNow();
         base.OnClosed(e);
     }
 }

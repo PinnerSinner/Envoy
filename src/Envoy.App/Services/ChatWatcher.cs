@@ -1,3 +1,4 @@
+using Envoy.Core.Diagnostics;
 using Envoy.Core.Ocr;
 using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
@@ -24,6 +25,9 @@ public sealed class ChatWatcher(OcrService ocr, ChatPipeline pipeline, Func<AppS
     private Task? _loop;
     private ulong _lastFingerprint;
     private readonly LeaseCounter _preview = new();
+
+    /// <summary>Where background pipeline failures are recorded (set by AppHost).</summary>
+    public ILog Log { get; init; } = NullLog.Instance;
 
     public WatcherState State { get; private set; } = WatcherState.Stopped;
     public string? LastError { get; private set; }
@@ -145,9 +149,21 @@ public sealed class ChatWatcher(OcrService ocr, ChatPipeline pipeline, Func<AppS
         if (IsPreviewing) FrameCaptured?.Invoke(new CaptureFrame(image, lines, sw.Elapsed));
 
         // Don't await: translation latency shouldn't delay reading the next lines.
-        _ = pipeline.ProcessAsync(lines, ct).ContinueWith(
-            t => LastError = t.Exception?.GetBaseException().Message,
-            TaskContinuationOptions.OnlyOnFaulted);
+        RecordFailure(pipeline.ProcessAsync(lines, ct)).Forget(Log, "chat pipeline");
+    }
+
+    /// <summary>Keeps the last pipeline failure in <see cref="LastError"/>, then lets Forget log it.</summary>
+    private async Task RecordFailure(Task processing)
+    {
+        try
+        {
+            await processing;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LastError = ex.GetBaseException().Message;
+            throw;
+        }
     }
 
     private void SetState(WatcherState state)

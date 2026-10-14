@@ -1,3 +1,4 @@
+using Envoy.Core.Diagnostics;
 using Windows.Media.Core;
 using Windows.Media.Playback;
 using Windows.Media.SpeechSynthesis;
@@ -16,10 +17,12 @@ public sealed class SpeechService : IDisposable
     private readonly MediaPlayer _player = new() { AudioCategory = MediaPlayerAudioCategory.Speech };
     private readonly Queue<(string Text, DateTime Queued)> _queue = new();
     private readonly object _gate = new();
+    private readonly ILog _log;
     private bool _speaking;
 
-    public SpeechService()
+    public SpeechService(ILog? log = null)
     {
+        _log = log ?? NullLog.Instance;
         _player.MediaEnded += (_, _) => Next();
         _player.MediaFailed += (_, _) => Next();
     }
@@ -62,7 +65,7 @@ public sealed class SpeechService : IDisposable
             if (_speaking) return;
             _speaking = true;
         }
-        _ = SpeakNextAsync();
+        SpeakNextAsync().Forget(_log, "speech");
     }
 
     public void Stop()
@@ -75,7 +78,7 @@ public sealed class SpeechService : IDisposable
         _player.Pause();
     }
 
-    private void Next() => _ = SpeakNextAsync();
+    private void Next() => SpeakNextAsync().Forget(_log, "speech");
 
     private async Task SpeakNextAsync()
     {
@@ -100,9 +103,10 @@ public sealed class SpeechService : IDisposable
             _player.Source = MediaSource.CreateFromStream(stream, stream.ContentType);
             _player.Play();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // No voices installed or audio device missing: drop this one and carry on.
+            _log.Warn("Speaking a message failed", ex);
             Next();
         }
     }

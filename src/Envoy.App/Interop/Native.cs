@@ -67,6 +67,60 @@ internal static partial class Native
     public static void KeepOnTop(IntPtr hwnd) =>
         SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 
+    /// <summary>A window that never takes focus and has no taskbar button (problem toasts). Clicks still work.</summary>
+    public static void MakeNoActivate(IntPtr hwnd)
+    {
+        var style = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
+        style |= WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(style));
+    }
+
+    // ---- Keyboard state (safe mode: Shift held at start-up) ----
+    public const int VK_SHIFT = 0x10;
+
+    [LibraryImport("user32.dll")]
+    public static partial short GetAsyncKeyState(int vKey);
+
+    /// <summary>True while either Shift key is down (the high bit of GetAsyncKeyState).</summary>
+    public static bool IsShiftDown() => (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+
+    // ---- Monitors and DPI (toast placement, diagnostics) ----
+    public const uint MONITOR_DEFAULTTONEAREST = 2;
+    public const uint MONITOR_DEFAULTTOPRIMARY = 1;
+    public const int MDT_EFFECTIVE_DPI = 0;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X, Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    [LibraryImport("user32.dll")]
+    public static partial IntPtr MonitorFromPoint(POINT pt, uint flags);
+
+    [LibraryImport("user32.dll")]
+    public static partial IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO info);
+
+    [LibraryImport("shcore.dll")]
+    public static partial int GetDpiForMonitor(IntPtr hMonitor, int dpiType, out uint dpiX, out uint dpiY);
+
+    /// <summary>The monitor's scale (1.0 = 96 DPI); 1.0 when it can't be read.</summary>
+    public static double ScaleOf(IntPtr monitor) =>
+        monitor != IntPtr.Zero && GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, out var dpi, out _) == 0 && dpi > 0 ? dpi / 96.0 : 1.0;
+
     // ---- Hotkeys ----
     public const int WM_HOTKEY = 0x0312;
     public const uint MOD_ALT = 0x0001;

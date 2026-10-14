@@ -1,8 +1,8 @@
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using Envoy.App.Services;
+using Envoy.Core.Diagnostics;
 using Envoy.Core.Games;
 using Envoy.Core.Hotkeys;
 using Envoy.Core.Languages;
@@ -13,7 +13,8 @@ namespace Envoy.App.ViewModels;
 
 /// <summary>
 /// The single view model behind MainWindow and every page in <c>Pages/</c>. Split into partial files by page:
-/// <c>.Translation</c>, <c>.ReadingChat</c>, <c>.Phrasebook</c> and <c>.Actions</c> (the commands). App-level actions go
+/// <c>.Translation</c>, <c>.ReadingChat</c>, <c>.Phrasebook</c>, <c>.Diagnostics</c> (About › Troubleshooting and the
+/// safe-mode banner) and <c>.Actions</c> (the commands). App-level actions go
 /// through <see cref="IShell"/>.
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject, IDisposable
@@ -65,6 +66,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OpenDataFolderCommand = new RelayCommand(OpenDataFolder);
         OpenLinkCommand = new RelayCommand<string>(OpenLink);
         QuitCommand = new RelayCommand(_shell.ExitApp);
+
+        // About › Troubleshooting and the safe-mode banner (bodies in MainViewModel.Diagnostics.cs).
+        CopyDiagnosticsCommand = new RelayCommand(CopyDiagnostics);
+        ExportDiagnosticsCommand = new RelayCommand(ExportDiagnostics);
+        RestartSafeModeCommand = new RelayCommand(() => _shell.Restart(safeMode: true));
+        RestartNormallyCommand = new RelayCommand(() => _shell.Restart(safeMode: false));
+        ResetSettingsCommand = new RelayCommand(_shell.ResetSettingsAndRestart);
+        DeleteAllDataCommand = new RelayCommand(_shell.DeleteAllDataAndRestart);
+        DismissCrashCommand = new RelayCommand(DismissCrash);
+        RefreshTroubleshooting();
     }
 
     public AppHost Host { get; }
@@ -101,14 +112,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         [new Option("", "Windows default voice"), .. SpeechService.Voices.Select(v => new Option(v.Id, v.Name))];
 
     // ---- Hotkeys page ----
-    /// <summary>"" when every hotkey registered; otherwise which ones another app took (or that couldn't be parsed).</summary>
-    public string HotkeyErrors => HotkeyText.TakenSummary(Host.HotkeyResults);
+    /// <summary>
+    /// "" when every hotkey registered; otherwise which ones another app took (or that couldn't be parsed), or that
+    /// hotkeys are off in safe mode.
+    /// </summary>
+    public string HotkeyErrors => HotkeyText.StatusLine(Host.HotkeyResults);
 
     // ---- Appearance page ----
     public IReadOnlyList<ThemeOption> Themes { get; }
 
     // ---- About page ----
-    public string DataFolder => AppHost.DataFolder;
+    public string DataFolder => Host.DataFolder;
 
     public string Version => typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "dev";
 
@@ -119,13 +133,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Notify(nameof(UsageText));
         Notify(nameof(OcrSummary));
         Notify(nameof(HotkeyErrors));
+        RefreshTroubleshooting();
     }
 
     /// <summary>
-    /// The one error sink for every <see cref="AsyncRelayCommand"/> (contract §8.8). Every async command body in 01
-    /// catches its own exceptions, so this is a last resort; 02 replaces it with a log entry and a problem toast.
+    /// The one error sink for every <see cref="AsyncRelayCommand"/> (contract §8.8): logs at Error under <c>UI</c> and
+    /// shows a problem toast. Every async command body catches its own expected exceptions, so this is a last resort.
     /// </summary>
-    public void ReportCommandError(Exception ex) => Trace.TraceError("command failed: {0}", ex);
+    public void ReportCommandError(Exception ex)
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        Host.Log.For("UI").Error("Command failed", ex);
+        Host.ReportProblem(ProblemText.CommandFailed("command:" + ex.GetType().FullName));
+    }
 
     public void Notify([CallerMemberName] string? name = null) => OnPropertyChanged(name);
 

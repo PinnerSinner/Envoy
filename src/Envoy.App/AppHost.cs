@@ -6,8 +6,10 @@ using System.Windows;
 using System.Windows.Threading;
 using Envoy.App.Services;
 using Envoy.Core.Chat;
+using Envoy.Core.Diagnostics;
 using Envoy.Core.Games;
 using Envoy.Core.Hotkeys;
+using Envoy.Core.Notifications;
 using Envoy.Core.Phrases;
 using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
@@ -17,6 +19,27 @@ using Envoy.Core.Updates;
 namespace Envoy.App;
 
 /// <summary>
+/// What <see cref="AppHost"/> is built with (contract §3). 02 creates it; later areas add their own members in their own
+/// step.
+/// </summary>
+public sealed record AppHostOptions
+{
+    /// <summary>null → a hub with no sinks, owned and disposed by the host.</summary>
+    public LogHub? Log { get; init; }
+
+    /// <summary>The in-memory ring the diagnostics report reads.</summary>
+    public MemoryLogSink? RecentLog { get; init; }
+
+    public SafeModeReason? SafeMode { get; init; }
+
+    /// <summary>null → the settings file's folder.</summary>
+    public string? DataFolder { get; init; }
+
+    /// <summary>null → <see cref="TimeProvider.System"/>; passed to every timed Core type.</summary>
+    public TimeProvider? TimeProvider { get; init; }
+}
+
+/// <summary>
 /// Owns the app's long-lived services and state. Windows bind to this; it marshals background events
 /// (capture, translation) onto the UI thread.
 /// </summary>
@@ -24,6 +47,12 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
 {
     private readonly Dispatcher _ui;
     private readonly SettingsStore _store;
+    private readonly ILog _log;
+    private readonly ILog _captureLog;
+    private readonly ILog _translationLog;
+    private readonly bool _ownsLog;
+    private readonly DateTimeOffset _startedAt;
+    private int _saveFailures;
     private readonly HttpClient _http;
     private readonly TranslatorFactory _factory;
     private readonly DispatcherTimer _gameTimer;
@@ -33,11 +62,29 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     private string _providerStatus = "";
     private UpdateInfo? _update;
 
-    public AppHost(string settingsPath, Dispatcher ui)
+    public AppHost(string settingsPath, Dispatcher ui, AppHostOptions? options = null)
     {
+        options ??= new AppHostOptions();
         _ui = ui;
-        _store = new SettingsStore(settingsPath, new DpapiProtector());
-        Settings = _store.Load();
+        Time = options.TimeProvider ?? TimeProvider.System;
+        _ownsLog = options.Log is null;
+        Log = options.Log ?? new LogHub(Time);
+        RecentLog = options.RecentLog;
+        SafeMode = options.SafeMode;
+        DataFolder = options.DataFolder ?? Path.GetDirectoryName(Path.GetFullPath(settingsPath))!;
+        Notifications = new NotificationThrottle(Time);
+        _log = Log.For("App");
+        _captureLog = Log.For("Capture");
+        _translationLog = Log.For("Translation");
+        _startedAt = Time.GetUtcNow();
+
+        // Contract §3 constructor order. 1: settings (02).
+        _store = new SettingsStore(settingsPath, new DpapiProtector(), Log.For("Settings"), Time);
+        SettingsLoad = _store.LoadWithReport();
+        Settings = SettingsLoad.Settings;
+        // 2: diagnostics (02).
+        ApplyDiagnosticsSettings();
+        // [03 TranslationRuntime] [03 TranslatorFactory]
         Usage.Restore(Settings.Usage);
 
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
@@ -47,17 +94,21 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
 
         Phrases = PhraseBook.LoadWithUserFile(UserPhrasesPath);
         Ocr = new OcrService();
+        // [04 ChatFormatCatalog]
         Pipeline = new ChatPipeline(_translator, PipelineOptions());
         Outgoing = new OutgoingTranslator(() => _translator, Phrases);
+        // [05 ChatWatcher rewrite]
         Watcher = new ChatWatcher(Ocr, Pipeline, () => Settings, () => CurrentGameId)
         {
+            Log = _captureLog,
             ShouldRead = () => !Settings.Capture.OnlyWhileGameRuns || _game is not null || Settings.Game != GameCatalog.Any,
         };
         Transcript = new TranscriptWriter(LogsFolder);
+        // [06 UpdateCoordinator] [07a NoticeCenter, skipped in safe mode]
 
         Pipeline.MessageReceived += m => _ui.BeginInvoke(() => OnMessage(m, isNew: true));
         Pipeline.MessageUpdated += m => _ui.BeginInvoke(() => OnMessage(m, isNew: false));
-        Watcher.StateChanged += _ => _ui.BeginInvoke(() => Notify(nameof(CaptureStatus)));
+        Watcher.StateChanged += state => _ui.BeginInvoke(() => OnWatcherState(state));
 
         ConfigureOcr();
 
@@ -65,9 +116,31 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         _saveTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(600), DispatcherPriority.Background, (_, _) => SaveNow(), _ui) { IsEnabled = false };
     }
 
-    public static string DataFolder => Path.GetDirectoryName(SettingsStore.DefaultPath)!;
-    public static string UserPhrasesPath => Path.Combine(DataFolder, "phrases.json");
-    public static string LogsFolder => Path.Combine(DataFolder, "logs");
+    /// <summary>The folder holding every Envoy file (REQ-REL-44); see <see cref="DataInventory"/>.</summary>
+    public string DataFolder { get; }
+    public string LogsFolder => Path.Combine(DataFolder, DataInventory.LogsFolderName);
+    public string UserPhrasesPath => Path.Combine(DataFolder, "phrases.json");
+    public string CrashMarkerPath => Path.Combine(DataFolder, "last-crash.json");
+
+    public LogHub Log { get; }
+    public MemoryLogSink? RecentLog { get; }
+    public TimeProvider Time { get; }
+    public SafeModeReason? SafeMode { get; }
+    public bool IsSafeMode => SafeMode is not null;
+
+    /// <summary>How the settings were loaded (for the startup toast and the diagnostics report).</summary>
+    public SettingsLoadResult SettingsLoad { get; }
+
+    /// <summary>The single notification throttle (contract §2.2).</summary>
+    public NotificationThrottle Notifications { get; }
+
+    /// <summary>True after a reset or "Delete all Envoy data": nothing may write settings.json again this session.</summary>
+    public bool SaveSuppressed => _store.SavesSuppressed;
+
+    public TimeSpan Uptime => Time.GetUtcNow() - _startedAt;
+
+    /// <summary>A problem for the user, raised on the UI thread. App shows it as a toast.</summary>
+    public event Action<ProblemReport>? ProblemReported;
 
     /// <summary>GitHub "owner/repo" checked for new releases.</summary>
     public const string ReleaseRepository = "PinnerSinner/envoy";
@@ -88,7 +161,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     private readonly HashSet<Guid> _spoken = [];
 
     /// <summary>Created on first use so machines without audio never pay for it.</summary>
-    public SpeechService Speech => _speech ??= new SpeechService();
+    public SpeechService Speech => _speech ??= new SpeechService(Log.For("Speech"));
     public UpdateInfo? Update => _update;
     public bool HasUpdate => _update is not null;
     public string UpdateText => _update is null ? "" : $"Envoy {_update.Tag} is available — you have v{CurrentVersion.ToString(3)}.";
@@ -134,14 +207,42 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         _ => "Paused",
     };
 
+    /// <summary>Starts the game timer and, unless in safe mode, automatic capture and the update check.</summary>
     public void Start()
     {
         RefreshGame();
         ApplyTheme();
         _gameTimer.Start();
-        if (Settings.StartCapturingAutomatically) Watcher.Start();
+        if (!IsSafeMode && Settings.StartCapturingAutomatically) Watcher.Start();
         Notify(nameof(CaptureStatus));
-        if (Settings.CheckForUpdates) _ = CheckForUpdatesAsync();
+        if (!IsSafeMode && Settings.CheckForUpdates) CheckForUpdatesAsync().Forget(_log, "update check");
+    }
+
+    /// <summary>Stops every later settings save (reset, "Delete all Envoy data"). Irreversible for this host.</summary>
+    public void SuppressSave() => _store.SuppressSaves();
+
+    /// <summary>Suppresses saving, keeps a <c>.reset-{time}.bak</c> copy and deletes settings.json (REQ-REL-38).</summary>
+    public string? ResetSettings() => _store.ResetToDefaults();
+
+    /// <summary>Logs <paramref name="report"/> at its severity and raises <see cref="ProblemReported"/> on the UI thread. Any thread.</summary>
+    public void ReportProblem(ProblemReport report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        Log.For("Problem").Write(report.Severity, "Problem reported", null, LogField.Of("key", report.Key));
+        _ui.BeginInvoke(() => ProblemReported?.Invoke(report));
+    }
+
+    /// <summary>The redacted "Copy diagnostics" text for <paramref name="snapshot"/>, these settings and the recent log.</summary>
+    public string BuildDiagnosticsText(DiagnosticsSnapshot snapshot) =>
+        DiagnosticsReport.Render(snapshot, Settings, RecentLog?.Snapshot() ?? [], redactor: Log.Redactor);
+
+    /// <summary>Level, chat-text opt-in and the secrets snapshot for the redactor (contract §3 position 2).</summary>
+    public void ApplyDiagnosticsSettings()
+    {
+        var d = Settings.Diagnostics;
+        Log.MinimumLevel = d.VerboseLogging ? LogLevel.Debug : LogLevel.Info;
+        Log.IncludeSensitive = d.LogChatText;
+        Log.Redactor.SetSecrets(SettingsRedaction.SecretValues(Settings));
     }
 
     public async Task CheckForUpdatesAsync()
@@ -157,6 +258,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
         {
             // Offline or GitHub unavailable: try again next start.
+            _log.Info("Update check failed", LogField.Of("error", ex.GetType().Name));
         }
     }
 
@@ -193,6 +295,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     /// <summary>Call after any settings edit: re-applies everything and schedules a save.</summary>
     public void ApplySettings()
     {
+        ApplyDiagnosticsSettings(); // contract §3 ApplySettings position 1
         _translator = BuildTranslator();
         Pipeline.Translator = _translator;
         var o = PipelineOptions();
@@ -219,17 +322,23 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         _saveTimer.Start();
     }
 
+    /// <summary>Saves now unless saving is suppressed. A failure is logged; the third in a row shows a problem toast.</summary>
     public void SaveNow()
     {
         _saveTimer.Stop();
+        if (_store.SavesSuppressed) return;
         Settings.Usage = Usage.Snapshot();
         try
         {
             _store.Save(Settings);
+            _saveFailures = 0;
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Retry on the next change.
+            _saveFailures++;
+            Log.For("Settings").Warn("Settings save failed", ex, LogField.Of("failures", _saveFailures));
+            if (_saveFailures == 3) ReportProblem(ProblemText.SettingsSaveFailed);
         }
     }
 
@@ -257,8 +366,22 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         }
     }
 
+    private void OnWatcherState(WatcherState state)
+    {
+        Notify(nameof(CaptureStatus));
+        if (state != WatcherState.Error) return;
+        _captureLog.Warn("Capture stopped with an error", null, LogField.Of("error", Watcher.LastError));
+        ReportProblem(ProblemText.CaptureError);
+    }
+
     private void OnMessage(IncomingMessage message, bool isNew)
     {
+        if (!isNew && message.Status == IncomingStatus.Failed)
+        {
+            _translationLog.Warn("Message translation failed", null, LogField.Sensitive("text", message.Chat.Text),
+                LogField.Of("error", message.Error));
+        }
+
         if (isNew)
         {
             History.Insert(0, message);
@@ -280,7 +403,10 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
             if (Settings.SaveTranscripts)
             {
                 try { Transcript.Append(message); }
-                catch (IOException) { }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Log.For("Transcript").Warn("Transcript write failed", ex);
+                }
             }
             RefreshPlayers();
         }
@@ -297,9 +423,10 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
             var text = o.SpeakSenderName && message.Chat.Sender is { } s ? $"{s}: {message.DisplayText}" : message.DisplayText;
             Speech.Speak(text);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // Speech is a nicety; never let it break message handling.
+            Log.For("Speech").Warn("Speech failed", ex);
         }
     }
 
@@ -316,6 +443,8 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         var failures = new List<string>();
         var translator = _factory.Build(Settings.Translation, (id, ex) =>
         {
+            // 03 replaces this with its TranslationRuntime.Diagnostic subscription.
+            _translationLog.Warn("Provider failed", null, LogField.Of("provider", id), LogField.Of("error", ex.GetType().Name + ": " + ex.Message));
             failures.Add($"{ProviderCatalog.Find(id)?.Name ?? id}: {ex.Message}");
             _ui.BeginInvoke(() =>
             {
@@ -347,9 +476,10 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         {
             Ocr.Configure(Settings.MyLanguage, Settings.Capture.OcrLanguages);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // OCR unavailable (very old Windows / stripped-down edition): capture will report it.
+            _captureLog.Warn("OCR configuration failed", ex);
         }
     }
 
@@ -358,6 +488,10 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         var before = _game?.Profile.Id;
         _game = GameDetector.Find();
         if (_game?.Profile.Id == before) return;
+        // Contract §3 RefreshGame position 1: log (profile name only, never window titles).
+        if (_game is not null) _log.Info("Game detected", LogField.Of("game", _game.Profile.Name));
+        else _log.Info("Game closed");
+        // [04 format re-resolve] [06 Updates.TickAsync on close] [07a Notices.TakeDeferred]
         if (_game is not null && before is null) NewMatch();
         Notify(nameof(Game));
         Notify(nameof(GameStatus));
@@ -367,12 +501,15 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
 
     private void Notify([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
+    /// <summary>Stops services and saves (unless suppressed). App owns and disposes a hub it passed in.</summary>
     public void Dispose()
     {
         _gameTimer.Stop();
         Watcher.Dispose();
         _speech?.Dispose();
-        SaveNow();
+        SaveNow(); // a no-op once saving is suppressed, so a reset or Delete-all is never undone
         _http.Dispose();
+        Log.Flush();
+        if (_ownsLog) Log.Dispose();
     }
 }

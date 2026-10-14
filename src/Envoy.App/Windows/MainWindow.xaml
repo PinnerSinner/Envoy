@@ -65,7 +65,23 @@
             </Border>
 
             <!-- ===== Pages (Pages/*.xaml; each shown while its sidebar button is checked) ===== -->
-            <Grid Grid.Row="1" Grid.Column="1">
+            <DockPanel Grid.Row="1" Grid.Column="1">
+            <!-- Safe-mode banner: above every page (contract §8.6, War Room slot 1). -->
+            <Border x:Name="SafeModeBanner" DockPanel.Dock="Top" Padding="24,10" BorderThickness="0,0,0,2"
+                    Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Danger}"
+                    Visibility="{Binding IsSafeMode, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Restart normally" Command="{Binding RestartNormallyCommand}"
+                            AutomationProperties.Name="Restart normally" VerticalAlignment="Center" Margin="16,0,0,0" />
+                    <TextBlock Text="&#xE7BA;" Style="{StaticResource Text.Icon}" Foreground="{DynamicResource Danger}" FontSize="18"
+                               VerticalAlignment="Center" Margin="0,0,12,0" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding SafeModeBannerText, Mode=OneWay}" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding SafeModeReasonText, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+            <Grid>
                 <p:WarRoomPage x:Name="WarRoomPage" Visibility="{Binding IsChecked, ElementName=NavDashboard, Converter={StaticResource BoolToVisibility}}" />
                 <p:TranslationPage x:Name="TranslationPage" Visibility="{Binding IsChecked, ElementName=NavTranslation, Converter={StaticResource BoolToVisibility}}" />
                 <p:ReadingChatPage x:Name="ReadingChatPage" Visibility="{Binding IsChecked, ElementName=NavCapture, Converter={StaticResource BoolToVisibility}}" />
@@ -76,6 +92,7 @@
                 <p:AppearancePage x:Name="AppearancePage" Visibility="{Binding IsChecked, ElementName=NavAppearance, Converter={StaticResource BoolToVisibility}}" />
                 <p:AboutPage x:Name="AboutPage" Visibility="{Binding IsChecked, ElementName=NavAbout, Converter={StaticResource BoolToVisibility}}" />
             </Grid>
+            </DockPanel>
         </Grid>
     </Border>
 </Window>

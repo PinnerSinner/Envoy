@@ -1,0 +1,34 @@
+<Window x:Class="Envoy.App.Windows.ToastWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Envoy" AutomationProperties.Name="Envoy problem"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize"
+        SizeToContent="Height" Width="360" Focusable="False"
+        FontFamily="{StaticResource Font.Body}">
+    <!-- A non-activating problem toast (contract §2.2): never takes focus from the game. Colours via palette keys only. -->
+    <Border x:Name="Frame" Margin="8" Padding="14,10,6,10" CornerRadius="2" BorderThickness="1,1,1,1"
+            Background="{DynamicResource Bg.Panel}" BorderBrush="{DynamicResource Danger}">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.5" Color="Black" />
+        </Border.Effect>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="Glyph" Text="&#xE7BA;" FontFamily="{StaticResource Font.Icons}" FontSize="18"
+                       Foreground="{DynamicResource Danger}" Margin="0,2,12,0" VerticalAlignment="Top" />
+            <StackPanel Grid.Column="1">
+                <TextBlock x:Name="TitleText" Style="{StaticResource Text.Label}" FontWeight="SemiBold" Foreground="{DynamicResource Text.Primary}" />
+                <TextBlock x:Name="DetailText" Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
+                           Foreground="{DynamicResource Text.Secondary}" Margin="0,4,0,6" />
+                <Button x:Name="DetailsButton" Content="Details" Style="{StaticResource Button.Ghost}" HorizontalAlignment="Left"
+                        Padding="0,3" Click="OnDetails" AutomationProperties.Name="Details" ToolTip="Open About › Troubleshooting" />
+            </StackPanel>
+            <Button x:Name="CloseButton" Grid.Column="2" Style="{StaticResource Button.Chrome}" Content="&#xE8BB;" Width="32" Height="28"
+                    VerticalAlignment="Top" Click="OnCloseClick" AutomationProperties.Name="Close" ToolTip="Close" />
+        </Grid>
+    </Border>
+</Window>

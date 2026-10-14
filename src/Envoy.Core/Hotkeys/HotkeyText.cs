@@ -1,3 +1,4 @@
+using Envoy.Core.Diagnostics;
 using Envoy.Core.Text;
 
 namespace Envoy.Core.Hotkeys;
@@ -23,6 +24,16 @@ public static class HotkeyText
         "ScanAndTranslate" => "Scan & translate",
         _ => throw new ArgumentOutOfRangeException(nameof(actionId), actionId, "Unknown hotkey action."),
     };
+
+    /// <summary>
+    /// The Hotkeys page status line: <see cref="SafeModeText.HotkeysOff"/> when any entry was skipped for safe mode,
+    /// otherwise <see cref="TakenSummary"/>.
+    /// </summary>
+    public static string StatusLine(IReadOnlyList<HotkeyRegistrationResult> results)
+    {
+        ArgumentNullException.ThrowIfNull(results);
+        return results.Any(r => r.Status == HotkeyStatus.SkippedSafeMode) ? SafeModeText.HotkeysOff : TakenSummary(results);
+    }
 
     /// <summary>
     /// "" when no entry is <see cref="HotkeyStatus.Taken"/> or <see cref="HotkeyStatus.Invalid"/>; otherwise

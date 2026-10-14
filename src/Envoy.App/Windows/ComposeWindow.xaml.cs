@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Envoy.App.Services;
+using Envoy.Core.Diagnostics;
 using Envoy.Core.Languages;
 using Envoy.Core.Phrases;
 using Envoy.Core.Pipeline;
@@ -111,7 +112,7 @@ public partial class ComposeWindow : Window
     {
         _translatedFor = "";
         if (IsLoaded) FillPhrases();
-        if (Input.Text.Trim().Length > 0) _ = TranslateNowAsync();
+        if (Input.Text.Trim().Length > 0) TranslateNowAsync().Forget(_host.Log.For("Compose"), "reply preview");
     }
 
     private async Task<string?> TranslateNowAsync()
@@ -211,8 +212,10 @@ public partial class ComposeWindow : Window
         }
         catch (Exception ex)
         {
+            // Never a modal box here: it would steal focus from the game (REQ-REL-19).
             SetClipboard(text);
-            DialogService.ShowInfo(null, "Envoy", $"{ex.Message}\n\nThe translation was copied to your clipboard instead.");
+            _host.Log.For("Compose").Warn("Reply was not typed", ex);
+            _host.ReportProblem(ex is SendBlockedException blocked ? ProblemText.ReplyBlocked(blocked.Message) : ProblemText.ReplySendFailed);
         }
     }
 

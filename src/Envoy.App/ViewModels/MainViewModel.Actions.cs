@@ -69,7 +69,7 @@ public sealed partial class MainViewModel
 
     private void EditPhrases()
     {
-        var path = AppHost.UserPhrasesPath;
+        var path = Host.UserPhrasesPath;
         if (!File.Exists(path))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -83,14 +83,14 @@ public sealed partial class MainViewModel
 
     private void OpenLogs()
     {
-        Directory.CreateDirectory(AppHost.LogsFolder);
-        _shell.OpenUrl(AppHost.LogsFolder);
+        Directory.CreateDirectory(Host.LogsFolder);
+        _shell.OpenUrl(Host.LogsFolder);
     }
 
     private void OpenDataFolder()
     {
-        Directory.CreateDirectory(AppHost.DataFolder);
-        _shell.OpenUrl(AppHost.DataFolder);
+        Directory.CreateDirectory(Host.DataFolder);
+        _shell.OpenUrl(Host.DataFolder);
     }
 
     private void OpenLink(string? url)
