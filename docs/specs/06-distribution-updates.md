@@ -1,71 +1,78 @@
-# Distribution & updates: Velopack installer, one-click auto-update, channels, signing hook, winget
+# Distribution & updates: Velopack installer, one-click auto-update, channels, tag-only signing, winget
 
-Status: Proposed
+Status: Proposed (revised against `00-integration.md`)
 
-Area id: `06-distribution-updates` · Requirement prefix: `DIST` · Depends on nothing; integrates with
-`01-ui-foundation` (pages/commands) and `02-reliability-observability` (logging, `App.Restart`) if they land first.
+Area id: `06-distribution-updates` · Requirement prefix: `DIST` · Step 7 of the contract's order (§1).
+
+**Depends on (may assume):** 01 (`Pages/*`, `PageIds`, `MainViewModel.*` partials, `IShell`, `AsyncRelayCommand` with
+`ReportCommandError`, three-phase smoke test), 08a (`ShellLauncher`, `RestartFlags`, `LaunchTarget`,
+`ReleaseUrlPolicy`, `BannedSymbols.txt`, `tools/ci/policy.json`, `.config/dotnet-tools.json`), 02 (`ILog`/`LogHub`,
+`Task.Forget`, `AppHostOptions`, instance `DataFolder`, the `OnStartup`/`ExitApp` skeleton with a 06 slot,
+`StartupPlan`, `DiagnosticsSnapshot`), 03, 05 (`AppHost.GameWindow`, `GameWindowChanged`) and 04.
+
+**Delivers for later steps:** `Program.Main`, Velopack, `UpdateCoordinator` (+ `Changed`), `UpdateViewBuilder` /
+`UpdateView`, `UpdateActions.Run`, `AppHost.AppVersion`, `IShell.RestartToUpdate`, tag-only signing in the `windows`
+job (08b later moves it into a release job), the `vpk` pin in `.config/dotnet-tools.json`.
 
 ## Context
 
-### What exists today
+### What exists when this step starts
 
-| Topic | Today | Where |
+Today's code plus steps 1–6. Rows marked *(01/02/08a)* describe what those steps have already changed.
+
+| Topic | State | Where |
 | --- | --- | --- |
 | Build artifact | `dotnet publish -c Release` makes one self-contained, compressed single-file `Envoy.exe` (~75 MB) for win-x64. | `src/Envoy.App/Envoy.App.csproj` (Release `PropertyGroup`) |
-| CI | One workflow. The `check` job (Ubuntu) runs the unit tests and the typecheck. The `windows` job publishes the exe, runs `Envoy.exe --smoke-test`, pushes screenshots, writes `Envoy.exe.sha256`, uploads both as a workflow artifact and, on `v*` tags, creates a GitHub Release with `softprops/action-gh-release@v2` (`generate_release_notes: true`, `prerelease` when the tag contains `-`). | `.github/workflows/build.yml` |
+| CI | One workflow. The `check` job (Ubuntu) runs unit tests, the typecheck and *(08a)* `check_policy.py`. The `windows` job publishes the exe, runs `Envoy.exe --smoke-test` (*(01)* `WaitForExit(600000)`), pushes screenshots, writes `Envoy.exe.sha256`, uploads both as a workflow artifact and, on `v*` tags, creates a GitHub Release with `softprops/action-gh-release@v2` (`generate_release_notes: true`, `prerelease` when the tag contains `-`). | `.github/workflows/build.yml` |
 | Signing | None. A comment marks where a signing step would go. `docs/releasing.md` says SmartScreen warns on first run. | `build.yml`, `docs/releasing.md` |
-| Update check | `UpdateChecker.CheckAsync(Version)` calls `GET https://api.github.com/repos/{repo}/releases/latest`. It ignores drafts and prereleases, takes the first `*.exe` asset as `DownloadUrl`, and returns `null` on any non-success HTTP status. | `src/Envoy.Core/Updates/UpdateChecker.cs` |
-| Update UX | `AppHost.Start()` fires `_ = CheckForUpdatesAsync()` once if `Settings.CheckForUpdates`. War Room shows a banner with `UpdateText` and a **Download** button that opens the release *page* in the browser. The user must download the new exe, close Envoy and replace the file by hand. | `src/Envoy.App/AppHost.cs`, `Windows/MainWindow.xaml` (lines 79–85), `MainWindow.xaml.cs` `OnDownloadUpdate` |
-| Settings | `AppSettings.CheckForUpdates` (bool, default `true`), labelled "Tell me when a new version is released" on the Appearance page. | `src/Envoy.Core/Settings/AppSettings.cs`, `MainWindow.xaml` line 752 |
-| Version | `AppHost.CurrentVersion` and `MainViewModel.Version` use the numeric assembly version. CI sets `-p:Version=<numeric>` and `-p:InformationalVersion=<tag>` only for tags. | `AppHost.cs` line 74, `ViewModels/MainViewModel.cs` line 208, `build.yml` |
-| Entry point | WPF generates `Main` from `App.xaml` (`ApplicationDefinition`). `App.OnStartup` handles `--smoke-test`, then the single-instance mutex `Envoy.SingleInstance.v1`. | `src/Envoy.App/App.xaml.cs` |
-| Start with Windows | `StartupRegistration.Apply(bool)` writes `"<ProcessPath>" --minimized` to `HKCU\…\Run\Envoy`, but only when settings are edited (`ApplySettings`), not at start-up. | `src/Envoy.App/Services/StartupRegistration.cs` |
-| Repo constant | `AppHost.ReleaseRepository = "PinnerSinner/envoy"`. | `AppHost.cs` line 71 |
-| Releases | `api.github.com/repos/PinnerSinner/Envoy/releases` returns `[]` (checked 2026-10-14). No release has been published, so no installed base has to be migrated. | — |
+| Update check | `UpdateChecker.CheckAsync(Version)` calls `GET https://api.github.com/repos/{repo}/releases/latest`. It ignores drafts and prereleases, takes the first `*.exe` asset as `DownloadUrl`, and returns `null` on any non-success HTTP status. *(08a)* `Parse` and `CheckAsync` drop URLs that fail `ReleaseUrlPolicy.IsTrusted`. | `src/Envoy.Core/Updates/UpdateChecker.cs` |
+| Update UX | `AppHost.Start()` runs `CheckForUpdatesAsync().Forget(_log, "update check")` *(02)* once if `Settings.CheckForUpdates`. War Room shows a banner with `Host.UpdateText` and a **Download** button (`DownloadUpdateCommand`, *(01)*) that opens the release *page*. The user must download the new exe, close Envoy and replace the file by hand. | `AppHost.cs`, `Pages/WarRoomPage.xaml`, `MainViewModel.Actions.cs` |
+| Settings | `AppSettings.CheckForUpdates` (bool, default `true`), labelled "Tell me when a new version is released" in the Appearance page's "General" group, next to "Start Envoy when I sign in to Windows" and the transcripts row. | `AppSettings.cs`, `Pages/AppearancePage.xaml` |
+| Version | `AppHost.CurrentVersion` (static `Version`, assembly version) feeds `MainViewModel.Version`, 02's log header and crash marker. CI sets `-p:Version=<numeric>` and `-p:InformationalVersion=<tag>` only for tags. | `AppHost.cs`, `MainViewModel.cs`, `build.yml` |
+| HTTP client | One shared `HttpClient` (12 s timeout) with default UA `Mozilla/5.0 (Windows NT 10.0; Win64; x64) Envoy/0.1`. The keyless Google/Edge providers (03) depend on that browser-like UA. `UpdateChecker` sets its own per-request UA. | `AppHost.cs` lines 42–43 |
+| Entry point | WPF generates `Main` from `App.xaml` (`ApplicationDefinition`). *(02)* `OnStartup` follows the contract §4 skeleton with a comment at slot 1 (Program.Main), slot 5 (pending update apply) and slot 9 (`Updates.StartAsync`). | `src/Envoy.App/App.xaml.cs` |
+| Process launching | *(08a)* `Process.Start`/`ProcessStartInfo` are banned except in `Security/ShellLauncher.cs` (`TryOpen`, `InstallOcrPack`, `RestartSelf(RestartFlags)`, `RevealFile`). `IShell.OpenUrl` → `ShellLauncher.TryOpen(target, Host.DataFolder)`. | `BannedSymbols.txt`, `ShellLauncher.cs` |
+| Start with Windows | `StartupRegistration.Apply(bool)` writes `"<ProcessPath>" --minimized` to `HKCU\…\Run\Envoy`, only from `ApplySettings`. *(02)* "Delete all Envoy data" also removes it. | `Services/StartupRegistration.cs` |
+| Repo constant | `AppHost.ReleaseRepository = "PinnerSinner/envoy"` (wrong case). | `AppHost.cs` line 72 |
+| Releases | `api.github.com/repos/PinnerSinner/Envoy/releases` returns `[]` (checked 2026-10-14). No installed base has to be migrated. | — |
 
 ### What is weak or missing for production
 
-1. **Updating is manual.** The user finds the download, closes Envoy, replaces a 75 MB file and hopes they replaced
-   the right one. Most users won't, so old builds with known bugs stay in use.
-2. **No installer.** There is no Start menu entry and no entry in *Apps & features*. Users keep the exe in
-   `Downloads`. Windows treats an unsigned file from `Downloads` with suspicion.
-3. **Prereleases are invisible.** `releases/latest` never returns them, so no one can opt into a beta. Version
-   comparison drops the prerelease suffix: `v1.2.0-beta.1` parses as `1.2.0`. A beta user would therefore never
-   be offered `1.2.0`. The app also reports its own version without the suffix.
-4. **Errors look like "up to date".** A 403 (rate limit) or 5xx returns `null`, the same as "no update".
-5. **The asset picker breaks with two exes.** "First `.exe`" becomes ambiguous once a release also contains
-   `Envoy-win-Setup.exe`.
-6. **Release notes come from commit titles.** `generate_release_notes` builds them from commit/PR titles, not
-   from `CHANGELOG.md`, and the app never shows them.
-7. **No signing hook and no winget.** There is no code-signing step and no winget manifest.
-8. **Uninstall leaves a Run entry behind.** If Envoy started with Windows, deleting the exe leaves a Run entry
-   that points at nothing.
+1. **Updating is manual.** The user finds the download, closes Envoy, replaces a 75 MB file and hopes it was the
+   right one. Most users won't, so builds with known bugs stay in use.
+2. **No installer.** No Start menu entry, no *Apps & features* entry. Users keep the exe in `Downloads`.
+3. **Prereleases are invisible and mis-compared.** `releases/latest` never returns them, and `v1.2.0-beta.1` parses
+   as `1.2.0`, so a beta user is never offered `1.2.0`. The app reports its own version without the suffix.
+4. **Errors look like "up to date".** A 403 (rate limit) or 5xx returns `null`.
+5. **The asset picker breaks with two exes.** "First `.exe`" is ambiguous once `Envoy-win-Setup.exe` exists.
+6. **Release notes come from commit titles**, and the app never shows them.
+7. **No signing hook and no winget.**
+8. **Uninstall leaves a Run entry behind** pointing at nothing.
 
 ### Velopack facts this spec relies on
 
-`nuget.org` was reachable. `docs.velopack.io` was not (timeout), and `github.com` HTML was not (403). The facts
-below come from the `Velopack` 1.2.161 package itself: public API via reflection, XML docs, and decompiled
-`UpdateManager`, `VelopackApp`, `GitBase<T>` and `GithubSource`. CLI facts come from the `vpk` 1.2.161 tool, run
-on Linux with the `[win]` cross-compile directive. That run packed a test Windows exe twice, producing a full
-package, a delta package and a Setup.exe.
+`nuget.org` was reachable. `docs.velopack.io` was not (timeout), and `github.com` HTML was not (403). The facts below
+come from the `Velopack` 1.2.161 package itself (reflection, XML docs, decompiled `UpdateManager`, `VelopackApp`,
+`GitBase<T>`, `GithubSource`) and the `vpk` 1.2.161 tool run on Linux with the `[win]` cross-compile directive (it
+packed a test exe twice: full package, delta package, Setup.exe).
 
 | Fact | Status |
 | --- | --- |
 | `Velopack` 1.2.161 (published 2026-09-29, MIT) targets net8.0 with no dependencies. `vpk` 1.2.161 is a dotnet tool. | verified (NuGet) |
-| `VelopackApp.Build()` returns a builder with `SetAutoApplyOnStartup(bool)` (default ON), `OnFirstRun`, `OnRestarted`, `OnBeforeUninstallFastCallback`, `OnAfterInstallFastCallback`, `OnAfterUpdateFastCallback`, `SetLogger`, `SetArgs`, and `Run()`. `VelopackHook` is `void (SemanticVersion version)`. Fast-callback hooks run with args `--veloapp-install/-updated/-obsolete/-uninstall <ver>`, then the process exits. Uninstall hooks are killed after 30 s. | verified (reflection + decompile) |
-| `Run()` returns immediately when the app is not installed (`CurrentlyInstalledVersion == null`). When installed with auto-apply ON and a newer local package exists, it applies that package and restarts **with the same args** before the app's own code runs. `OnRestarted` fires when the `VELOPACK_RESTART` env var is set. | verified (decompile) |
-| `vpk pack` checks that the entry point calls `VelopackApp.Run()` ("Verified VelopackApp.Run() in …Main"). Without that call it fails unless `--skipVeloAppCheck` is passed. | verified (vpk run) |
-| `UpdateManager(IUpdateSource source, UpdateOptions? options = null, IVelopackLocator? locator = null)`. The parameterless constructor uses `VelopackFlowSource` (Velopack's hosted service). **We never use it.** | verified |
-| Members: `IsInstalled`, `IsPortable`, `CurrentVersion` (`SemanticVersion?`), `UpdatePendingRestart` (`VelopackAsset?`, set when a downloaded full package is newer than the installed one), `Task<UpdateInfo?> CheckForUpdatesAsync()` (throws `NotInstalledException` when not installed), `Task DownloadUpdatesAsync(UpdateInfo, Action<int>? progress = null, CancellationToken = default)`, `WaitExitThenApplyUpdates(VelopackAsset? toApply, bool silent = false, bool restart = true, string[]? restartArgs = null)`, `ApplyUpdatesAndRestart(VelopackAsset, string[]? = null)`. | verified |
-| `UpdateInfo.TargetFullRelease` (`VelopackAsset`: `Version`, `NotesMarkdown`, `NotesHTML`, `SHA256`, `Size`), `IsDowngrade`, `DeltasToTarget`. Downloads try deltas first (when ≤ `MaximumDeltasBeforeFallback`, default 10, and smaller than the full package), fall back to the full package, and verify SHA1/SHA256. | verified (decompile) |
-| `UpdateOptions { ExplicitChannel, AllowVersionDowngrade (default false), MaximumDeltasBeforeFallback }`. The default channel on Windows is `win`. | verified |
-| `GithubSource(string repoUrl, string? accessToken, bool prerelease, IFileDownloader? downloader = null)` makes **one** API call (`/releases?per_page=10`), drops prereleases unless `prerelease`, downloads `releases.<channel>.json` from each of those releases, merges them, and picks the **highest version** full package. Unauthenticated requests are limited to 60 per hour per IP. The staged-rollout user id is passed to the source but `GitBase` does not send it. The User-Agent is `Velopack/<version>`. | verified (decompile) |
-| `vpk pack` (Windows target) options: `--packId --packVersion --packDir --mainExe --packTitle --packAuthors --icon --releaseNotes --channel --runtime --delta {None,BestSpeed,BestSize} --noPortable --noInst --shortcuts --splashImage --signTemplate "…{{file}}…" --signExclude --signParallel --framework --aumid --exclude -o`. Without `--runtime` it defaults to x86, so we pass `win-x64`. | verified (vpk help + run) |
-| Pack output: `Envoy-win-Setup.exe`, `Envoy-<ver>-full.nupkg`, `Envoy-<ver>-delta.nupkg` (when a previous full package is in the output folder), `releases.win.json` (every package in the folder, with `NotesMarkdown`/`NotesHTML`), `assets.win.json` (only this version's new files), `RELEASES` (legacy), and `Envoy-win-Portable.zip` unless `--noPortable`. | verified (vpk run) |
-| `vpk download github --repoUrl --channel --token --pre -o` fetches the latest (pre)release's full package so `pack` can make a delta. `vpk upload github --repoUrl --token --channel -o --tag --releaseName --targetCommitish --pre --merge --publish` creates a **draft** unless `--publish` is passed. | verified (vpk help) |
-| Setup.exe options include `--silent` ("Hides all dialogs and answers 'yes'"), `--verbose`, `--installto DIR`. It writes an uninstall entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall` (DisplayName, QuietUninstallString …). | verified (strings in a generated Setup.exe) |
-| Install location `%LocalAppData%\<packId>\current\`, per-user and without UAC. Shortcuts point to a stub `%LocalAppData%\<packId>\Envoy.exe`. The uninstall registry key name equals the packId. | **not verified** (docs unreachable). AC-DIST-12 checks this manually. |
-| `--signParams` / `--azureTrustedSignFile` (Windows-only vpk options). | **not verified**. This spec uses only the verified `--signTemplate`. |
+| `VelopackApp.Build()` returns a builder with `SetAutoApplyOnStartup(bool)` (default ON), `OnFirstRun`, `OnRestarted`, `OnBeforeUninstallFastCallback`, `OnAfterInstallFastCallback`, `OnAfterUpdateFastCallback`, `SetLogger`, `SetArgs`, and `Run()`. Fast-callback hooks run with args `--veloapp-install/-updated/-obsolete/-uninstall <ver>`, then the process exits. Uninstall hooks are killed after 30 s. | verified (reflection + decompile) |
+| `Run()` returns immediately when the app is not installed. When installed with auto-apply ON and a newer local package exists, it applies it and restarts **with the same args** before the app's own code runs. | verified (decompile) |
+| `vpk pack` checks that the entry point calls `VelopackApp.Run()` ("Verified VelopackApp.Run() in …Main") and fails without it unless `--skipVeloAppCheck`. | verified (vpk run) |
+| `UpdateManager(IUpdateSource source, UpdateOptions? options = null, IVelopackLocator? locator = null)`. The parameterless constructor uses `VelopackFlowSource` (hosted service). **We never use it.** | verified |
+| Members: `IsInstalled`, `IsPortable`, `CurrentVersion`, `UpdatePendingRestart` (`VelopackAsset?`), `CheckForUpdatesAsync()` (throws `NotInstalledException` when not installed), `DownloadUpdatesAsync(UpdateInfo, Action<int>?, CancellationToken)`, `WaitExitThenApplyUpdates(VelopackAsset?, bool silent, bool restart, string[]? restartArgs)`, `ApplyUpdatesAndRestart(...)`. | verified |
+| `UpdateInfo.TargetFullRelease` (`Version`, `NotesMarkdown`, `NotesHTML`, `SHA256`, `Size`), `IsDowngrade`, `DeltasToTarget`. Downloads try deltas first, fall back to the full package, and verify SHA1/SHA256. | verified (decompile) |
+| `UpdateOptions { ExplicitChannel, AllowVersionDowngrade (default false), MaximumDeltasBeforeFallback }`. Default channel on Windows is `win`. | verified |
+| `GithubSource(string repoUrl, string? accessToken, bool prerelease, IFileDownloader? downloader = null)` makes **one** API call (`/releases?per_page=10`), drops prereleases unless `prerelease`, downloads `releases.<channel>.json` from those releases and picks the **highest version** full package. Unauthenticated: 60 requests/hour/IP. UA `Velopack/<version>`. No user id is sent. | verified (decompile) |
+| `vpk pack` (Windows target) options include `--packId --packVersion --packDir --mainExe --packTitle --packAuthors --icon --releaseNotes --channel --runtime --delta {None,BestSpeed,BestSize} --noPortable --shortcuts --signTemplate "…{{file}}…" -o`. Without `--runtime` it defaults to x86, so we pass `win-x64`. | verified (vpk help + run) |
+| Pack output: `Envoy-win-Setup.exe`, `Envoy-<ver>-full.nupkg`, `Envoy-<ver>-delta.nupkg` (when a previous full package is in the output folder), `releases.win.json`, `assets.win.json`, `RELEASES` (legacy), and `Envoy-win-Portable.zip` unless `--noPortable`. | verified (vpk run) |
+| `vpk download github --repoUrl --channel --token --pre -o` fetches the latest (pre)release's full package for deltas. `vpk upload github … --tag --releaseName --targetCommitish --pre --merge --publish` creates a **draft** unless `--publish`. | verified (vpk help) |
+| Setup.exe supports `--silent`, `--verbose`, `--installto DIR`, and writes an uninstall entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall`. | verified (strings in a generated Setup.exe) |
+| Install location `%LocalAppData%\<packId>\current\`, per-user, no UAC; shortcuts point to a stub `%LocalAppData%\<packId>\Envoy.exe`; uninstall key name equals packId. | **not verified** (docs unreachable). Release-pass step M-DIST-2 records it. |
+| `--signParams` / `--azureTrustedSignFile`. | **not verified**; only `--signTemplate` is used. |
 
 ## Goals / Non-goals
 
@@ -74,59 +81,65 @@ package, a delta package and a Setup.exe.
 - Two artifacts per release:
   - `Envoy-win-Setup.exe`: the recommended download. Per-user install, Start menu shortcut, uninstall entry,
     auto-update.
-  - `Envoy.exe`: the existing portable single file. It is never modified by Envoy and notifies only.
+  - `Envoy.exe`: the existing portable single file. Envoy never modifies it; it only notifies.
 - One-click updates for installed copies: background download (delta when possible), then **Restart to update**.
-  Updates apply at the next launch if the user doesn't restart.
-- Stable/Beta channel, an opt-out that really means *no automatic requests*, release notes shown in the app, and
-  correct SemVer handling of prereleases.
-- A release workflow that never publishes a partial release, takes notes from `CHANGELOG.md`, publishes checksums,
-  signs when secrets exist, and renders winget manifests.
-- All decision logic in `Envoy.Core.Updates` with unit tests. Velopack calls stay in one small App class.
+  A downloaded update is applied at the next launch if the user doesn't restart.
+- An opt-out that really means *no automatic requests*, release notes shown in the app, correct SemVer handling of
+  prereleases. Stable/Beta channels (SHOULD).
+- A release workflow that never publishes a partial release, publishes checksums, and signs **only on tags**, under
+  the protected `release` environment.
+- All decision logic and user-facing text in `Envoy.Core.Updates` with unit tests. Velopack calls stay in one small
+  App class.
 
 **Non-goals**
 
-- Buying or setting up a certificate, or submitting to winget (documented manual steps only).
-- MSI, Microsoft Store/MSIX, machine-wide installs, ARM64 builds.
-- Auto-updating the portable exe in place (it is notify-only by design).
-- Staged rollouts, Velopack Flow, any hosted update service, or telemetry of any kind.
-- Migrating existing portable users automatically (there are none: no release exists yet). Portable users get a
-  "Get the installer" button instead.
-- Changing where settings live (`%APPDATA%\Envoy`, roaming). That stays as is.
+- Buying a certificate or submitting to winget (documented manual steps only).
+- MSI, Store/MSIX, machine-wide installs, ARM64.
+- Auto-updating the portable exe in place (notify-only by design).
+- Staged rollouts, Velopack Flow, any hosted update service, any telemetry.
+- Migrating existing portable users (there are none). Portable users get a **Get the installer** button.
+- Changing where user data lives. It stays under `Host.DataFolder` (`%APPDATA%\Envoy` by default, 02). The install
+  folder is not user data and is not in 02's `DataInventory`.
+- The update **balloon** and its "announced" bookkeeping (07a, contract §2.5). The CI **release job**, SBOM and
+  attestation (08b).
 
 ## Requirements
 
+MUST count: **17** (contract §9: DIST-1, 2, 3, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 19, 20, 27).
+
 | ID | Priority | Requirement |
 | --- | --- | --- |
-| REQ-DIST-1 | MUST | Every tagged build publishes `Envoy-win-Setup.exe`, a Velopack installer that installs per-user without elevation, creates a Start menu shortcut and registers an *Apps & features* uninstall entry. |
-| REQ-DIST-2 | MUST | Every tagged GitHub Release contains `releases.win.json`, `assets.win.json` and `Envoy-<ver>-full.nupkg`, plus `Envoy-<ver>-delta.nupkg` whenever a previous release on the same track (stable, or any for betas) exists. |
-| REQ-DIST-3 | MUST | The portable `Envoy.exe` (self-contained single file) and `Envoy.exe.sha256` are still built, smoke-tested and attached to every release exactly as today. |
-| REQ-DIST-4 | MUST | Every CI run, not only tags, runs `vpk pack` on a `<csproj Version>-ci.<run_number>` version and uploads that Setup.exe as a workflow artifact, so a broken package or a missing `VelopackApp.Run()` fails the build. |
-| REQ-DIST-5 | MUST | A release stays a draft until every asset (Velopack files, portable exe, checksums, notes) is uploaded, and is marked prerelease exactly when the tag contains `-`. |
-| REQ-DIST-6 | MUST | Release notes for the GitHub release and for the Velopack package (`--releaseNotes`) are the tag's `CHANGELOG.md` section. A stable tag with no matching `## [x.y.z]` section fails the workflow before anything is published. |
-| REQ-DIST-7 | MUST | Each release has a `SHA256SUMS.txt` with the SHA-256 of `Envoy.exe` and `Envoy-win-Setup.exe` in `sha256sum` format. |
-| REQ-DIST-8 | MUST | Code signing runs only when the signing secrets are set. Without them the workflow passes unsigned and prints a notice. With them it Authenticode-signs (SHA-256, RFC 3161 timestamp) the portable `Envoy.exe`, the packed binaries and `Envoy-win-Setup.exe`. |
-| REQ-DIST-9 | MUST | The `Velopack` NuGet version and the `vpk` CLI version are the same exact pinned version, and the `check` job fails if `Envoy.App.csproj`, `TypeCheck.csproj` and `build.yml` disagree. |
-| REQ-DIST-10 | MUST | `Program.Main` calls `VelopackApp.Build()…Run()` before any WPF object exists, with `SetAutoApplyOnStartup(false)`. Portable, Debug and `--smoke-test` launches behave exactly as today. |
-| REQ-DIST-11 | MUST | Uninstalling removes the `HKCU\…\Run\Envoy` value and does not touch `%APPDATA%\Envoy` (settings, API keys, phrases, logs, transcripts). |
-| REQ-DIST-12 | MUST | A downloaded update is applied only when (a) the user clicks **Restart to update**, or (b) a later launch has acquired the single-instance mutex. It is never applied while another Envoy instance runs and never by an unprompted restart. |
-| REQ-DIST-13 | MUST | When `CheckForUpdates` is false, Envoy makes no automatic update-related network request. A user-clicked **Check for updates** still runs. |
-| REQ-DIST-14 | MUST | Update traffic goes only to GitHub for the repository `PinnerSinner/Envoy` (`api.github.com` and GitHub release-asset downloads). It carries no identifier beyond the User-Agent product/version, and the Velopack Flow constructor is never used. |
-| REQ-DIST-15 | MUST | Installed copies download updates through Velopack (delta when possible, checksum-verified) and show percent progress. Portable copies never write to their own files and offer **Download** (release page) and **Get the installer** instead. |
-| REQ-DIST-16 | MUST | With `Updates.AutoDownload` true (the default), an available update downloads in the background and the banner then offers **Restart to update**. While an Age game is detected the download waits and starts once the game closes. With it false, the banner offers **Update now**. |
-| REQ-DIST-17 | MUST | The update banner shows the new version, the release notes as plain text (Markdown stripped, at most 1,200 characters) and a link to the release page. |
-| REQ-DIST-18 | MUST | `Updates.Channel` is `Stable` or `Beta` (default `Stable`). Beta also considers GitHub prereleases. Changing channel never installs a lower version. |
-| REQ-DIST-19 | MUST | All version comparisons use SemVer 2.0 precedence (prerelease < release, numeric identifiers compared numerically, build metadata ignored). The app's own version comes from `AssemblyInformationalVersion`, so a beta build knows it is a beta. |
-| REQ-DIST-20 | MUST | A failed check or download never shows a modal dialog. Background failures leave no visible trace beyond a log line (when the logging area exists). A user-initiated failure shows one readable sentence and a **Retry** action. |
-| REQ-DIST-21 | SHOULD | While Envoy keeps running, automatic checks repeat at most every 12 hours. The start-up check is skipped if the last check was under 1 hour ago. |
+| REQ-DIST-1 | MUST | Every `v*` tag build publishes `Envoy-win-Setup.exe`, a Velopack installer that installs per-user without elevation, creates a Start menu shortcut and registers an *Apps & features* uninstall entry. |
+| REQ-DIST-2 | MUST | Every tagged GitHub Release contains `releases.win.json`, `assets.win.json` and `Envoy-<ver>-full.nupkg`, plus `Envoy-<ver>-delta.nupkg` whenever `vpk download` found a previous release on the same track (stable; any release for betas). |
+| REQ-DIST-3 | MUST | The portable `Envoy.exe` (self-contained single file) and `Envoy.exe.sha256` are still built, smoke-tested and attached to every release as today. |
+| REQ-DIST-4 | SHOULD | Pushes to `main` (not PRs) also publish the folder build and run `vpk pack` on `<csproj Version>-ci.<run_number>`, unsigned, and upload that Setup.exe as a workflow artifact, so a broken package shows up before a tag. |
+| REQ-DIST-5 | MUST | A release stays a draft until every asset (Velopack files, portable exe, checksums) is uploaded **and** a workflow step has asserted the uploaded asset list. It is marked prerelease exactly when the tag contains `-`. |
+| REQ-DIST-6 | SHOULD | Release notes (GitHub body and `vpk --releaseNotes`) are the tag's `CHANGELOG.md` section. A stable tag with no `## [x.y.z]` section fails before anything is uploaded. Without this, the body is the fixed footer plus a link to `CHANGELOG.md`. |
+| REQ-DIST-7 | MUST | Each release has `SHA256SUMS.txt` with the SHA-256 of `Envoy.exe` and `Envoy-win-Setup.exe` in `sha256sum` format. |
+| REQ-DIST-8 | MUST | Code signing runs **only** in `v*` tag builds, in steps whose job runs under the protected `release` environment, which holds the signing secrets as environment secrets. Untagged builds and forks are never signed, and their log says so. A tag build with a configured certificate Authenticode-signs (SHA-256, RFC 3161 timestamp) the portable `Envoy.exe`, the packed binaries and `Envoy-win-Setup.exe`. A tag build without one publishes unsigned with a notice. |
+| REQ-DIST-9 | MUST | The `Velopack` NuGet version (`Envoy.App.csproj`, `tools/typecheck/TypeCheck.csproj`) and the `vpk` tool version (`.config/dotnet-tools.json`) are one exact pinned version. CI runs `vpk` only through `dotnet tool restore` + `dotnet vpk`. The `check` job fails when the three disagree. |
+| REQ-DIST-10 | MUST | `Program.Main` calls `VelopackApp.Build().SetAutoApplyOnStartup(false)…Run()` before any WPF object exists (contract §4 step 1). Portable, Debug and `--smoke-test` launches behave as before. |
+| REQ-DIST-11 | MUST | Uninstalling removes the `HKCU\…\Run\Envoy` value and does not touch `Host.DataFolder` (settings, keys, phrases, logs, transcripts, caches). |
+| REQ-DIST-12 | MUST | A downloaded update is applied only when (a) the user chooses **Restart to update**, or (b) a later launch has acquired the single-instance mutex (contract §4 step 5). Step (b) is skipped with `--safe-mode` or Shift held, and runs before `StartupSentinel.BeginStartup`. An update is never applied while another Envoy instance runs, and never by an unprompted restart. |
+| REQ-DIST-13 | MUST | When `CheckForUpdates` is false, or in safe mode, Envoy makes no automatic update-related network request. The About page's **Check for updates** button always works, including in safe mode. |
+| REQ-DIST-14 | MUST | Update traffic goes only to GitHub for `PinnerSinner/Envoy` (`api.github.com` and release-asset downloads). It carries no identifier beyond the User-Agent product/version. The Velopack Flow source is never used. Release-page and installer URLs pass 08a's `ReleaseUrlPolicy.IsTrusted(url, UpdateEndpoints.Repository)` before they reach `IShell.OpenUrl`. |
+| REQ-DIST-15 | MUST | Installed copies download updates through Velopack (delta when possible, checksum-verified) and show percent progress. Portable copies never write to their own files and offer **Download** (release page) and **Get the installer**. |
+| REQ-DIST-16 | MUST | With `Updates.AutoDownload` true (default), an available update downloads in the background and the War Room banner then offers **Restart to update**. While a game is running (`Host.Game` or `Host.GameWindow` non-null) the download waits and starts once the game closes. With it false, the banner offers **Update now**. The banner shows the new version, the release notes as plain text (Markdown stripped, at most 1,200 characters) and a release-notes link (absorbs REQ-DIST-17). |
+| REQ-DIST-17 | — | Folded into REQ-DIST-16. |
+| REQ-DIST-18 | SHOULD | `Updates.Channel` is `Stable` or `Beta` (default `Stable`). Beta also considers GitHub prereleases. Changing channel never installs a lower version and triggers one manual check. |
+| REQ-DIST-19 | MUST | All version comparisons use SemVer 2.0 precedence (prerelease < release, numeric identifiers compared numerically, build metadata ignored). `AppHost.AppVersion` (a `ReleaseVersion`) comes from `AssemblyInformationalVersion`, so a beta build knows it is a beta; all user-visible version text uses it. `AppHost.CurrentVersion` stays the assembly `Version`. The shared client's default UA keeps its browser-like form; only the `0.1` token becomes `{Major}.{Minor}.{Patch}`. |
+| REQ-DIST-20 | MUST | A failed check or download never shows a modal dialog. A background failure is logged at Warning (category `Updates`) and shows nothing. A user-initiated failure shows one sentence from `UpdateText` (no raw exception text, no "Error:" prefix) and a **Retry** action. |
+| REQ-DIST-21 | SHOULD | While Envoy runs, automatic checks repeat at most every 12 hours. The start-up check is skipped if the last check was under 1 hour ago. |
 | REQ-DIST-22 | SHOULD | **Skip this version** hides that version from automatic checks but not from a user-initiated check. |
-| REQ-DIST-23 | SHOULD | After Velopack restarts Envoy following an update, War Room shows a one-time dismissible "Updated to vX" notice linking to the release notes. |
+| REQ-DIST-23 | SHOULD | After an update (installed or a replaced portable exe), the War Room update-banner slot shows a one-time "Envoy was updated to vX" notice with **What's new** and **Dismiss**, when no update banner is active. |
 | REQ-DIST-24 | SHOULD | When an update is ready, the tray menu has a **Restart to update to vX** item. |
-| REQ-DIST-25 | SHOULD | The About page shows the version (with prerelease suffix), install type (Installed/Portable), channel, last-checked time, current update status and a **Check for updates** button. |
+| REQ-DIST-25 | SHOULD | The About page's "Version & updates" block also shows install type, channel, last-checked time and the status line. |
 | REQ-DIST-26 | SHOULD | When `StartWithWindows` is true, start-up rewrites the Run value to the current exe path, so moving from portable to installed keeps start-at-sign-in working. |
-| REQ-DIST-27 | MUST | The smoke test renders the update UI in the states Available, Downloading, ReadyToRestart, Failed and Portable-available, under every theme, without network access. |
-| REQ-DIST-28 | MUST | The repo contains winget manifest templates (schema 1.6.0, version/installer/defaultLocale) for `Envoy-win-Setup.exe` as a user-scope `exe` installer with `--silent`. CI renders them on stable tags as a workflow artifact, and the docs describe manual submission. |
-| REQ-DIST-29 | MUST | User and developer docs are updated: the README download section (installer recommended, portable alternative), a new `docs/installing.md`, `docs/releasing.md`, `THIRD-PARTY-NOTICES.md` (Velopack, MIT) and `CHANGELOG.md`. |
-| REQ-DIST-30 | COULD | The `ENVOY_UPDATE_FEED` environment variable (a local folder or URL) replaces the GitHub source for installed builds, so updates can be tested without publishing a release. |
+| REQ-DIST-27 | MUST | The smoke test (contract §6) renders the War Room update banner in Available, Downloading, ReadyToRestart and Failed under every `ThemeManager.PaletteIds` entry, inside the binding-error window, and asserts the Portable-available view from a reused Portable host. No network is used. |
+| REQ-DIST-28 | SHOULD | winget manifest templates (schema 1.6.0) for `Envoy-win-Setup.exe` as a user-scope `exe` installer with `--silent`, rendered on stable tags as a workflow artifact; manual submission documented. |
+| REQ-DIST-29 | — | Moved to the definition of done (contract §10.4): README, `docs/installing.md`, `docs/releasing.md`, `THIRD-PARTY-NOTICES.md`, `CHANGELOG.md`. |
+| REQ-DIST-30 | COULD | `ENVOY_UPDATE_FEED` (a **local folder path** only; URLs are ignored) replaces the GitHub source for installed builds, for testing updates without a release. |
+| REQ-DIST-31 | SHOULD | 02's diagnostics report gains an "Updates" line: install kind, channel, state, last check, last background error kind. |
 
 ## Design
 
@@ -134,21 +147,25 @@ package, a delta package and a Setup.exe.
 
 ```
 Envoy.Core/Updates  (net8.0, unit tested)                 Envoy.App (Windows)
-┌──────────────────────────────────────────────┐          ┌─────────────────────────────────────┐
-│ ReleaseVersion   SemVer parse/compare        │          │ Program.Main  → VelopackApp.Run()   │
-│ AppVersion       informational → version     │          │ Services/VelopackUpdateBackend      │
-│ UpdateChecker    GitHub REST (portable)      │◄─────────│   : IUpdateBackend (installed)      │
-│ GitHubReleaseBackend : IUpdateBackend        │          │ AppHost.Updates (UpdateCoordinator) │
-│ UpdateCoordinator  state machine + policy    │          │ War Room banner / About / tray      │
-│ UpdateView         state → banner text/btns  │          └─────────────────────────────────────┘
-│ ReleaseNotesText   markdown → plain text     │
-└──────────────────────────────────────────────┘
-CI: publish single-file (portable) + publish folder → vpk pack → draft release → upload → publish
+┌──────────────────────────────────────────────┐          ┌──────────────────────────────────────────┐
+│ ReleaseVersion   SemVer parse/compare        │          │ Program.Main  → VelopackApp.Run()        │
+│ UpdateChecker    GitHub REST (portable)      │◄─────────│ Services/VelopackUpdateBackend           │
+│ GitHubReleaseBackend : IUpdateBackend        │          │   : IUpdateBackend (installed; no        │
+│ UpdatePreferences  immutable settings snap.  │          │     network types named)                 │
+│ UpdateCoordinator  state machine + policy    │          │ AppHost.cs: UpdateBackendFactory,        │
+│ UpdateViewBuilder  state → banner view       │          │   Updates, AppVersion                    │
+│ UpdateText / ReleaseNotesText  UI strings    │          │ Services/UpdateActions (banner, tray,    │
+│ PendingUpdatePolicy                          │          │   later 07a's balloon)                   │
+└──────────────────────────────────────────────┘          │ WarRoom banner / Appearance / About/tray │
+                                                          └──────────────────────────────────────────┘
+CI windows job: publish single-file (portable) → smoke → [main/tags] publish folder → vpk pack
+                [tags, environment: release] sign → draft release → upload → assert assets → publish
 ```
 
-`UpdateBackendFactory.Create` in the App picks the backend once at start-up. A Velopack-installed copy gets
-`VelopackUpdateBackend`. Anything else (portable exe, `dotnet run`, smoke test) gets `GitHubReleaseBackend`.
-`UpdateCoordinator` doesn't know which one it has, beyond `InstallKind`.
+`UpdateBackendFactory.Create` (in `AppHost.cs`, contract §5) picks the backend once. A Velopack-installed copy gets
+`VelopackUpdateBackend`; anything else (portable exe, `dotnet run`, smoke test) gets `GitHubReleaseBackend`.
+`AppHostOptions.UpdateBackend` overrides both (smoke test, and App passing the backend it already created at start-up
+slot 5). `UpdateCoordinator` knows only `InstallKind`.
 
 ### Core: new and changed types (`src/Envoy.Core/Updates/`)
 
@@ -161,38 +178,33 @@ public sealed class ReleaseVersion : IComparable<ReleaseVersion>, IEquatable<Rel
     public int Major { get; }
     public int Minor { get; }
     public int Patch { get; }
-    /// <summary>Dot-separated prerelease identifiers; empty for a release.</summary>
-    public IReadOnlyList<string> Prerelease { get; }
+    public IReadOnlyList<string> Prerelease { get; }   // empty for a release
     public bool IsPrerelease => Prerelease.Count > 0;
 
     public ReleaseVersion(int major, int minor, int patch, params string[] prerelease);
     public static bool TryParse(string? text, [NotNullWhen(true)] out ReleaseVersion? version);
     public static ReleaseVersion Parse(string text);          // FormatException on garbage
+    /// <summary>"1.2.0-beta.1+0abc…" → 1.2.0-beta.1. Falls back to the numeric assembly version, then 0.0.0.</summary>
+    public static ReleaseVersion FromInformational(string? informationalVersion, Version? assemblyVersion);
     public int CompareTo(ReleaseVersion? other);              // SemVer §11 precedence; null sorts first
     public bool Equals(ReleaseVersion? other);
+    public string CoreString { get; }                          // "1.2.3" (no prerelease)
     public override string ToString();                         // "1.2.3" or "1.2.3-beta.1" (no "v", no metadata)
     public static bool operator <(ReleaseVersion a, ReleaseVersion b); // plus >, <=, >=, ==, !=
 }
 
-public static class AppVersion
-{
-    /// <summary>"1.2.0-beta.1+0abc…" → 1.2.0-beta.1. Falls back to the numeric assembly version, then 0.0.0.</summary>
-    public static ReleaseVersion Resolve(string? informationalVersion, Version? assemblyVersion);
-}
-
 public enum UpdateChannel { Stable, Beta }
 public enum InstallKind { Installed, Portable }
+public enum UpdateErrorKind { Offline, RateLimited, BadResponse, DownloadFailed, UpdaterFailed, Unknown }
 
 /// <summary>One update the backend found. Handle is backend-private (the Velopack UpdateInfo).</summary>
 public sealed record AvailableUpdate(
-    ReleaseVersion Version,
-    string? NotesMarkdown,
-    string ReleasePageUrl,
-    string? PortableDownloadUrl,
-    string? InstallerDownloadUrl,
-    object? Handle = null);
+    ReleaseVersion Version, string? NotesMarkdown, string ReleasePageUrl,
+    string? PortableDownloadUrl, string? InstallerDownloadUrl, object? Handle = null);
 
-public sealed class UpdateCheckException(string message, Exception? inner = null) : Exception(message, inner);
+public sealed class UpdateCheckException(UpdateErrorKind kind, Exception? inner = null)
+    : Exception(kind.ToString(), inner)
+{ public UpdateErrorKind Kind { get; } = kind; }
 
 public interface IUpdateBackend
 {
@@ -202,50 +214,11 @@ public interface IUpdateBackend
     Task<AvailableUpdate?> CheckAsync(UpdateChannel channel, CancellationToken ct);
     /// <summary>Installed only (Portable throws NotSupportedException). progress: 0–100.</summary>
     Task DownloadAsync(AvailableUpdate update, IProgress<int> progress, CancellationToken ct);
-    /// <summary>Version of a fully downloaded, not yet applied update; null if none.</summary>
+    /// <summary>Version of a fully downloaded, not yet applied update; null if none. Local, no network.</summary>
     ReleaseVersion? PendingRestart { get; }
-    /// <summary>Starts the updater, which waits for this process to exit, applies, and relaunches with args.
-    /// The caller must then exit normally. Installed only.</summary>
-    void LaunchUpdaterAfterExit(string[] restartArgs);
-}
-```
-
-**`UpdateChecker` (changed).** It stays the portable path and keeps today's public members, so existing tests
-still compile.
-
-```csharp
-public sealed record UpdateInfo(Version Version, string Tag, string PageUrl, string? DownloadUrl, string? Notes)
-{
-    // New, init-only, default-valued so existing constructions still compile:
-    public ReleaseVersion? SemVer { get; init; }
-    public string? InstallerUrl { get; init; }   // asset named exactly "Envoy-win-Setup.exe"
-    public bool IsPrerelease { get; init; }
-}
-
-public sealed class UpdateChecker(HttpClient http, string ownerAndRepo)
-{
-    public Task<UpdateInfo?> CheckAsync(Version current, CancellationToken ct = default);          // unchanged behaviour
-    /// <summary>Stable: GET releases/latest. Beta: GET releases?per_page=10 and pick the highest SemVer.
-    /// 404 → null (no releases). Other non-success, timeouts, bad JSON → UpdateCheckException.</summary>
-    public Task<UpdateInfo?> CheckAsync(ReleaseVersion current, UpdateChannel channel, CancellationToken ct = default);
-    public static UpdateInfo? Parse(string json);                                  // unchanged: skips drafts/prereleases
-    public static UpdateInfo? Parse(string json, bool includePrereleases);
-    public static UpdateInfo? PickLatest(string releasesArrayJson, UpdateChannel channel);
-    public static bool TryParseVersion(string tag, out Version version);           // unchanged
-}
-```
-
-`Parse` changes how it picks the portable `DownloadUrl`: it takes the asset named exactly `Envoy.exe`, and only
-falls back to the first `.exe` that isn't `*Setup.exe`. Requests send only `User-Agent: Envoy/<version>` and
-`Accept: application/vnd.github+json`.
-
-```csharp
-/// <summary>Portable / dev builds: notify only.</summary>
-public sealed class GitHubReleaseBackend(UpdateChecker checker, ReleaseVersion current) : IUpdateBackend
-{
-    public InstallKind Kind => InstallKind.Portable;
-    // CheckAsync → checker.CheckAsync(current, channel) mapped to AvailableUpdate(PortableDownloadUrl=DownloadUrl, InstallerDownloadUrl=InstallerUrl)
-    // DownloadAsync / LaunchUpdaterAfterExit → NotSupportedException; PendingRestart → null
+    /// <summary>Starts Velopack's updater, which waits for this process to exit, applies, and relaunches with
+    /// restartArgs. The caller must then exit. Installed only.</summary>
+    void LaunchUpdaterAfterExit(IReadOnlyList<string> restartArgs);
 }
 
 public static class UpdateEndpoints
@@ -255,70 +228,170 @@ public static class UpdateEndpoints
     public static string ReleasePage(ReleaseVersion v) => $"{RepositoryUrl}/releases/tag/v{v}";
 }
 
+/// <summary>Start-up slot 5 decision (REQ-DIST-12 b).</summary>
+public static class PendingUpdatePolicy
+{
+    public static bool ShouldApplyAtStartup(bool hasPendingPackage, bool safeModeArg, bool shiftHeld)
+        => hasPendingPackage && !safeModeArg && !shiftHeld;
+}
+```
+
+`AppHost.ReleaseRepository` becomes `=> UpdateEndpoints.Repository`, which fixes the casing that 08a's
+`ReleaseUrlPolicy` check compares (ordinal-ignore-case, so the old value also passed).
+
+**`UpdateChecker` (changed).** It stays the portable path and keeps today's public members and 08a's trusted-URL
+checks, so existing tests still compile and pass.
+
+```csharp
+public sealed record UpdateInfo(Version Version, string Tag, string PageUrl, string? DownloadUrl, string? Notes)
+{
+    public ReleaseVersion? SemVer { get; init; }
+    public string? InstallerUrl { get; init; }   // asset named exactly "Envoy-win-Setup.exe"; null if untrusted
+    public bool IsPrerelease { get; init; }
+}
+
+public sealed class UpdateChecker(HttpClient http, string ownerAndRepo)
+{
+    public Task<UpdateInfo?> CheckAsync(Version current, CancellationToken ct = default);          // unchanged
+    /// <summary>Stable: GET releases/latest. Beta: GET releases?per_page=10 and pick the highest SemVer.
+    /// 404 → null. 403/429 → UpdateCheckException(RateLimited). Other non-success, bad JSON →
+    /// BadResponse. HttpRequestException/timeout → Offline. Untrusted html_url → null (08a rule).</summary>
+    public Task<UpdateInfo?> CheckAsync(ReleaseVersion current, UpdateChannel channel, CancellationToken ct = default);
+    public static UpdateInfo? Parse(string json);                                  // unchanged: skips drafts/prereleases
+    public static UpdateInfo? Parse(string json, bool includePrereleases);         // applies ReleaseUrlPolicy
+    public static UpdateInfo? PickLatest(string releasesArrayJson, UpdateChannel channel); // applies ReleaseUrlPolicy
+    public static bool TryParseVersion(string tag, out Version version);           // unchanged
+}
+```
+
+`Parse` picks the portable `DownloadUrl` as the asset named exactly `Envoy.exe`, falling back to the first `.exe`
+that isn't `*Setup.exe`. Requests send only `User-Agent: Envoy/<AppVersion>` and
+`Accept: application/vnd.github+json` (per-request headers; the client default UA is not used for update traffic).
+
+```csharp
+/// <summary>Portable / dev builds: notify only.</summary>
+public sealed class GitHubReleaseBackend(UpdateChecker checker, ReleaseVersion current) : IUpdateBackend
+{
+    public InstallKind Kind => InstallKind.Portable;
+    // CheckAsync → checker.CheckAsync(current, channel) mapped to AvailableUpdate(PortableDownloadUrl = DownloadUrl,
+    //   InstallerDownloadUrl = InstallerUrl, ReleasePageUrl = PageUrl)
+    // DownloadAsync / LaunchUpdaterAfterExit → NotSupportedException; PendingRestart → null
+}
+```
+
+**User-facing text (`UpdateText.cs`, `ReleaseNotesText.cs`, contract §8.7).** Every sentence the update UI shows
+comes from `public static class UpdateText`: whole-sentence format strings with named placeholders, second person,
+"what happened, then what to do", no "Error:" prefix and no exception text.
+
+```csharp
+public static class UpdateText
+{
+    public static string Available(ReleaseVersion next, ReleaseVersion current);   // "Envoy {next} is available. You have {current}."
+    public static string AvailableAfterGame(ReleaseVersion next);                  // "Envoy {next} will download after your game."
+    public static string Downloading(ReleaseVersion next, int percent);            // "Downloading Envoy {next}… {percent}%"
+    public static string Ready(ReleaseVersion next);                               // "Envoy {next} is ready. Restart to update; it takes a few seconds."
+    public static string UpdatedTo(ReleaseVersion v);                              // "Envoy was updated to {v}."
+    public static string CheckFailed(UpdateErrorKind kind);                        // e.g. RateLimited → "GitHub is limiting update checks right now. Try again in an hour."
+    public static string DownloadFailed(UpdateErrorKind kind);                     // e.g. "The update didn't finish downloading. Check your connection and try again."
+    public static string Status(UpdateSnapshot s, TimeZoneInfo zone);              // About status line: "Up to date · checked 14:02", "Checking…", "On a beta newer than the latest stable release"
+    public static string ActionLabel(UpdateAction a);                              // "Update now", "Restart to update", "Download", "Get the installer", "Retry", "Release notes", "What's new", "Dismiss"
+    public const string TrayRestart = "Restart to update to {version}";                  // whole sentence, one placeholder
+    public const string PortableAutoDownloadTooltip = "The portable Envoy.exe can't update itself. Use the installer to get automatic updates.";
+}
+
 public static class ReleaseNotesText
 {
-    /// <summary>Markdown → plain text for a TextBlock: drops heading marks, turns "- "/"* " into "• ",
-    /// [text](url) → text, strips **, __, `; collapses blank lines; cuts at the last line break before
-    /// maxChars and appends "…". Null/blank → "".</summary>
+    /// <summary>Markdown → plain text: drops heading marks, "- "/"* " → "• ", [text](url) → text, strips **, __, `;
+    /// collapses blank lines; cuts at the last line break before maxChars and appends "…". Null/blank → "".</summary>
     public static string ToPlain(string? markdown, int maxChars = 1200);
 }
 ```
 
-**`UpdateCoordinator`** holds all policy and state. It is thread-safe and UI-agnostic.
+**`UpdatePreferences`** is the immutable snapshot of the update settings (contract §7). AppHost builds it in
+`ApplySettings` and passes it to the coordinator; background code never reads `AppSettings`.
+
+```csharp
+public sealed record UpdatePreferences(bool CheckAutomatically, bool AutoDownload, UpdateChannel Channel,
+                                       ReleaseVersion? SkippedVersion, DateTimeOffset? LastCheckUtc)
+{
+    public static UpdatePreferences From(AppSettings s);   // copies values; SkippedVersion parsed ("" → null)
+}
+```
+
+**`UpdateCoordinator`** holds all policy and state. Thread-safe, UI-agnostic, uses `TimeProvider` (contract §3).
 
 ```csharp
 public enum UpdateState { Idle, Checking, UpToDate, Available, Downloading, ReadyToRestart, Failed }
 
 public sealed record UpdateSnapshot(
     InstallKind Kind, ReleaseVersion Current, UpdateState State, AvailableUpdate? Available,
-    int Percent, bool DeferredForGame, string? Error, bool LastCheckWasManual, DateTimeOffset? LastChecked);
+    int Percent, bool DeferredForGame, UpdateErrorKind? Error, bool FailedWhileDownloading,
+    bool LastCheckWasManual, DateTimeOffset? LastChecked, UpdateChannel Channel);
 
 public sealed class UpdateCoordinator
 {
     public static readonly TimeSpan PeriodicInterval = TimeSpan.FromHours(12);
     public static readonly TimeSpan StartupMinInterval = TimeSpan.FromHours(1);
 
-    public UpdateCoordinator(IUpdateBackend backend, Func<AppSettings> settings, Action settingsChanged,
-                             Func<bool> isGameRunning, TimeProvider time);
+    /// <param name="lastCheckChanged">Called (any thread) after every completed check; AppHost marshals it to the
+    /// UI thread with Dispatcher.BeginInvoke and writes Settings.Updates.LastCheckUtc.</param>
+    public UpdateCoordinator(IUpdateBackend backend, UpdatePreferences initial,
+                             Action<DateTimeOffset> lastCheckChanged, TimeProvider time, ILog log);
 
-    public UpdateSnapshot Snapshot { get; }          // immutable; replaced atomically
-    public event Action? Changed;                    // raised on the calling/background thread
+    public UpdateSnapshot Snapshot { get; }          // immutable; replaced atomically (Volatile.Write)
+    /// <summary>Raised on a background thread. UI consumers use AppHost's marshalled notification.</summary>
+    public event Action? Changed;
 
-    /// <summary>Start-up: if PendingRestart != null → ReadyToRestart without network. Else, if CheckForUpdates
-    /// and (LastCheckUtc is null or older than StartupMinInterval) → CheckAsync(manual: false).</summary>
+    /// <summary>Volatile.Write of the new preferences. LastCheckUtc keeps the later of the stored and the incoming
+    /// value. Returns a manual CheckAsync task when Channel changed since the previous call (not the first), else
+    /// Task.CompletedTask.</summary>
+    public Task Configure(UpdatePreferences prefs);
+    /// <summary>UI thread pushes game state; a true→false transition does not itself download (TickAsync does).</summary>
+    public void SetGameRunning(bool running);
+
+    /// <summary>Not called in safe mode. PendingRestart != null → ReadyToRestart without network. Else, if
+    /// CheckAutomatically and (LastCheckUtc null or older than StartupMinInterval) → CheckAsync(manual: false).</summary>
     public Task StartAsync(CancellationToken ct = default);
-    /// <summary>manual=false is a no-op when Settings.CheckForUpdates is false. Concurrent calls share one run.</summary>
+    /// <summary>manual=false is a no-op when CheckAutomatically is false. Concurrent calls share one run.</summary>
     public Task CheckAsync(bool manual, CancellationToken ct = default);
     /// <summary>"Update now" / "Retry" after a failed download. Installed + Available/Failed only.</summary>
     public Task DownloadAsync(CancellationToken ct = default);
-    /// <summary>Every 30 min from AppHost: periodic check when due; starts a deferred download when no game runs.</summary>
+    /// <summary>Periodic check when due (SHOULD, REQ-DIST-21); starts a deferred download when no game runs.</summary>
     public Task TickAsync(CancellationToken ct = default);
-    public void SkipAvailableVersion();              // Settings.Updates.SkippedVersion = v; State → Idle; settingsChanged()
+    /// <summary>SHOULD (REQ-DIST-22). State → Idle. Returns the skipped version for the caller to persist.</summary>
+    public ReleaseVersion? SkipAvailableVersion();
     public bool CanRestartToUpdate { get; }          // State == ReadyToRestart && Kind == Installed
-    public void RestartToUpdate(string[] restartArgs); // backend.LaunchUpdaterAfterExit; caller exits
+    /// <summary>backend.LaunchUpdaterAfterExit. Allowed after the AppHost CTS is cancelled (ExitApp step 8).
+    /// Throws InvalidOperationException unless CanRestartToUpdate.</summary>
+    public void RestartToUpdate(IReadOnlyList<string> restartArgs);
 }
 ```
 
-State rules (each rule has a unit test, see Test plan):
+State rules (each has a unit test, see Test plan):
 
 - **Check.** `Checking` → result:
-  - `null` → `UpToDate`.
-  - Update found, version ≤ current → `UpToDate`. This is a defence; backends already filter.
-  - Update found, automatic check, version equals `SkippedVersion` → `Idle`.
-  - Otherwise → `Available`. Then, if `Kind == Installed && AutoDownload`, start the download, or set
-    `DeferredForGame = true` when `isGameRunning()`.
-- **Exceptions.** An `UpdateCheckException`, or any non-cancellation exception from the backend:
-  - manual → `Failed` with `Error` = the exception's message (one sentence).
-  - automatic → back to the state before the check, with `Error` kept for diagnostics only.
-- **Cancellation.** Cancellation returns to the previous state and nothing is raised.
-- **Download.** `Downloading` (`Percent` updated, `Changed` raised only when the whole percent changes) →
-  `ReadyToRestart`, or `Failed` ("Download failed: …", `Available` kept so **Retry** works).
-- **LastCheckUtc.** `LastCheckUtc` is written after every completed check (success or failure) through the
-  `settingsChanged` callback.
+  - `null`, or a version ≤ current (defence; backends already filter) → `UpToDate`.
+  - Automatic check, version equals `SkippedVersion` → `Idle`. A skipped version therefore never reaches 07a's
+    notice path (contract §2.5).
+  - While `ReadyToRestart` and the result is ≤ the pending version → stays `ReadyToRestart`.
+  - Otherwise → `Available`. Then, if `Kind == Installed && AutoDownload`: start the download, or set
+    `DeferredForGame = true` while the game is running.
+- **Exceptions.** Any non-cancellation exception from the backend (non-`UpdateCheckException` → `Unknown`):
+  - manual → `Failed`, `Error` = kind;
+  - automatic → back to the previous state, `Error` kept for diagnostics only, logged at Warning.
+- **Cancellation** returns to the previous state and raises nothing.
+- **Download.** `Downloading` (`Changed` raised only when the whole percent changes) → `ReadyToRestart`, or `Failed`
+  with `FailedWhileDownloading = true` and `Available` kept so **Retry** works. A game starting mid-download does not
+  stop it (Velopack cannot pause; the download is background-priority network only).
+- **LastCheckUtc** is updated internally and reported through `lastCheckChanged` after every completed check.
 - **Locking.** One `SemaphoreSlim(1,1)` serialises check and download. Reading `Snapshot` takes no lock.
+- **Logging.** Category `Updates`: check results at Info (version only), failures at Warning with the kind and the
+  exception, never a URL with query strings.
+
+**`UpdateView` / `UpdateViewBuilder`.**
 
 ```csharp
-public enum UpdateAction { None, CheckNow, UpdateNow, RestartToUpdate, OpenReleasePage, GetInstaller, Retry, Skip }
+public enum UpdateAction { None, CheckNow, UpdateNow, RestartToUpdate, OpenReleasePage, GetInstaller, Retry, Skip, DismissNotice }
 
 public sealed record UpdateView(
     bool ShowBanner, string Headline, string Notes,
@@ -326,51 +399,57 @@ public sealed record UpdateView(
     UpdateAction Secondary, string SecondaryLabel,
     bool CanSkip, string StatusLine);
 
-public static class UpdateViewBuilder { public static UpdateView Build(UpdateSnapshot s); }
+public static class UpdateViewBuilder
+{
+    /// <param name="justUpdatedTo">REQ-DIST-23 (SHOULD); shown only when no update banner is active.</param>
+    public static UpdateView Build(UpdateSnapshot s, ReleaseVersion? justUpdatedTo = null, TimeZoneInfo? zone = null);
+}
 ```
 
-| Snapshot | Banner | Headline | Primary / Secondary |
+| Snapshot | Banner | Headline (`UpdateText`) | Primary / Secondary |
 | --- | --- | --- | --- |
-| Installed, Available, not auto | yes | `Envoy 1.3.0 is available. You have 1.2.0.` | Update now / Release notes |
-| Installed, Available, deferred | yes | `Envoy 1.3.0 will download after your game.` | Update now / Release notes |
-| Installed, Downloading 42 % | yes | `Downloading Envoy 1.3.0… 42%` | None / Release notes |
-| Installed, ReadyToRestart | yes | `Envoy 1.3.0 is ready. Restart to update. Takes a few seconds.` | Restart to update / Release notes |
-| Portable, Available | yes | `Envoy 1.3.0 is available. You have 1.2.0.` | Download / Get the installer |
-| Failed (manual) | yes | `Couldn't check for updates: <error>` or `Download failed: <error>` | Retry / None |
-| UpToDate / Idle / Checking | no | — | — (`StatusLine` is shown on About: "Up to date · checked 14:02", "Checking…") |
+| Installed, Available, not auto | yes | `Available` | Update now / Release notes |
+| Installed, Available, deferred | yes | `AvailableAfterGame` | Update now / Release notes |
+| Installed, Downloading 42 % | yes | `Downloading` | None / Release notes |
+| Installed, ReadyToRestart | yes | `Ready` | Restart to update / Release notes |
+| Portable, Available | yes | `Available` | Download (`OpenReleasePage`) / Get the installer |
+| Failed (manual check or download) | yes | `CheckFailed` / `DownloadFailed` | Retry / None |
+| none of the above, `justUpdatedTo` set (SHOULD) | yes | `UpdatedTo` | What's new (`OpenReleasePage`) / Dismiss |
+| UpToDate / Idle / Checking | no | — | — (`StatusLine` on About) |
 
-`CanSkip` is true for Available (both kinds) and for ReadyToRestart. Skipping a ready update does not delete
-the package. It is still applied at the next launch: Velopack can't un-download.
+`Notes` = `ReleaseNotesText.ToPlain(Available.NotesMarkdown)`. `CanSkip` is true for Available (both kinds) and
+ReadyToRestart. Skipping a ready update does not delete the package; it is still applied at the next launch.
 
-### Settings (shared file `src/Envoy.Core/Settings/AppSettings.cs`)
-
-Add to `AppSettings`:
+### Settings (`src/Envoy.Core/Settings/AppSettings.cs`, shared)
 
 ```csharp
 /// <summary>Update channel, background download and bookkeeping. CheckForUpdates (existing) stays the master switch.</summary>
 public UpdateSettings Updates { get; set; } = new();
-```
 
-Add next to the other settings classes:
-
-```csharp
 public sealed class UpdateSettings
 {
-    /// <summary>Stable = releases only; Beta = releases and prereleases.</summary>
-    public Updates.UpdateChannel Channel { get; set; } = Updates.UpdateChannel.Stable;
+    public Updates.UpdateChannel Channel { get; set; } = Updates.UpdateChannel.Stable;   // SHOULD (REQ-DIST-18)
     /// <summary>Installed copies download updates in the background (never during a game).</summary>
     public bool AutoDownload { get; set; } = true;
-    /// <summary>Version the user chose to skip ("" = none). Automatic checks ignore it.</summary>
+    /// <summary>Version the user chose to skip ("" = none). Automatic checks ignore it. SHOULD (REQ-DIST-22).</summary>
     public string SkippedVersion { get; set; } = "";
+    /// <summary>Written only on the UI thread via Dispatcher.BeginInvoke from the coordinator callback.</summary>
     public DateTimeOffset? LastCheckUtc { get; set; }
-    /// <summary>Version whose "Updated to" notice was dismissed.</summary>
-    public string UpdateNoticeDismissed { get; set; } = "";
+    /// <summary>Version that last ran; drives the one-time "Updated to" notice. SHOULD (REQ-DIST-23).</summary>
+    public string LastRunVersion { get; set; } = "";
 }
 ```
 
-`CheckForUpdates` keeps its name and default (`true`). Its label becomes "Check for updates automatically".
-This needs no settings migration: a missing `updates` object deserialises to the defaults (tested).
-`AppSettings.Version` stays 1.
+- Additive only (contract §7). `CheckForUpdates` keeps its name and default `true`; its label becomes "Check for
+  updates automatically". A missing `updates` object loads as defaults (tested). `AppSettings.CurrentVersion` stays 1.
+- No property holds names, chat text or positions, so no `[Personal]`/`[Location]`/`[Secret]` marker is needed;
+  `SettingsRedactionTests` is unaffected. No file is added under `DataFolder`, so `DataInventory` is unchanged.
+- A property is added only together with the requirement that uses it; if a SHOULD is not built, its property is not
+  added (arrival rule).
+- **`Updates.LastAnnouncedVersion`** (contract §2.5) is the one persisted "announced" field. It belongs to this class,
+  but 07a adds it in its own step, because 07a's balloon is its only writer and reader (arrival rule, contract §1).
+  Its meaning is fixed here: it only stops a second balloon for the same version; it never hides the banner;
+  `SkippedVersion` makes automatic checks report `Idle`, so a skipped version never reaches the notice path.
 
 ### App: entry point (`src/Envoy.App/Program.cs`, new) and csproj
 
@@ -379,16 +458,12 @@ namespace Envoy.App;
 
 internal static class Program
 {
-    /// <summary>Set by Velopack's OnRestarted hook: the version we were just updated to.</summary>
-    public static string? RestartedAfterUpdate { get; private set; }
-
     [STAThread]
     public static int Main(string[] args)
     {
         VelopackApp.Build()
-            .SetAutoApplyOnStartup(false)   // we apply after taking the single-instance mutex (REQ-DIST-12)
+            .SetAutoApplyOnStartup(false)   // applied at OnStartup slot 5, after the mutex (REQ-DIST-12)
             .OnBeforeUninstallFastCallback(_ => StartupRegistration.Apply(false))
-            .OnRestarted(v => RestartedAfterUpdate = v.ToString())
             .Run();
 
         var app = new App();
@@ -398,574 +473,639 @@ internal static class Program
 }
 ```
 
-`Envoy.App.csproj`:
-
-- `<StartupObject>Envoy.App.Program</StartupObject>`. `App.xaml` stays `ApplicationDefinition`. The generated
-  `App.Main` is ignored because `StartupObject` is set.
-- `<PackageReference Include="Velopack" Version="1.2.161" />`.
-
-`tools/typecheck/TypeCheck.csproj` gets the same `PackageReference` (shared tooling; keeping the two in sync is
-already a rule). `gen_stubs.py` already emits `InitializeComponent()` for every `x:Class`, including `App`. The
-typecheck builds a Library, so the duplicate `Main` question never comes up there.
-
-The uninstall hook only touches `HKCU\…\Run`. It runs well under Velopack's 30 s limit and never touches
-`%APPDATA%\Envoy` (REQ-DIST-11).
+- `Envoy.App.csproj`: `<StartupObject>Envoy.App.Program</StartupObject>` (`App.xaml` stays `ApplicationDefinition`;
+  the generated `App.Main` is ignored) and `<PackageReference Include="Velopack" Version="1.2.161" />`.
+- `tools/typecheck/TypeCheck.csproj` gets the same reference. The typecheck builds a Library, so the duplicate `Main`
+  question doesn't arise there.
+- The uninstall hook only touches `HKCU\…\Run`, well under Velopack's 30 s limit, and never touches `DataFolder`.
+  It runs before logging exists (02's bootstrap is step 2), so it does not log.
 
 ### App: `Services/VelopackUpdateBackend.cs` (new)
+
+Names no network type (`HttpClient` etc.), so 08a's `network-location` rule passes without a new allowed path.
 
 ```csharp
 public sealed class VelopackUpdateBackend : IUpdateBackend
 {
-    /// <summary>Returns null when this copy isn't Velopack-installed (portable exe, dotnet run, smoke test).</summary>
-    public static VelopackUpdateBackend? TryCreate();
+    /// <summary>Null when this copy isn't Velopack-installed (portable exe, dotnet run, smoke test). Never throws.</summary>
+    public static VelopackUpdateBackend? TryCreate(ILog log);
     public InstallKind Kind => InstallKind.Installed;
-    public ReleaseVersion CurrentVersion { get; }        // from UpdateManager.CurrentVersion.ToNormalizedString()
+    public ReleaseVersion CurrentVersion { get; }        // UpdateManager.CurrentVersion.ToNormalizedString()
     public ReleaseVersion? PendingRestart { get; }       // UpdatePendingRestart?.Version
     public Task<AvailableUpdate?> CheckAsync(UpdateChannel channel, CancellationToken ct);
     public Task DownloadAsync(AvailableUpdate update, IProgress<int> progress, CancellationToken ct);
-    public void LaunchUpdaterAfterExit(string[] restartArgs);
-}
-
-public static class UpdateBackendFactory
-{
-    public static IUpdateBackend Create(HttpClient http) =>
-        (IUpdateBackend?)VelopackUpdateBackend.TryCreate()
-        ?? new GitHubReleaseBackend(new UpdateChecker(http, UpdateEndpoints.Repository), AppVersionInfo.Current);
+    public void LaunchUpdaterAfterExit(IReadOnlyList<string> restartArgs);
 }
 ```
 
-Implementation notes:
+- **Source.** `new GithubSource(UpdateEndpoints.RepositoryUrl, accessToken: null, prerelease: channel == UpdateChannel.Beta)`.
+  A new `UpdateManager(source, new UpdateOptions { AllowVersionDowngrade = false })` per call, because the channel
+  can change. `ExplicitChannel` stays null (`win`). With `ENVOY_UPDATE_FEED` (COULD) set to an existing absolute
+  local folder, the source is a `SimpleFileSource` on that folder; any other value is ignored and logged.
+- **`TryCreate`** returns null unless `IsInstalled`; any exception → null, logged at Debug.
+- **`CheckAsync`.** `ct.ThrowIfCancellationRequested()`, then `await mgr.CheckForUpdatesAsync().WaitAsync(ct)`
+  (Velopack's check takes no token; a cancelled check finishes in the background and is discarded). Map
+  `TargetFullRelease` to `AvailableUpdate` (`ReleasePageUrl = UpdateEndpoints.ReleasePage(version)`, `Handle = info`).
+  Wrap every non-cancellation exception in `UpdateCheckException`: `HttpRequestException` with 403/429 →
+  `RateLimited`; other `HttpRequestException`/`IOException`/timeout → `Offline`; JSON/feed errors → `BadResponse`;
+  anything else → `Unknown`.
+- **`DownloadAsync`** → `mgr.DownloadUpdatesAsync((UpdateInfo)update.Handle!, p => progress.Report(p), ct)`. Velopack
+  locks, uses deltas, verifies checksums and removes `.partial` files. Failures → `DownloadFailed` (or `Offline`).
+- **`LaunchUpdaterAfterExit`** → `mgr.WaitExitThenApplyUpdates(mgr.UpdatePendingRestart, silent: false, restart: true, restartArgs.ToArray())`.
+  Failures → `UpdateCheckException(UpdaterFailed)`. Velopack's updater waits up to 60 s for us to exit.
+  `ApplyUpdatesAndRestart` is never used.
 
-- **Source.** `IUpdateSource Source(UpdateChannel c) => new GithubSource(UpdateEndpoints.RepositoryUrl, accessToken: null, prerelease: c == UpdateChannel.Beta);`.
-  With `ENVOY_UPDATE_FEED` set (COULD), the backend uses `new UpdateManager(feedPathOrUrl)` instead. A new
-  `UpdateManager(Source(channel), new UpdateOptions { AllowVersionDowngrade = false })` is created per call,
-  because the channel can change between calls. `ExplicitChannel` stays null, so the packaged channel `win` is
-  used.
-- **`TryCreate`.** It builds an `UpdateManager` and returns null unless `IsInstalled`. It catches any exception
-  and returns null (portable fallback).
-- **`CheckAsync`.**
-  - `ct.ThrowIfCancellationRequested()`, then `await mgr.CheckForUpdatesAsync().WaitAsync(ct)`. Velopack's check
-    takes no token, so a cancelled check finishes in the background and its result is discarded.
-  - Map the result: `Version = ReleaseVersion.Parse(info.TargetFullRelease.Version.ToNormalizedString())`,
-    `NotesMarkdown = info.TargetFullRelease.NotesMarkdown`,
-    `ReleasePageUrl = UpdateEndpoints.ReleasePage(version)`, `Handle = info`.
-  - Wrap every exception except `OperationCanceledException` in `UpdateCheckException`. Messages:
-    - `HttpRequestException` with status 403 → "GitHub is rate-limiting update checks; try again later."
-    - other HTTP/IO errors → "Couldn't reach GitHub."
-    - anything else → the type name.
-- **`DownloadAsync`.** Calls `mgr.DownloadUpdatesAsync((UpdateInfo)update.Handle!, p => progress.Report(p), ct)`.
-  Velopack takes its own file lock, uses deltas, verifies checksums and removes `.partial` files. Failures are
-  wrapped as above with the prefix "Download failed: ".
-- **`LaunchUpdaterAfterExit`.** Calls `mgr.WaitExitThenApplyUpdates(mgr.UpdatePendingRestart, silent: false, restart: true, restartArgs)`.
-  Velopack's updater waits up to 60 s for us to exit.
-
-`AppVersionInfo.Current` (App, static) =
-`AppVersion.Resolve(assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion, assembly.GetName().Version)`.
-
-### App: `AppHost.cs` (shared file) changes
-
-- Remove the fields `_update`, the property `Update` and `CheckForUpdatesAsync()`.
-- Change `ReleaseRepository` to `=> UpdateEndpoints.Repository`, which fixes the casing.
-- Change `CurrentVersion` to return `ReleaseVersion` (`AppVersionInfo.Current`).
-- Change the User-Agent to `Envoy/{CurrentVersion}`.
-- Add:
+### App: `AppHost.cs` (shared) changes
 
 ```csharp
+public sealed record AppHostOptions { /* 02's members */ public IUpdateBackend? UpdateBackend { get; init; } }
+
+internal static class UpdateBackendFactory      // in AppHost.cs (contract §5: network types stay in this file)
+{
+    public static IUpdateBackend Create(HttpClient http, ReleaseVersion current, ILog log) =>
+        (IUpdateBackend?)VelopackUpdateBackend.TryCreate(log)
+        ?? new GitHubReleaseBackend(new UpdateChecker(http, UpdateEndpoints.Repository), current);
+}
+
+public static ReleaseVersion AppVersion { get; } =                    // contract §3
+    ReleaseVersion.FromInformational(
+        typeof(AppHost).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
+        typeof(AppHost).Assembly.GetName().Version);
+// CurrentVersion (Version) is unchanged; 02's header and crash marker keep using it.
+
 public UpdateCoordinator Updates { get; }
-public UpdateView UpdateView => UpdateViewBuilder.Build(Updates.Snapshot);
-public bool HasUpdate => UpdateView.ShowBanner;        // kept: existing binding name
-public string UpdateText => UpdateView.Headline;       // kept: existing binding name
-public string? JustUpdatedTo { get; }                  // Program.RestartedAfterUpdate unless == Settings.Updates.UpdateNoticeDismissed
-public void DismissUpdateNotice();
+public UpdateView UpdateView { get; }                // rebuilt on the UI thread on every Changed; raises PropertyChanged
+public ReleaseVersion? JustUpdatedTo { get; }        // SHOULD (REQ-DIST-23)
+public void DismissJustUpdated();                    // SHOULD
+public void SkipUpdate();                            // SHOULD: Updates.SkipAvailableVersion() → Settings.Updates.SkippedVersion; ScheduleSave()
+public void StartUpdates();                          // App calls it at OnStartup slot 9 unless safe mode
 ```
 
-- **Constructor.** The constructor takes an optional `IUpdateBackend? updateBackend = null`; the smoke test
-  passes a fake. If 02 has landed, this becomes `AppHostOptions.UpdateBackend` instead.
-  - `Updates = new UpdateCoordinator(updateBackend ?? UpdateBackendFactory.Create(_http), () => Settings, ScheduleSave, () => _game is not null, TimeProvider.System);`
-  - `Updates.Changed += () => _ui.BeginInvoke(() => { Notify(nameof(UpdateView)); Notify(nameof(HasUpdate)); Notify(nameof(UpdateText)); });`
-- **`Start()`.**
-  - Replace `if (Settings.CheckForUpdates) _ = CheckForUpdatesAsync();` with `_ = Updates.StartAsync(_cts.Token);`.
-    With 02, use `.Forget(log, "update start")` instead of `_ =`.
-  - Add a 30-minute `DispatcherTimer` (`DispatcherPriority.Background`) whose tick runs `_ = Updates.TickAsync(_cts.Token)`.
-  - `RefreshGame()`: when a game closes (`_game` goes from non-null to null), also call `_ = Updates.TickAsync(_cts.Token)`
-    so a deferred download starts promptly.
-  - REQ-DIST-26: `if (Settings.StartWithWindows) StartupRegistration.Apply(true);`.
-- **`Dispose()`.** Cancels `_cts` (new `CancellationTokenSource`), which aborts an in-flight download. Velopack
-  leaves only a `.partial` file, which it cleans up next time. Then stop the timer.
+- **Removed:** `_update`, `Update`, `HasUpdate`, `UpdateText` (the banner binds `Host.UpdateView` now) and
+  `CheckForUpdatesAsync()`. `ReleaseRepository` → `UpdateEndpoints.Repository`.
+- **User-Agent.** Only the version token changes: `_http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgents.Default(AppVersion))`
+  → `Mozilla/5.0 (Windows NT 10.0; Win64; x64) Envoy/{AppVersion.CoreString}` (contract §3; Core helper
+  `UserAgents.Default` so the form is unit-tested). Update requests keep their
+  per-request `Envoy/{AppVersion}` agent.
+- **Constructor, position 8** (contract §3):
+  - `var log = Log.For("Updates");`
+  - `Updates = new UpdateCoordinator(options?.UpdateBackend ?? UpdateBackendFactory.Create(_http, AppVersion, log), UpdatePreferences.From(Settings), t => _ui.BeginInvoke(() => { Settings.Updates.LastCheckUtc = t; ScheduleSave(); }), Time, log);`
+  - `Updates.Changed += () => _ui.BeginInvoke(RefreshUpdateView);` — `RefreshUpdateView` rebuilds `UpdateView` and
+    raises `PropertyChanged(nameof(UpdateView))`. This is the UI-thread signal for 06's banner and tray item and for
+    07a later (contract §2.5).
+  - `GameWindowChanged += () => Updates.SetGameRunning(Game is not null || GameWindow is not null);`
+  - (SHOULD, REQ-DIST-23) `JustUpdatedTo` = `AppVersion` when `LastRunVersion` parses and is lower; then
+    `Settings.Updates.LastRunVersion = AppVersion.ToString()` and `ScheduleSave()`.
+- **`ApplySettings`, position 7:** `Updates.Configure(UpdatePreferences.From(Settings)).Forget(_log, "update channel check")`.
+- **`RefreshGame`, position 3:** `Updates.SetGameRunning(Game is not null || GameWindow is not null)`; when the game
+  closed, `Updates.TickAsync(_updatesCts.Token).Forget(_log, "update tick")`.
+- **`StartUpdates()`:** `Updates.StartAsync(_updatesCts.Token).Forget(_log, "update start")`, then a 30-minute
+  `DispatcherTimer` (`Background` priority) whose tick runs `Updates.TickAsync(_updatesCts.Token).Forget(...)`.
+  (SHOULD, REQ-DIST-26) `if (Settings.StartWithWindows) StartupRegistration.Apply(true);`.
+- **`Dispose()`:** cancels `_updatesCts` (aborts an in-flight download; Velopack cleans the `.partial` next time) and
+  stops the timer (contract §4 exit step 3).
+- Every `catch` added here logs (contract §3).
 
-### App: `App.xaml.cs` (shared file) changes
+### App: `App.xaml.cs` and `IShell` (shared)
 
-1. In `OnStartup`, immediately after the mutex check succeeds (`isFirst`) and **before** `new AppHost(...)`:
+**`IShell`, 06 block (contract §3):** `void RestartToUpdate();`
 
-   ```csharp
-   if (VelopackUpdateBackend.TryCreate() is { PendingRestart: not null } pending)
-   {
-       pending.LaunchUpdaterAfterExit(e.Args);   // same args, so --minimized is preserved
-       _instanceMutex.ReleaseMutex();
-       Shutdown();
-       return;
-   }
-   ```
+**OnStartup slot 5 — pending update apply** (after the mutex, before the sentinel; `_hub` exists from step 2):
 
-   This is the "apply on next launch" path (REQ-DIST-12 b). It runs before any window, overlay or hotkey
-   exists. If `LaunchUpdaterAfterExit` throws (updater missing or corrupt), catch the exception, log it if 02
-   has landed, and continue a normal start-up: never block launching.
-2. `public void RestartToUpdate()`:
-   - `if (!Host.Updates.CanRestartToUpdate) return;`
-   - `var args = _main is { IsVisible: true } ? Array.Empty<string>() : new[] { "--minimized" };`
-   - `try { Host.Updates.RestartToUpdate(args); } catch (Exception ex) { show the error in the banner via the coordinator's Failed state; return; }`
-   - `ExitApp();`. The existing method disposes the tray and hotkeys, then `Host.Dispose()` saves settings,
-     then `Shutdown`. If 02's `Restart` has landed, the mutex release order matches it.
-3. **Tray.** `CreateTray` adds a hidden `ToolStripMenuItem _restartToUpdateItem` above the separator. On
-   `Host.PropertyChanged` for `UpdateView`, set `Visible = Host.Updates.CanRestartToUpdate` and
-   `Text = $"Restart to update to v{version}"`. Click → `RestartToUpdate()`.
-4. **Commands.** `ShellActions` (or `App` directly before 01) exposes `RestartToUpdate()` and `OpenUrl` for the
-   page commands.
+```csharp
+var velo = VelopackUpdateBackend.TryCreate(_hub.For("Updates"));
+if (PendingUpdatePolicy.ShouldApplyAtStartup(velo?.PendingRestart is not null, e.Args.Contains("--safe-mode"), shiftHeld))
+{
+    try
+    {
+        var flags = e.Args.Contains("--minimized") ? RestartFlags.Minimized : RestartFlags.None;
+        velo!.LaunchUpdaterAfterExit(LaunchTarget.RestartArguments(flags));   // 08a's flag → args mapping
+        _hub.For("Updates").Info("Applying downloaded update", LogField.Of("version", velo.PendingRestart));
+        _hub.Dispose(); ReleaseMutex(); Shutdown(); return;
+    }
+    catch (Exception ex) { _hub.For("Updates").Warn("Couldn't start the updater; starting normally", ex); }
+}
+// slot 7: new AppHostOptions { …, UpdateBackend = velo }   (null → AppHost's factory)
+```
 
-### UI changes
+- Only the 08a flag set (`--minimized`, never arbitrary args) is passed on. 06 reuses 08a's `RestartFlags` → argument
+  mapping (`LaunchTarget`); if 08a kept it private, 06 makes it public rather than writing a second one.
+- No window, overlay or hotkey exists yet. A failure never blocks launching.
 
-All colours use existing `DynamicResource` keys (`Accent.Gradient`, `Text.OnAccent`, `Text.Secondary`,
-`Text.Muted`). No new palette keys. No `ProgressBar`: progress is text ("42%"), because `Controls.xaml` has no
-themed `ProgressBar` style.
+**OnStartup slot 9:** `if (plan.AutoCheckUpdates) Host.StartUpdates();`. 06 adds `bool AutoCheckUpdates` to 02's
+`StartupPlan` (`= safeMode is null`). In safe mode the coordinator still exists, so the About page's manual
+**Check for updates** works.
 
-**War Room page.** `MainWindow.xaml` lines 79–85 today, or `Pages/WarRoomPage.xaml` after 01. Replace the update
-`Border` with:
+**`RestartToUpdate()`** (IShell): `if (!Host.Updates.CanRestartToUpdate) return;`
+`ExitApp(_main is { IsVisible: true } ? RestartFlags.None : RestartFlags.Minimized, applyUpdate: true);`
 
-- `Border` (`Background={DynamicResource Accent.Gradient}`, `Visibility={Binding Host.UpdateView.ShowBanner, Converter=BoolToVisibility}`) containing:
-  - a `DockPanel`. The right side holds a `StackPanel` (horizontal) of:
-    - a `Button` `Content={Binding Host.UpdateView.PrimaryLabel}` `Command={Binding UpdatePrimaryCommand}`,
-      collapsed when the label is empty;
-    - a `Button` `Style={StaticResource Button.Ghost}` `Content={Binding Host.UpdateView.SecondaryLabel}`
-      `Command={Binding UpdateSecondaryCommand}`, collapsed when empty;
-    - a `Button` `Style={StaticResource Button.Chip}` `Content="Skip"` `Command={Binding SkipUpdateCommand}`,
-      visible when `CanSkip`.
-  - On the left, a `TextBlock` `Text={Binding Host.UpdateView.Headline}` (`Text.OnAccent`, SemiBold).
-  - Below it, an `Expander` `Header="What's new"`. It is collapsed when `Notes` is empty and holds a
-    `TextBlock` `TextWrapping=Wrap` `Text={Binding Host.UpdateView.Notes}`. If an implicit `Expander` style is
-    missing from `Controls.xaml`, use a `ToggleButton` + `TextBlock` pair with existing styles instead. Either
-    way it must pass `check_resources.py`.
-- A second, smaller `Border` (`Bg.PanelAlt`) shows when `Host.JustUpdatedTo` is non-null:
-  "Envoy was updated to v{0}." It has buttons **What's new** (opens the release page) and **Dismiss**
-  (`Host.DismissUpdateNotice()`).
+**`ExitApp(RestartFlags? restart = null, bool wipeData = false, bool applyUpdate = false)`** — 06 adds the third
+parameter. Steps 1–7 are 02's, unchanged (settings are saved normally at step 2, contract §4). Step 8:
 
-**Appearance page → General** (line 752 today). Replace the one checkbox with:
+```text
+8. if applyUpdate:
+       try   Host.Updates.RestartToUpdate(LaunchTarget.RestartArguments(restart ?? None))
+       catch ShellLauncher.RestartSelf(restart ?? None)   // Envoy always comes back; slot 5 retries the apply and logs
+   else if restart is { } f: ShellLauncher.RestartSelf(f)
+```
 
+The log is already closed at step 8, so a failure there is not logged in this session; the relaunched instance's
+slot 5 retries and logs.
+
+**Tray (SHOULD, REQ-DIST-24).** `CreateTray` adds a hidden `_restartToUpdateItem` above the separator. On
+`Host.PropertyChanged(UpdateView)`: `Visible = Host.Updates.CanRestartToUpdate`,
+`Text = TextTemplate.Format(UpdateText.TrayRestart, null, ("version", version))`. Click → `UpdateActions.Run(UpdateAction.RestartToUpdate, …)`.
+
+**`Services/UpdateActions.cs` (new).** One dispatcher for an `UpdateAction`, used by the banner commands and the tray
+item now and by 07a's balloon later:
+
+```csharp
+internal static class UpdateActions
+{
+    public static void Run(UpdateAction action, AppHost host, IShell shell, ILog log);
+    // UpdateNow / Retry → FailedWhileDownloading || Kind==Installed&&Available ? DownloadAsync() : CheckAsync(true) — Forget(log)
+    // RestartToUpdate   → shell.RestartToUpdate()
+    // OpenReleasePage   → shell.OpenUrl(trusted(Available?.ReleasePageUrl) ?? UpdateEndpoints.RepositoryUrl + "/releases")
+    // GetInstaller      → shell.OpenUrl(trusted(InstallerDownloadUrl) ?? trusted(ReleasePageUrl) ?? …/releases)
+    // CheckNow          → CheckAsync(manual: true); Skip → host.SkipUpdate(); DismissNotice → host.DismissJustUpdated()
+}
+```
+
+`trusted(u)` = `ReleaseUrlPolicy.IsTrusted(u, UpdateEndpoints.Repository) ? u : null`. `shell.OpenUrl` goes through
+`ShellLauncher.TryOpen`.
+
+### UI changes (contract §8.6 order)
+
+All colours use existing `DynamicResource` keys (`Accent.Gradient`, `Text.OnAccent`, `Text.Secondary`, `Text.Muted`,
+`Bg.PanelAlt`). No new palette keys. Progress is text ("42%"); there is no themed `ProgressBar`. Every new interactive
+control gets `AutomationProperties.Name` (01's `CLAUDE.md` rule); buttons with bound labels bind the name to the same
+label.
+
+**War Room (`Pages/WarRoomPage.xaml`) — slot 2, below 02's safe-mode banner, above 07a's notice list.** Replace the
+update `Border` with one `Border x:Name="UpdateBanner"` (`Accent.Gradient`, visible when `Host.UpdateView.ShowBanner`):
+
+- left: `TextBlock x:Name="UpdateHeadline"` `Text={Binding Host.UpdateView.Headline}` (`Text.OnAccent`, SemiBold);
+  below it a "What's new" `ToggleButton` + `TextBlock TextWrapping=Wrap Text={Binding Host.UpdateView.Notes}`
+  pair built from existing styles, collapsed when `Notes` is empty (`check_resources.py` must pass);
+- right: Primary button (`Content`/`AutomationProperties.Name` = `PrimaryLabel`, `UpdatePrimaryCommand`), Secondary
+  `Button.Ghost` (`UpdateSecondaryCommand`), and `Button.Chip` "Skip" (`SkipUpdateCommand`, visible when `CanSkip`,
+  SHOULD); each collapsed when its label is empty.
+
+The slot shows at most one item: the update banner, else (SHOULD) the "Updated to" notice, which the builder already
+folds into the same `UpdateView`.
+
+**Appearance page — "Startup & updates" group, last** (after Theme, and after the Accessibility and Notifications
+groups that 07b/07a insert later). The existing "General" group becomes this group:
+
+- `CheckBox` "Start Envoy when I sign in to Windows" (existing).
 - `CheckBox` "Check for updates automatically" → `Settings.CheckForUpdates`.
-- `CheckBox` "Download updates in the background (never during a game)" → `Settings.Updates.AutoDownload`.
-  `IsEnabled={Binding IsInstalled}`, with the tooltip "The portable Envoy.exe can't update itself. Use the
-  installer to get automatic updates."
-- `SettingRow` "Update channel": a `ComboBox` with `ItemsSource={Binding UpdateChannels}`
-  `DisplayMemberPath=Label` `SelectedValuePath=Value` `SelectedValue={Binding Settings.Updates.Channel}`.
-  - Options: `new(UpdateChannel.Stable, "Stable (recommended)")`, `new(UpdateChannel.Beta, "Beta: early builds, may be rough")`.
-  - Caption: "Switching back to Stable keeps your current build until a newer stable release comes out."
-- A channel change triggers a manual check (the user expects feedback). `MainViewModel` watches the setting:
-  in its existing auto-apply path, if `Settings.Updates.Channel` differs from the last seen value, call
-  `Host.Updates.CheckAsync(manual: true)`.
+- `CheckBox` "Download updates in the background (never during a game)" → `Settings.Updates.AutoDownload`,
+  `IsEnabled={Binding IsInstalled}`, tooltip `UpdateText.PortableAutoDownloadTooltip`.
+- (SHOULD) `SettingRow` "Update channel": `ComboBox` over `UpdateChannels` (`Stable (recommended)`,
+  `Beta: early builds, may be rough`), caption "Switching back to Stable keeps your current build until a newer
+  stable release comes out." The channel-change check happens in `ApplySettings` position 7, not in the view model.
+- The transcripts row and **Open logs** stay where they are, under a "Data" subheading.
 
-**About page** (under the version line). A "Updates" block:
+**About page — "Version & updates" block, first** (contract §8.6):
 
-- `TextBlock` "Version {Version} · {InstallKindText} · {ChannelText}". `MainViewModel.Version` becomes
-  `AppVersionInfo.Current.ToString()`, which includes the prerelease suffix.
-- `TextBlock` `Host.UpdateView.StatusLine`.
-- `Button` "Check for updates" → `CheckForUpdatesCommand` (`AsyncRelayCommand` after 01; a click handler
-  before).
+- `TextBlock` "Version {Version}" (MUST; `MainViewModel.Version` = `AppHost.AppVersion.ToString()`), and (SHOULD,
+  REQ-DIST-25) " · {InstallKindText} · {ChannelText}" plus `Host.UpdateView.StatusLine`.
+- `Button` "Check for updates" → `CheckForUpdatesCommand` (MUST, REQ-DIST-13).
 
-**`MainViewModel`** (`ViewModels/MainViewModel.cs`) adds:
-
-- `IReadOnlyList<Option> UpdateChannels`, `bool IsInstalled`, `string InstallKindText` ("Installed" /
-  "Portable"), `string ChannelText`.
-- Commands:
-  - `UpdatePrimaryCommand`, `UpdateSecondaryCommand`: switch on `UpdateAction`.
-    - `UpdateNow`/`Retry` → `Host.Updates.DownloadAsync()`, or `CheckAsync(true)` when the failure was a check.
-    - `RestartToUpdate` → `shell.RestartToUpdate()`.
-    - `OpenReleasePage` → `OpenUrl(Available.ReleasePageUrl)`.
-    - `GetInstaller` → `OpenUrl(InstallerDownloadUrl ?? ReleasePageUrl)`.
-  - `SkipUpdateCommand`, `CheckForUpdatesCommand`.
-- 01's `DownloadUpdateCommand` is replaced by `UpdatePrimaryCommand`.
+**`ViewModels/MainViewModel.Updates.cs` (new partial):** `UpdateChannels`, `IsInstalled`, `InstallKindText`,
+`ChannelText`; `UpdatePrimaryCommand`/`UpdateSecondaryCommand` (`RelayCommand` →
+`UpdateActions.Run(Host.UpdateView.Primary|Secondary, …)`), `SkipUpdateCommand`, and `CheckForUpdatesCommand`
+(`AsyncRelayCommand(() => Host.Updates.CheckAsync(manual: true), ReportCommandError)`). 01's
+`DownloadUpdateCommand` is deleted.
 
 ### Threading
 
-- `UpdateCoordinator` methods run on the thread pool (`ConfigureAwait(false)`). `Changed` fires there. `AppHost`
-  marshals to the dispatcher with `BeginInvoke`, the same as pipeline events.
-- Velopack's progress callback fires on a pool thread. The coordinator throttles it to whole-percent changes.
-- `Program.Main` hooks run before WPF. `RestartedAfterUpdate` is a plain static that is written once.
-- The pending-apply check in `OnStartup` is synchronous and local: it reads the packages folder and makes no
-  network call.
+- `UpdateCoordinator` work runs on the thread pool (`ConfigureAwait(false)`); `Changed` fires there. AppHost
+  marshals to the dispatcher with `BeginInvoke` before touching `UpdateView` or `Settings` (contract §2.5, §7).
+- Preferences reach the coordinator only as `UpdatePreferences` (immutable, `Volatile.Write`). Game state arrives via
+  `SetGameRunning` from the UI thread (volatile bool).
+- Velopack's progress callback fires on a pool thread; the coordinator throttles it to whole-percent changes.
+- Start-up slot 5 is synchronous and local: it reads the packages folder and makes no network call.
 
 ### Failure behaviour
 
 | Failure | Behaviour |
 | --- | --- |
-| Offline / DNS / timeout on an automatic check | Silent; state unchanged; `LastCheckUtc` updated so we don't retry until the next interval. |
-| GitHub 403 rate limit | Same as above when automatic; when manual: "GitHub is rate-limiting update checks; try again later." + Retry. |
+| Offline / DNS / timeout, automatic | Silent; state unchanged; Warning logged; `LastCheckUtc` updated so the next try waits for the interval. |
+| GitHub 403/429 | Automatic: as above. Manual: `UpdateText.CheckFailed(RateLimited)` + Retry. |
 | No releases yet (404 / empty feed) | `UpToDate`. |
-| Download interrupted / checksum mismatch | `Failed` "Download failed: …" + Retry; Velopack removes partial files; no restart offered. |
-| Updater can't start (`LaunchUpdaterAfterExit` throws) | Envoy keeps running; banner shows "Couldn't start the updater: …"; next launch tries again. |
-| Update applied but new version crashes at start | Out of scope for automatic rollback. The user can reinstall an older `Envoy-win-Setup.exe` from Releases (documented in `installing.md`). |
+| Download interrupted / checksum mismatch | `Failed` + `DownloadFailed(kind)` + Retry; Velopack removes partial files; no restart offered. |
+| Updater can't start at **Restart to update** | Envoy relaunches through `RestartSelf`; the next start's slot 5 retries the apply and logs the failure. |
+| Updater can't start at slot 5 | Warning logged; normal start-up continues. |
+| Update applied but the new version crashes at start | No automatic rollback. 02's safe mode (Shift / `--safe-mode`) starts without applying anything further; the user can reinstall an older `Envoy-win-Setup.exe` (documented in `installing.md`). |
 | Portable exe in a read-only folder | Unaffected: portable never writes itself. |
-| Beta user switches to Stable while on a newer beta | No downgrade; status line says "On a beta newer than the latest stable release". |
-| `--smoke-test` | Fake backend; no network; `Program.Main` still runs `VelopackApp.Run()` (returns immediately when not installed). |
+| Beta user switches to Stable while on a newer beta | No downgrade; status line `UpdateText.Status` says "On a beta newer than the latest stable release". |
+| `--smoke-test` | `SmokeUpdateBackend`; no network; `Program.Main` still runs `VelopackApp.Run()` (returns at once when not installed). |
+
+### Policy allowlists and banned APIs (contract §5)
+
+- **Native (`policy.json` → `native.allowed`):** no additions. 06 declares no P/Invoke.
+- **Network `allowedPaths`:** no additions. `HttpClient` is named only in `src/Envoy.Core/Updates/` (existing
+  `UpdateChecker`, `GitHubReleaseBackend` constructor chain) and in `src/Envoy.App/AppHost.cs`
+  (`UpdateBackendFactory.Create`). `VelopackUpdateBackend.cs` names no network type (`HttpRequestException` does not
+  match the word-boundary rule).
+- **Hosts (`hosts.allowed`):** no additions. The only literals are `https://github.com/PinnerSinner/Envoy` and
+  `https://api.github.com/…`, both already seeded by 08a. `http://timestamp.digicert.com` lives in
+  `tools/release/sign.ps1`, outside `src/`.
+- **`BannedSymbols.txt`:** no new exception. 06 starts no process itself: `RestartSelf` is 08a's, and Velopack's
+  `WaitExitThenApplyUpdates` starts `Update.exe` inside the Velopack library. 06 adds one line to the threat model's
+  T8 row: "the updater process is started by Velopack (pinned, hash-verified packages), never by Envoy code".
+- **Static rules** added to 01's `tools/typecheck/check_ui_rules.py` (named to avoid number clashes):
+  - `UPD1`: `new UpdateManager(` appears only in `src/Envoy.App/Services/VelopackUpdateBackend.cs`; `VelopackFlowSource`
+    and `ApplyUpdatesAndRestart` appear nowhere in `src/`.
+  - `UPD2`: `VelopackApp.Build()` appears only in `src/Envoy.App/Program.cs`, and that file contains
+    `SetAutoApplyOnStartup(false)`.
 
 ### Release workflow (`.github/workflows/build.yml`)
 
-Workflow-level `env: { VELOPACK_VERSION: "1.2.161" }`. Changes to the `windows` job, in order:
+The layout stays one `check` job plus one `windows` job (08b restructures later). Changes to the `windows` job:
 
-1. **Version** (extended). For untagged builds, also output
-   `pack = "$(dotnet msbuild src/Envoy.App/Envoy.App.csproj -getProperty:Version)-ci.${{ github.run_number }}"`.
-   For tags, `pack = value`.
-2. **Release notes.**
-   - Tags: `python tools/release/changelog_notes.py CHANGELOG.md "${{ steps.version.outputs.value }}" --out notes.md`.
-     - Stable tags exit non-zero when there is no `## [x.y.z]` section.
-     - Prerelease tags use `## [x.y.z-…]` if present, else `## [Unreleased]`.
-   - Untagged builds write a one-line `notes.md` ("Development build <sha>").
-3. **Signing setup.** `env: ENVOY_SIGN_PFX_BASE64: ${{ secrets.ENVOY_SIGN_PFX_BASE64 }}` and
-   `ENVOY_SIGN_PFX_PASSWORD`. A pwsh step:
-   - When the PFX is present: decode it to `$env:RUNNER_TEMP\envoy-sign.pfx` and output `signing=true`.
-   - Otherwise: `::notice::Code signing skipped (no ENVOY_SIGN_PFX_BASE64 secret)` and `signing=false`.
-   - Fork PRs have no secrets and take the unsigned path.
-4. **Publish single-file exe.** Unchanged. Then, if `signing == 'true'`:
-   `pwsh tools/release/sign.ps1 publish/Envoy.exe`.
-5. **Smoke test, screenshots, screenshots branch.** Unchanged.
-6. **Publish folder build.**
-   `dotnet publish src/Envoy.App/Envoy.App.csproj -c Release -o publish-velo -p:PublishSingleFile=false -p:InformationalVersion=<pack>`,
-   plus `-p:Version=<numeric>` on tags.
-7. **Install vpk.** `dotnet tool install --global vpk --version $env:VELOPACK_VERSION`.
-8. **Previous release, tags only, for deltas.**
-   `vpk download github --repoUrl https://github.com/${{ github.repository }} --channel win --token ${{ secrets.GITHUB_TOKEN }} -o Releases`,
-   with `--pre` when the tag is a prerelease. `continue-on-error: true`: the first release has nothing to
-   download, and a missing delta only costs bandwidth.
-9. **vpk pack.**
+- **Environment.** `environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}`. Tag builds run
+  under the protected `release` environment (required reviewers), whose **environment secrets** are
+  `ENVOY_SIGN_PFX_BASE64` and `ENVOY_SIGN_PFX_PASSWORD`. Untagged runs get no environment and therefore cannot read
+  the secrets at all. `permissions: contents: write` at job level (needed for the tag release; 08b narrows it).
+- **Tools.** `dotnet tool restore` once; every `vpk` call is `dotnet vpk …` (version from `.config/dotnet-tools.json`).
+
+Steps, in order:
+
+1. **Version** (extended). Untagged: `pack = "<csproj Version>-ci.${{ github.run_number }}"`. Tags: `pack = value`.
+2. **Release notes** (SHOULD, REQ-DIST-6). Tags: `python tools/release/changelog_notes.py CHANGELOG.md <version> --out notes.md`
+   (stable without section → exit 2, before any upload; prerelease → `## [x.y.z-…]` or `## [Unreleased]`). Without
+   REQ-DIST-6, and on untagged builds: a one-line `notes.md`.
+3. **Publish single-file exe.** Unchanged.
+4. **Smoke test, screenshots, screenshots branch.** Unchanged.
+5. **Signing setup** — `if: startsWith(github.ref, 'refs/tags/v')`. Decode the PFX to `$env:RUNNER_TEMP\envoy-sign.pfx`
+   and output `signing=true`, or print `::notice::Code signing skipped (no certificate in the release environment)`.
+   Untagged runs skip the step; a separate always-run step prints `::notice::Unsigned build (not a v* tag)`.
+6. **Sign portable exe** — `if: steps.sign.outputs.signing == 'true'`: `pwsh tools/release/sign.ps1 publish/Envoy.exe`
+   (after the smoke test, so the smoke-tested bytes differ only by the signature).
+7. **Publish folder build** — tags, and (SHOULD, REQ-DIST-4) pushes to `main`:
+   `dotnet publish … -o publish-velo -p:PublishSingleFile=false -p:InformationalVersion=<pack>` (+ `-p:Version=<numeric>` on tags).
+8. **Previous release for deltas** — tags only: `dotnet vpk download github --repoUrl https://github.com/${{ github.repository }} --channel win --token ${{ secrets.GITHUB_TOKEN }} -o Releases`
+   (`--pre` for prerelease tags), `continue-on-error: true`; output `has_previous`.
+9. **vpk pack** — same condition as step 7:
    ```
-   vpk pack --packId Envoy --packVersion <pack> --packDir publish-velo --mainExe Envoy.exe
-            --packTitle Envoy --packAuthors "Envoy contributors" --icon src/Envoy.App/Assets/envoy.ico
-            --releaseNotes notes.md --channel win --runtime win-x64 --noPortable --shortcuts StartMenuRoot
-            --delta <BestSpeed on tags | None otherwise> -o Releases
-            [--signTemplate "pwsh -NoProfile -File tools/release/sign.ps1 {{file}}"   # only if signing == 'true']
+   dotnet vpk pack --packId Envoy --packVersion <pack> --packDir publish-velo --mainExe Envoy.exe
+        --packTitle Envoy --packAuthors "Envoy contributors" --icon src/Envoy.App/Assets/envoy.ico
+        --releaseNotes notes.md --channel win --runtime win-x64 --noPortable --shortcuts StartMenuRoot
+        --delta <BestSpeed on tags | None otherwise> -o Releases
+        [--signTemplate "pwsh -NoProfile -File tools/release/sign.ps1 {{file}}"   # only if signing == 'true']
    ```
-10. **Checksums.** Keep `publish/Envoy.exe.sha256` (REQ-DIST-3). Write `SHA256SUMS.txt` with `<hash>  Envoy.exe`
-    and `<hash>  Envoy-win-Setup.exe`.
-11. **Artifacts.**
-    - Existing `Envoy-<v>-win-x64` (portable).
-    - New `Envoy-<v>-setup` (`Releases/Envoy-win-Setup.exe`, `SHA256SUMS.txt`).
-12. **Release (tags only).** This replaces `softprops/action-gh-release`. `env: GH_TOKEN: ${{ github.token }}`.
+   The log must contain `Verified VelopackApp.Run()` (pack fails otherwise).
+10. **Checksums** — tags: keep `publish/Envoy.exe.sha256`; write `SHA256SUMS.txt` (`<hash>  Envoy.exe`,
+    `<hash>  Envoy-win-Setup.exe`).
+11. **Artifacts.** Existing `Envoy-<v>-win-x64`; when step 9 ran, `Envoy-<v>-setup` (`Envoy-win-Setup.exe`, plus
+    `SHA256SUMS.txt` on tags).
+12. **Release** — tags only; replaces `softprops/action-gh-release`. `env: GH_TOKEN: ${{ github.token }}`.
     ```
-    vpk upload github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
-                      --channel win -o Releases --tag ${{ github.ref_name }} --releaseName "Envoy ${{ github.ref_name }}"
-                      --targetCommitish ${{ github.sha }} --merge [--pre]       # creates/merges a DRAFT
+    dotnet vpk upload github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+        --channel win -o Releases --tag ${{ github.ref_name }} --releaseName "Envoy ${{ github.ref_name }}"
+        --targetCommitish ${{ github.sha }} --merge [--pre]        # creates/merges a DRAFT
     gh release upload ${{ github.ref_name }} publish/Envoy.exe publish/Envoy.exe.sha256 SHA256SUMS.txt --clobber
+    python tools/release/check_release_assets.py --tag ${{ github.ref_name }} --version <pack> --delta <has_previous>
     gh release edit ${{ github.ref_name }} --notes-file release-body.md --draft=false [--prerelease]
     ```
-    - `release-body.md` = `notes.md` + a fixed footer: which file to download, how to verify `SHA256SUMS.txt`,
-      and a link to `docs/installing.md`.
-    - `--merge` makes re-running a failed job idempotent.
-    - `--draft=false` runs last (REQ-DIST-5).
-    - Unauthenticated clients (the app) cannot see drafts, so nobody sees a half-uploaded release.
-13. **winget (stable tags only).**
-    `python tools/release/render_winget.py --version <v> --installer-url https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Envoy-win-Setup.exe --sha256 <setup hash> --release-notes-url <release page> --out winget`
-    → `actions/upload-artifact` `winget-manifests`.
+    - `check_release_assets.py` reads `gh release view <tag> --json assets,isDraft` and fails unless the release is
+      still a draft and holds exactly the expected names: `Envoy.exe`, `Envoy.exe.sha256`, `SHA256SUMS.txt`,
+      `Envoy-win-Setup.exe`, `Envoy-<v>-full.nupkg`, `releases.win.json`, `assets.win.json`, `RELEASES`, plus
+      `Envoy-<v>-delta.nupkg` when `has_previous`. It also recomputes the two hashes from the local files and compares
+      them with `SHA256SUMS.txt`.
+    - `release-body.md` = `notes.md` + a fixed footer (which file to download, how to verify `SHA256SUMS.txt`, link to
+      `docs/installing.md`). `--merge` makes re-runs idempotent. `--draft=false` runs last. Unauthenticated clients
+      (the app) cannot see drafts.
+13. **winget** (SHOULD, REQ-DIST-28) — stable tags: `python tools/release/render_winget.py …` → artifact
+    `winget-manifests`.
+
+CI time (contract §6 budget, windows job ≤ 20 min excluding tag-only release steps): PR runs gain only step 5's
+notice; `main` pushes gain steps 7 and 9 (~1–2 min, SHOULD); everything else is tag-only.
 
 **`check` job additions** (Ubuntu):
 
-- `python3 tools/release/changelog_notes.py --self-test`
-- `python3 tools/release/render_winget.py --self-test`
-- `tools/release/check_velopack_pin.sh`: greps the `Velopack` version from `Envoy.App.csproj`,
-  `tools/typecheck/TypeCheck.csproj` and `VELOPACK_VERSION` in `build.yml`, and fails if they differ.
+- `tools/release/check_velopack_pin.sh` (MUST): compares the `Velopack` version in `Envoy.App.csproj` and
+  `tools/typecheck/TypeCheck.csproj` with `vpk` in `.config/dotnet-tools.json`; fails if they differ.
+  `--self-test` runs it on a temp copy with one pin changed and expects failure.
+- `python3 tools/release/check_signing_scope.py` (MUST) and its `--self-test`: line-based, stdlib only. Fails unless
+  every `secrets.ENVOY_SIGN_` reference in `build.yml` is inside a step whose `if:` requires
+  `startsWith(github.ref, 'refs/tags/v')` (directly or via `steps.sign.outputs.signing`), and the `windows` job's
+  `environment:` line is the tag expression above.
+- `python3 tools/release/check_release_assets.py --self-test` (MUST; fixture JSON, no network).
+- `python3 tools/release/changelog_notes.py --self-test`, `python3 tools/release/render_winget.py --self-test` (SHOULD,
+  with their requirements).
 
 ### Release tooling (new, `tools/release/`)
 
 | File | Purpose |
 | --- | --- |
-| `changelog_notes.py` | `changelog_notes.py <CHANGELOG> <version> [--out F]` prints the body of `## [<version>]` (up to the next `## `). For a prerelease with no exact section, it uses `## [Unreleased]`. A stable version with no section exits 2 with a message. A missing or empty section for a prerelease exits 0 with "No notes.". `--self-test` runs built-in cases: exact match, prerelease fallback, missing stable section → exit 2, last section in file, headings with dates `## [1.2.0] — 2026-10-01`. Standard library only. |
-| `render_winget.py` | Replaces `{{VERSION}}`, `{{INSTALLER_URL}}`, `{{INSTALLER_SHA256}}`, `{{RELEASE_NOTES_URL}}`, `{{RELEASE_DATE}}` in `packaging/winget/*.yaml` and writes `<out>/manifests/p/PinnerSinner/Envoy/<version>/`. It fails if any `{{` remains or if the version is a prerelease. `--self-test` renders into a temp dir and checks there are no leftovers and that the file names match `PackageIdentifier`. |
-| `sign.ps1` | `sign.ps1 <file>`: finds the newest `signtool.exe` under `${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\`, then runs `sign /fd SHA256 /f $env:RUNNER_TEMP\envoy-sign.pfx /p $env:ENVOY_SIGN_PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 <file>`. Exits 0 with a notice when the PFX is missing. Fails on a signtool error. The header comment says how to swap in Azure Trusted Signing or SignPath by replacing the signtool call. |
-| `check_velopack_pin.sh` | Version-pin consistency check (REQ-DIST-9). |
+| `check_velopack_pin.sh` | Pin consistency (REQ-DIST-9). |
+| `check_signing_scope.py` | Tag-only signing scope (REQ-DIST-8). |
+| `check_release_assets.py` | Draft + asset list + checksum assertion before publish (REQ-DIST-2, 3, 5, 7). |
+| `sign.ps1` | `sign.ps1 <file>`: newest `signtool.exe` under `${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\`, then `sign /fd SHA256 /f $env:RUNNER_TEMP\envoy-sign.pfx /p $env:ENVOY_SIGN_PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 <file>`. Exits 0 with a notice when the PFX is missing; fails on a signtool error. Header comment explains swapping in Azure Trusted Signing or SignPath. |
+| `changelog_notes.py` (SHOULD) | Prints the body of `## [<version>]` up to the next `## `; prerelease falls back to `## [Unreleased]`; stable without section exits 2. `--self-test`: exact match, prerelease fallback, missing stable → 2, last section, dated headings. |
+| `render_winget.py` (SHOULD) | Fills `packaging/winget/*.yaml` placeholders into `<out>/manifests/p/PinnerSinner/Envoy/<version>/`; fails on leftover `{{` or a prerelease. `--self-test`. |
 
-### winget templates (new, `packaging/winget/`)
+### winget templates (SHOULD, `packaging/winget/`)
 
-- `PinnerSinner.Envoy.yaml` (`ManifestType: version`, `DefaultLocale: en-US`, `ManifestVersion: 1.6.0`).
-- `PinnerSinner.Envoy.installer.yaml`:
-  - `InstallerType: exe`, `Scope: user`, `InstallModes: [interactive, silent, silentWithProgress]`.
-  - `InstallerSwitches: { Silent: --silent, SilentWithProgress: --silent }`, `UpgradeBehavior: install`.
-  - One `x64` installer with `{{INSTALLER_URL}}` / `{{INSTALLER_SHA256}}`, and `ReleaseDate: {{RELEASE_DATE}}`.
-- `PinnerSinner.Envoy.locale.en-US.yaml`:
-  - `Publisher: PinnerSinner`, `PackageName: Envoy`, `License: MIT`, `PackageUrl`, `LicenseUrl`.
-  - `ShortDescription: Live chat translation for Age of Empires and Age of Mythology`, `Tags`
-    (`age-of-empires`, `translation`, `ocr`, `overlay`), `ReleaseNotesUrl: {{RELEASE_NOTES_URL}}`.
-- `ProductCode` / `AppsAndFeaturesEntries` are omitted until AC-DIST-12 confirms the uninstall key name.
+`PinnerSinner.Envoy.yaml` (version, `ManifestVersion: 1.6.0`), `.installer.yaml` (`InstallerType: exe`, `Scope: user`,
+`InstallModes: [interactive, silent, silentWithProgress]`, `InstallerSwitches: { Silent: --silent, SilentWithProgress: --silent }`,
+`UpgradeBehavior: install`, one x64 installer), `.locale.en-US.yaml` (publisher, name, MIT, short description, tags,
+`ReleaseNotesUrl`). `ProductCode`/`AppsAndFeaturesEntries` are omitted until M-DIST-2 records the uninstall key.
 
-### Docs
+### Docs (definition of done, contract §10.4)
 
-- **`README.md`:**
-  - The Quick start's first step becomes "Download **Envoy-win-Setup.exe**
-    (`releases/latest/download/Envoy-win-Setup.exe`) and run it; it installs for your Windows account only (no
-    admin) and keeps itself up to date. Prefer no install? Download the portable `Envoy.exe` instead."
-  - The "One file." bullet becomes "Installer or one file."
-  - The roadmap line "Signed releases and an optional installer with auto-update" becomes "Signed releases"
-    (the installer part is done).
-- **`docs/installing.md` (new):**
-  - Installer vs portable.
-  - Where things live: install `%LocalAppData%\Envoy`; settings `%APPDATA%\Envoy`.
-  - How updates work (background download, never during a game, Restart to update, applied on next launch).
-  - Channels and switching back.
-  - Opting out (checkbox; what is contacted: GitHub only).
-  - Uninstalling (Apps & features; settings kept; how to delete them).
-  - SmartScreen while releases are unsigned.
-  - Verifying `SHA256SUMS.txt`.
-  - Installing an older version.
-  - winget (`winget install PinnerSinner.Envoy` once accepted).
-- **`docs/releasing.md`:** the new pipeline steps, the CHANGELOG section rule, beta tags, draft-then-publish,
-  delta generation, the signing secrets (`ENVOY_SIGN_PFX_BASE64`, `ENVOY_SIGN_PFX_PASSWORD`; Azure
-  Trusted Signing/SignPath as alternatives via `sign.ps1`), a manual winget submission (`wingetcreate submit`
-  or a PR to `microsoft/winget-pkgs` from the `winget-manifests` artifact), and bumping `VELOPACK_VERSION` in
-  all three places.
-- **`docs/faq.md`:** "Does Envoy phone home?" now also says: update checks go to GitHub only and can be turned
-  off.
-- **`docs/architecture.md`:** the `Updates/` row lists the new types. The App section mentions `Program.cs` and
-  `VelopackUpdateBackend`.
-- **`THIRD-PARTY-NOTICES.md`:** Velopack (MIT, © Velopack Ltd).
-- **`CHANGELOG.md`** (*Unreleased → Added*): the installer with auto-update, channels and in-app release notes.
+- **`README.md`:** Quick start step 1 becomes "Download **Envoy-win-Setup.exe**
+  (`releases/latest/download/Envoy-win-Setup.exe`) and run it; it installs for your Windows account only (no admin)
+  and keeps itself up to date. Prefer no install? Download the portable `Envoy.exe`." "One file." → "Installer or one
+  file." The roadmap's installer item is removed ("Signed releases" stays).
+- **`docs/installing.md` (new):** installer vs portable; where things live (install `%LocalAppData%\Envoy`, data in
+  the data folder shown on About); how updates work (background download, never during a game, Restart to update,
+  applied on next launch, Shift skips it); channels; opting out (GitHub only is contacted); uninstalling (data is
+  kept; use About › Troubleshooting › "Delete all Envoy data…" first to remove it); SmartScreen while unsigned;
+  verifying `SHA256SUMS.txt`; installing an older version; winget once accepted.
+- **`docs/releasing.md`:** pipeline steps, CHANGELOG rule, beta tags, draft-then-assert-then-publish, deltas, the
+  `release` environment and its secrets (and that tag builds wait for a reviewer), alternatives via `sign.ps1`,
+  manual winget submission, bumping Velopack in the three pinned places; plus the 06 manual pass M-DIST-1…6 below,
+  which 08b folds into the consolidated pre-release pass.
+- **`docs/faq.md`:** "Does Envoy phone home?" adds: update checks go to GitHub only and can be turned off.
+- **`docs/architecture.md`:** the `Updates/` row lists the new types; the App section mentions `Program.cs`,
+  `VelopackUpdateBackend`, `UpdateActions`, and the start-up slot 5 apply.
+- **`CLAUDE.md`:** "Never write user data under the install folder (`%LocalAppData%\Envoy`); all user data lives under
+  `Host.DataFolder`." and "Update UI text comes from `UpdateText`."
+- **`docs/security/threat-model.md`:** the T8 line above.
+- **`THIRD-PARTY-NOTICES.md`:** Velopack (MIT). **`CHANGELOG.md`:** Unreleased → Added.
 
 ## Acceptance criteria
 
-| ID | REQ | Verified by |
-| --- | --- | --- |
-| AC-DIST-1 | REQ-DIST-19 | Unit tests `ReleaseVersionTests.*` and `AppVersionTests.*` pass. |
-| AC-DIST-2 | REQ-DIST-13, 16, 20, 21, 22 | Unit tests `UpdateCoordinatorTests.*` pass. Each rule in the Design "State rules" list has a named test (Test plan). |
-| AC-DIST-3 | REQ-DIST-15, 17 | Unit tests `UpdateViewBuilderTests.*` and `ReleaseNotesTextTests.*` pass. `GitHubReleaseBackendTests.Download_throws_not_supported` passes. |
-| AC-DIST-4 | REQ-DIST-14, 18, 20 | `UpdateCheckerTests` (new cases with a fake `HttpMessageHandler`): requests go only to `api.github.com/repos/PinnerSinner/Envoy/...`, carry only `User-Agent` and `Accept`, Beta uses `/releases?per_page=10`, 403 → `UpdateCheckException`, 404 → null. Code review: `grep -n "new UpdateManager(" src` shows only calls with a `GithubSource` or the `ENVOY_UPDATE_FEED` path. |
-| AC-DIST-5 | REQ-DIST-18 | `SettingsTests.Update_settings_default_and_old_files_load`: defaults are Stable / AutoDownload true, and a JSON without `updates` loads with defaults. |
-| AC-DIST-6 | REQ-DIST-10 | `tools/typecheck/typecheck.sh` passes with `Program.cs` and the Velopack reference. The Windows CI step "vpk pack" logs `Verified VelopackApp.Run()`. The smoke test passes, which shows the portable/unpackaged start is unchanged. |
-| AC-DIST-7 | REQ-DIST-4, 9 | CI on a non-tag push: the job uploads artifact `Envoy-<v>-setup` containing `Envoy-win-Setup.exe`. `check_velopack_pin.sh` passes. Changing one pin locally makes it fail. |
-| AC-DIST-8 | REQ-DIST-6 | `changelog_notes.py --self-test` passes in the `check` job. |
-| AC-DIST-9 | REQ-DIST-27 | The Windows smoke test log contains `updates: ok` for each theme (see smoke additions). With `--screenshots`, `<theme>-update.png` exists for every theme. |
-| AC-DIST-10 | REQ-DIST-1, 2, 3, 5, 7 | **Release rehearsal** (manual, once, on the real repo or a fork): push `v0.9.0-beta.1`, then `v0.9.0-beta.2`. For each, the release appears only after the job finishes. It is marked prerelease and lists `Envoy.exe`, `Envoy.exe.sha256`, `SHA256SUMS.txt`, `Envoy-win-Setup.exe`, `Envoy-<v>-full.nupkg`, `releases.win.json` and `assets.win.json`. beta.2 also has `Envoy-0.9.0-beta.2-delta.nupkg`. The body is the CHANGELOG text. `Get-FileHash` matches `SHA256SUMS.txt`. |
-| AC-DIST-11 | REQ-DIST-15, 16, 17, 12, 23 | **Manual, Windows** (after AC-DIST-10): install beta.1 with Setup.exe and set the channel to Beta. Restart Envoy. The banner shows "Downloading…" then "Envoy 0.9.0-beta.2 is ready" with the notes. Click **Restart to update**: Envoy closes, reopens on beta.2 within ~10 s and shows "Envoy was updated to v0.9.0-beta.2" once. `%LocalAppData%\Envoy\packages` contains the delta-built full package. In a second run, quit from the tray while the update is ready, then relaunch from the Start menu: Envoy comes up already on the new version. |
-| AC-DIST-12 | REQ-DIST-1, 11 | **Manual, Windows:** Setup.exe runs without a UAC prompt. A Start menu entry "Envoy" exists. *Apps & features* lists Envoy. Record the `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\<key>` name in `docs/releasing.md`. Enable "Start with Windows", then uninstall: `HKCU\…\Run\Envoy` is gone, `%APPDATA%\Envoy\settings.json` is still there, and `%LocalAppData%\Envoy` is gone. |
-| AC-DIST-13 | REQ-DIST-12 | **Manual, Windows:** with an update ready and Envoy running, start Envoy again from the Start menu. The running instance just comes to the front (existing show-signal), and no update or restart happens. |
-| AC-DIST-14 | REQ-DIST-16 | **Manual, in game:** with AutoDownload on and an update available, start AoE2 DE. Before the start-up check the About status reads "…will download after your game". No `packages\*.partial` appears while the game runs. After closing the game the download starts within one game-detector cycle (3 s) plus `TickAsync`. |
-| AC-DIST-15 | REQ-DIST-13 | **Manual, Windows:** untick "Check for updates automatically", restart Envoy and watch with Resource Monitor → Network (or `netstat -b`) for 2 minutes: no connection to `api.github.com`. Clicking **Check for updates** then makes one. |
-| AC-DIST-16 | REQ-DIST-15 | **Manual, Windows:** run the portable `Envoy.exe` from beta.1 with Beta selected. The banner offers **Download** and **Get the installer**, and the latter opens the `Envoy-win-Setup.exe` URL. The exe's file timestamp is unchanged after an hour of running. |
-| AC-DIST-17 | REQ-DIST-8 | CI without secrets: the log shows the "Code signing skipped" notice and the job is green. With a self-signed test PFX in a fork's secrets: `Get-AuthenticodeSignature` on `Envoy.exe`, `Envoy-win-Setup.exe` and `%LocalAppData%\Envoy\current\Envoy.exe` after install reports a signature (`UnknownError` for an untrusted root is expected; `NotSigned` fails). |
-| AC-DIST-18 | REQ-DIST-28 | `render_winget.py --self-test` passes in `check`. On the stable rehearsal tag (`v0.9.0`), the `winget-manifests` artifact contains three YAML files with no `{{`. Optional: `winget validate --manifest <dir>` on a Windows machine passes. |
-| AC-DIST-19 | REQ-DIST-24, 25, 26 | **Manual, Windows:** with an update ready, the tray menu shows "Restart to update to v…". About shows "Installed · Beta", the status line and a working **Check for updates**. Turn on Start with Windows in portable, then install and start the installed copy once: `HKCU\…\Run\Envoy` now points at `%LocalAppData%\Envoy\current\Envoy.exe`. |
-| AC-DIST-20 | REQ-DIST-29 | Review: the README links `releases/latest/download/Envoy-win-Setup.exe`. `docs/installing.md` exists and is linked from the README docs table. `THIRD-PARTY-NOTICES.md` lists Velopack. `CHANGELOG.md` has the entry. |
-| AC-DIST-21 | REQ-DIST-30 | (COULD) **Manual:** `vpk pack` two local versions into `C:\feed`, install the first, then set `ENVOY_UPDATE_FEED=C:\feed` and start Envoy: it offers the second. |
+Kinds per contract §9: unit = Core unit test; typecheck = `tools/typecheck/typecheck.sh`; smoke = named Windows smoke
+section; CI = check in the `check` job or a workflow step; M = numbered step in `docs/releasing.md`'s manual pass.
+
+| ID | REQ | Verified by | Kind |
+| --- | --- | --- | --- |
+| AC-DIST-1 | 19 | `ReleaseVersionTests.*` (incl. `FromInformational_*`) pass. `UserAgentTests.Default_agent_keeps_browser_form` asserts `UserAgents.Default(1.2.3-beta.1)` is `Mozilla/5.0 (Windows NT 10.0; Win64; x64) Envoy/1.2.3`. The typecheck compiles `AppHost.CurrentVersion` as `Version` (02's consumers unchanged) and `AppHost.AppVersion` as `ReleaseVersion`. | unit, typecheck |
+| AC-DIST-2 | 13, 16, 20 | `UpdateCoordinatorTests.*` pass; each State rule has a named test. `StartupPlanTests.Safe_mode_disables_automatic_update_checks` passes. | unit |
+| AC-DIST-3 | 15, 16, 20 | `UpdateViewBuilderTests.*`, `UpdateTextTests.*`, `ReleaseNotesTextTests.*` and `GitHubReleaseBackendTests.*` pass. `UpdateTextTests.Failure_sentences_have_no_error_prefix_or_exception_text` covers every `UpdateErrorKind`. | unit |
+| AC-DIST-4 | 14 | `UpdateCheckerTests` (fake `HttpMessageHandler`): requests go only to `https://api.github.com/repos/PinnerSinner/Envoy/…`, carry only `User-Agent` and `Accept`; untrusted `html_url`/installer URLs are dropped. `check_policy.py` passes with no `policy.json` change. `check_ui_rules.py` `UPD1` passes. | unit, CI, typecheck |
+| AC-DIST-5 | 13, 16 | `UpdatePreferencesTests.Snapshot_is_unaffected_by_later_settings_changes` and `UpdateSettingsTests.*` (defaults; old file without `updates` loads). | unit |
+| AC-DIST-6 | 10 | typecheck passes with `Program.cs` and the Velopack reference; `check_ui_rules.py` `UPD2` passes. Smoke passes (unpackaged start unchanged). On tags (and `main` with REQ-DIST-4) the `vpk pack` step succeeds, which requires `Verified VelopackApp.Run()`. | typecheck, smoke, CI |
+| AC-DIST-7 | 9 | `check_velopack_pin.sh` and its `--self-test` pass in `check`. | CI |
+| AC-DIST-8 | 8 | `check_signing_scope.py` and `--self-test` pass in `check`. Every untagged `windows` run prints `Unsigned build (not a v* tag)`. **M-DIST-5.** | CI, M |
+| AC-DIST-9 | 27 | Smoke sections `updates(<palette>) ok` for every `ThemeManager.PaletteIds` entry and `updates-portable ok`; zero binding errors in each palette's window; with `--screenshots`, `{palette}-update.png` of the **War Room** exists for every palette. | smoke |
+| AC-DIST-10 | 2, 3, 5, 7 | On every tag, `check_release_assets.py` passes before `--draft=false` (draft state, exact asset list, delta when a previous release existed, checksums match). `--self-test` passes in `check`. **M-DIST-1** (rehearsal). | CI, M |
+| AC-DIST-11 | 1, 11 | **M-DIST-2.** | M |
+| AC-DIST-12 | 12 | `PendingUpdatePolicyTests.*` (pending + no flags → apply; `--safe-mode` → skip; Shift → skip; no package → skip). `UPD2` (auto-apply off). **M-DIST-3.** | unit, typecheck, M |
+| AC-DIST-13 | 15, 16 | **M-DIST-1** (install beta.1 → banner → Restart to update → beta.2 and "Updated to" once; second run: quit while ready, relaunch → already updated). **M-DIST-4** (in game). **M-DIST-6** (portable). | M |
+| AC-DIST-14 | 13 | **M-DIST-6** (opt-out: no `api.github.com` connection for 2 min; **Check for updates** makes one; same in safe mode). | M |
+| AC-DIST-15 | 6 (SHOULD) | `changelog_notes.py --self-test` passes in `check`. | CI |
+| AC-DIST-16 | 28 (SHOULD) | `render_winget.py --self-test` passes; the stable rehearsal tag produces `winget-manifests` with no `{{`. | CI |
+| AC-DIST-17 | 18, 21–26, 31 (SHOULD) | The matching `UpdateCoordinatorTests`/`UpdateViewBuilderTests` cases; tray item and Run-key in M-DIST-2/3 when built. | unit, M |
+| AC-DIST-18 | 30 (COULD) | Manual: pack two local versions into `C:\feed`, install the first, set `ENVOY_UPDATE_FEED=C:\feed`: it offers the second; a URL value is ignored and logged. | manual |
+
+### Manual pass (06 section of `docs/releasing.md`)
+
+- **M-DIST-1 Release rehearsal** (fork or real repo): push `v0.9.0-beta.1`, then `v0.9.0-beta.2`. Each release appears
+  only after the job finishes, is marked prerelease, the body is the CHANGELOG text (if REQ-DIST-6) and
+  `Get-FileHash` matches `SHA256SUMS.txt`. Install beta.1 with Setup.exe (channel Beta), restart Envoy: the banner
+  shows "Downloading…", then "Envoy 0.9.0-beta.2 is ready" with notes. **Restart to update**: Envoy reopens on beta.2
+  within ~10 s, in the same window state; "Envoy was updated to 0.9.0-beta.2" shows once (if REQ-DIST-23).
+  Repeat with a ready update, quit from the tray, relaunch from the Start menu: already on the new version.
+- **M-DIST-2 Install/uninstall:** Setup.exe runs without UAC; Start menu "Envoy" exists; *Apps & features* lists it.
+  Record the `HKCU\…\Uninstall\<key>` name. Enable Start with Windows, uninstall: `HKCU\…\Run\Envoy` is gone, the data
+  folder still holds `settings.json`, `%LocalAppData%\Envoy` is gone.
+- **M-DIST-3 No apply under another instance / in safe mode:** with an update ready and Envoy running, start Envoy
+  from the Start menu: the running instance comes to the front, nothing is applied. Quit, start with Shift held: safe
+  mode starts on the old version, nothing applied; the next normal start applies it.
+- **M-DIST-4 In game:** AutoDownload on, update available, AoE2 DE (or any detected title) running: About/banner reads
+  "…will download after your game"; no `packages\*.partial` appears; after closing the game the download starts
+  within one detector cycle (3 s) plus a tick.
+- **M-DIST-5 Signing:** with a certificate in the `release` environment, the tag build's `Get-AuthenticodeSignature`
+  on `Envoy.exe`, `Envoy-win-Setup.exe` and the installed `current\Envoy.exe` reports a signature (`NotSigned` fails;
+  `UnknownError` is expected only for a self-signed test certificate). A push to `main` in the same repo produces an
+  unsigned artifact.
+- **M-DIST-6 Portable and opt-out:** portable beta.1 with Beta selected offers **Download** and **Get the installer**
+  (opens the Setup.exe URL); the exe's timestamp is unchanged after an hour. Untick "Check for updates automatically",
+  restart, watch Resource Monitor → Network for 2 minutes: no `api.github.com` connection; **Check for updates** then
+  makes one. Repeat the 2-minute watch in safe mode with the box ticked.
 
 ## Test plan
 
 ### Unit tests (`tests/Envoy.Core.Tests/`)
 
-**`Updates/ReleaseVersionTests.cs`**
+**`Updates/ReleaseVersionTests.cs`** — `Parses_plain_and_v_prefixed` (`"1.2.3"`, `"v1.2.3"`, `"V1.2"` → 1.2.0);
+`Parses_prerelease_identifiers`; `Drops_build_metadata`; `Prerelease_sorts_before_release`;
+`Numeric_identifiers_compare_numerically` (`beta.2 < beta.10`); `Alphanumeric_vs_numeric_identifiers` (SemVer §11);
+`Rejects_garbage` (`"latest"`, `""`, `null`, `"1.2.3.4.5"`, `"1..2"`); `ToString_round_trips`; `CoreString_drops_prerelease`;
+`FromInformational_strips_source_revision` (`"1.2.0-beta.1+0abc"` → `1.2.0-beta.1`);
+`FromInformational_falls_back_to_assembly_version`; `FromInformational_falls_back_to_zero`.
 
-- `Parses_plain_and_v_prefixed(string text, int maj, int min, int pat)`: `"1.2.3"`, `"v1.2.3"`, `"V1.2"` → 1.2.0.
-- `Parses_prerelease_identifiers`: `"1.2.0-beta.1"` → `Prerelease == ["beta","1"]`, `IsPrerelease`.
-- `Drops_build_metadata`: `"1.2.0+abc"` equals `"1.2.0"`, and `ToString()` is `"1.2.0"`.
-- `Prerelease_sorts_before_release`: `1.2.0-beta.1 < 1.2.0`.
-- `Numeric_identifiers_compare_numerically`: `beta.2 < beta.10`.
-- `Alphanumeric_vs_numeric_identifiers`: `1.0.0-1 < 1.0.0-alpha` and `1.0.0-alpha < 1.0.0-alpha.1` (SemVer §11
-  examples).
-- `Rejects_garbage(string)`: `"latest"`, `""`, `null`, `"1.2.3.4.5"`, `"1..2"`.
-- `ToString_round_trips(string)`.
+**`Updates/UserAgentTests.cs`** — `Default_agent_keeps_browser_form`.
 
-**`Updates/AppVersionTests.cs`**
+**`Updates/ReleaseNotesTextTests.cs`** — `Strips_headings_and_emphasis`; `Links_become_their_text`;
+`Collapses_blank_lines`; `Truncates_at_line_boundary_with_ellipsis` (3,000 chars → ≤ 1,201, ends "…");
+`Null_or_blank_gives_empty`.
 
-- `Strips_source_revision_metadata`: `("1.2.0-beta.1+0abc", null)` → `1.2.0-beta.1`.
-- `Falls_back_to_assembly_version`: `(null, new Version(1,2,3,0))` → `1.2.3`.
-- `Falls_back_to_zero_when_nothing_parses`: `("dev", null)` → `0.0.0`.
+**`Updates/UpdateTextTests.cs`** — `Failure_sentences_have_no_error_prefix_or_exception_text` (every kind, both
+phases); `Headlines_contain_versions`; `Status_up_to_date_includes_local_check_time`;
+`Status_beta_ahead_of_stable_explains_no_downgrade`.
 
-**`Updates/ReleaseNotesTextTests.cs`**
+**`PlayerAndUpdateTests.cs` → `UpdateCheckerTests`** (existing tests unchanged) —
+`Parse_prefers_portable_exe_over_setup`; `Parse_with_prereleases_included_returns_prerelease`;
+`Parse_drops_untrusted_installer_url`; `PickLatest_stable_ignores_prereleases_and_drafts`;
+`PickLatest_beta_picks_highest_semver_not_newest_published`; `PickLatest_skips_untrusted_html_url`;
+`Check_stable_calls_latest_endpoint_with_minimal_headers`; `Check_beta_calls_list_endpoint`;
+`Check_returns_null_when_not_newer` (incl. `0.4.0-beta.2` → `0.4.0` is an update); `Check_404_returns_null`;
+`Check_403_and_429_throw_RateLimited`; `Check_bad_json_throws_BadResponse`; `Check_network_error_throws_Offline`.
 
-- `Strips_headings_and_emphasis`: `"## Added\n- **Scan** it"` → `"Added\n• Scan it"`.
-- `Links_become_their_text`: `"[docs](https://x)"` → `"docs"`.
-- `Collapses_blank_lines`.
-- `Truncates_at_line_boundary_with_ellipsis`: 3,000 chars → ≤ 1,201 chars, ends with `"…"`, no partial line.
-- `Null_or_blank_gives_empty`.
+**`Updates/GitHubReleaseBackendTests.cs`** — `Maps_update_info_to_available_update`; `Download_throws_not_supported`;
+`PendingRestart_is_null`.
 
-**`PlayerAndUpdateTests.cs` → `UpdateCheckerTests`** (existing class; current tests stay unchanged)
+**`Updates/PendingUpdatePolicyTests.cs`** — the four cases in AC-DIST-12.
 
-- `Parse_prefers_portable_exe_over_setup`: assets `Envoy-win-Setup.exe` (first) and `Envoy.exe` →
-  `DownloadUrl` ends `/Envoy.exe` and `InstallerUrl` ends `/Envoy-win-Setup.exe`.
-- `Parse_with_prereleases_included_returns_prerelease`: `IsPrerelease == true`, `SemVer == 0.4.0-beta.1`.
-- `PickLatest_stable_ignores_prereleases_and_drafts`: array of [draft 0.5.0, pre 0.4.1-beta.1, 0.4.0] → 0.4.0.
-- `PickLatest_beta_picks_highest_semver_not_newest_published`: [0.4.1 published after 0.5.0-beta.1] →
-  0.5.0-beta.1.
-- `Check_stable_calls_latest_endpoint_with_minimal_headers`: a fake `HttpMessageHandler` records the URI
-  `https://api.github.com/repos/PinnerSinner/Envoy/releases/latest`; headers are exactly `User-Agent` and `Accept`.
-- `Check_beta_calls_list_endpoint`: URI ends with `/releases?per_page=10`.
-- `Check_returns_null_when_not_newer`: current `0.4.0` and latest `0.4.0` → null; current `0.4.0-beta.2` and
-  latest `0.4.0` → update.
-- `Check_404_returns_null`.
-- `Check_403_throws_UpdateCheckException`: message mentions rate limiting.
-- `Check_bad_json_throws_UpdateCheckException`.
+**`Updates/UpdatePreferencesTests.cs`** — `Snapshot_is_unaffected_by_later_settings_changes`;
+`Empty_skipped_version_is_null`.
 
-**`Updates/GitHubReleaseBackendTests.cs`**
+**`Updates/UpdateCoordinatorTests.cs`** — `FakeUpdateBackend` (scripted results, counters, `TaskCompletionSource`
+gates), `FakeTimeProvider`, `NullLog`:
 
-- `Maps_update_info_to_available_update`: URLs, notes and version are carried over, and `Kind == Portable`.
-- `Download_throws_not_supported`.
-- `PendingRestart_is_null`.
+- `Automatic_check_disabled_makes_no_backend_call` (`StartAsync`, `TickAsync` → 0 calls)
+- `Manual_check_runs_even_when_disabled`
+- `Startup_skips_check_when_checked_within_an_hour` (−30 min → 0; −2 h → 1)
+- `Startup_with_pending_package_goes_ready_without_network`
+- `Installed_autodownload_reaches_ReadyToRestart` (`Changed` for each state)
+- `Autodownload_off_stops_at_Available`
+- `Download_deferred_while_game_running_then_resumes_on_tick` (`SetGameRunning(true)` → deferred, 0 downloads;
+  `SetGameRunning(false)` + `TickAsync` → 1)
+- `Game_starting_mid_download_does_not_cancel`
+- `Portable_never_downloads`
+- `Skipped_version_hidden_for_automatic_check` / `Skipped_version_shown_for_manual_check` /
+  `SkipAvailableVersion_returns_version_and_goes_idle` (SHOULD)
+- `Automatic_failure_is_silent` (state restored, `Error` set, not `Failed`)
+- `Manual_failure_sets_Failed_with_kind`
+- `Download_failure_keeps_available_and_retry_succeeds`
+- `Cancellation_restores_previous_state`
+- `Concurrent_checks_share_one_backend_call`
+- `Periodic_tick_checks_after_12_hours` (SHOULD; 11 h → 0, 12 h → 1)
+- `LastCheck_callback_after_success_and_failure`
+- `Configure_keeps_later_LastCheckUtc`
+- `Configure_channel_change_triggers_one_manual_check` / `First_configure_does_not_check`
+- `Channel_is_passed_to_backend`
+- `Older_or_equal_result_is_up_to_date`
+- `Check_while_ready_keeps_ready_for_same_version`
+- `RestartToUpdate_requires_ready_and_installed` (throws otherwise; when ready, passes args through)
+- `RestartToUpdate_works_after_token_cancelled`
+- `Progress_raises_changed_only_on_whole_percent_change`
 
-**`Updates/UpdateCoordinatorTests.cs`.** Uses a `FakeUpdateBackend` (test-only; scripted results, call
-counters, a `TaskCompletionSource` for blocking), `FakeTimeProvider`, and `Func<bool>` game flags.
+**`Updates/UpdateViewBuilderTests.cs`** — one `[Theory]` row per line of the snapshot→banner table;
+`JustUpdated_shown_only_without_active_banner` (SHOULD).
 
-- `Automatic_check_disabled_makes_no_backend_call`: `CheckForUpdates=false`; `StartAsync` and `TickAsync` → 0
-  `CheckAsync` calls.
-- `Manual_check_runs_even_when_disabled`.
-- `Startup_skips_check_when_checked_within_an_hour`: `LastCheckUtc = now-30min` → 0 calls; `now-2h` → 1.
-- `Startup_with_pending_package_goes_ready_without_network`: `PendingRestart=1.3.0` → `ReadyToRestart`, 0 calls.
-- `Installed_autodownload_reaches_ReadyToRestart`: Available → Downloading → ReadyToRestart; `Changed` raised
-  for each.
-- `Autodownload_off_stops_at_Available`.
-- `Download_deferred_while_game_running_then_resumes_on_tick`: game=true → `DeferredForGame`, 0 downloads; game=false
-  then `TickAsync` → 1 download.
-- `Portable_never_downloads`: `Kind=Portable`, AutoDownload true → Available, 0 downloads.
-- `Skipped_version_hidden_for_automatic_check`: SkippedVersion "1.3.0" → `Idle`.
-- `Skipped_version_shown_for_manual_check`.
-- `SkipAvailableVersion_persists_and_calls_settingsChanged`.
-- `Automatic_failure_is_silent`: backend throws → state returns to the previous one; `Error` set; State != Failed.
-- `Manual_failure_sets_Failed_with_message`.
-- `Download_failure_keeps_available_and_retry_succeeds`.
-- `Cancellation_restores_previous_state`.
-- `Concurrent_checks_share_one_backend_call`: two `CheckAsync` calls while the first is blocked → 1 call.
-- `Periodic_tick_checks_after_12_hours`: advance `FakeTimeProvider` 11h → 0, 12h → 1.
-- `LastCheckUtc_written_after_check`: on success and on failure.
-- `Channel_is_passed_to_backend`: Beta setting → the backend receives `UpdateChannel.Beta`.
-- `Older_or_equal_result_is_up_to_date`: a backend returning `<=` current → `UpToDate`.
-- `RestartToUpdate_requires_ready_and_installed`: throws `InvalidOperationException` otherwise; when ready,
-  calls `LaunchUpdaterAfterExit` with the given args.
-- `Progress_raises_changed_only_on_whole_percent_change`.
+**`Settings/UpdateSettingsTests.cs`** — `Update_settings_default_and_old_files_load`; `Update_settings_round_trip`.
 
-**`Updates/UpdateViewBuilderTests.cs`**
-
-- One `[Theory]` row per line of the snapshot→banner table in Design: `Builds_expected_view(case)` asserts
-  `ShowBanner`, `Headline`, `Primary`, `PrimaryLabel`, `Secondary`, `SecondaryLabel` and `CanSkip`.
-- `StatusLine_up_to_date_includes_check_time`.
-- `StatusLine_beta_ahead_of_stable_explains_no_downgrade`.
-
-**`SettingsTests`.** Add to the existing settings test file, or to a new `Settings/UpdateSettingsTests.cs` if
-that file doesn't exist.
-
-- `Update_settings_default_and_old_files_load`: `new AppSettings().Updates` has Channel Stable, AutoDownload
-  true and SkippedVersion "". `SettingsStore.Load` of a JSON without `updates` gives the same.
-- `Update_settings_round_trip`: Beta, AutoDownload false, `LastCheckUtc` survive save and load.
+**02's `StartupPlanTests`** — `Safe_mode_disables_automatic_update_checks`; normal start enables them.
 
 ### Script self-tests (CI `check` job)
 
-- `changelog_notes.py --self-test`, `render_winget.py --self-test`, `check_velopack_pin.sh`.
+`check_velopack_pin.sh --self-test`, `check_signing_scope.py --self-test`, `check_release_assets.py --self-test`;
+SHOULD: `changelog_notes.py --self-test`, `render_winget.py --self-test`. `test_check_ui_rules.py` gains `UPD1`/`UPD2`
+fixture cases.
 
-### Smoke-test additions (`src/Envoy.App/SmokeTest.cs`, shared file)
+### Smoke-test additions (`src/Envoy.App/SmokeTest.cs`, contract §6)
 
-- `AppHost` is constructed with a `SmokeUpdateBackend : IUpdateBackend`, a private nested class:
-  - `Kind` is configurable.
-  - `CheckAsync` returns `AvailableUpdate(9.9.0, notes: "## Added\n- Faster OCR\n- New themes", …)`.
-  - `DownloadAsync` reports 0/50/100 progress.
-  - `LaunchUpdaterAfterExit` throws (it must never be reached).
-  - No network.
-- The smoke settings set `Updates.AutoDownload = false` so each state can be shown in turn.
-- Per theme, after the existing `MainWindow` page loop:
-  1. `await host.Updates.CheckAsync(manual: true)` → Navigate("Dashboard") → `Pump()`. Assert
-     `host.UpdateView.Primary == UpdateNow`.
-  2. Start `host.Updates.DownloadAsync()`. The backend blocks at 50% until released, then Pump, so Downloading
-     is rendered. Release it, then await → Pump. Assert `ReadyToRestart`. Navigate("About") → Pump. Screenshot
-     `{theme}-update.png` of the War Room (when `--screenshots`).
-  3. Switch to a backend whose check throws, call `CheckAsync(manual: true)` → Pump. Assert `Failed`.
-  4. Make a second host with `Kind=Portable` → check → Pump. Assert Primary `OpenReleasePage`, Secondary
-     `GetInstaller`.
-  5. `log.Add($"theme {theme.Id}: updates: ok")`.
-- The smoke test never calls `RestartToUpdate`, and the tray isn't created in smoke mode, so nothing exits early.
+`SmokeUpdateBackend : IUpdateBackend` (private nested): configurable `Kind`; `NextVersion` settable; `FailNextCheck`;
+`DownloadAsync` reports 0 → 50, waits on a gate, then 100; `LaunchUpdaterAfterExit` throws (must never be reached);
+no network.
 
-### Manual checks
+- **Phase 1 (setup, once):** the main host is created with `AppHostOptions.UpdateBackend = new SmokeUpdateBackend(Installed)`
+  and its temp `DataFolder`; set `Settings.Updates.AutoDownload = false` and `ApplySettings()`. Create **one** Portable
+  host (own temp `DataFolder` under the smoke root, `SmokeUpdateBackend(Portable)`), run its manual check, and assert
+  `UpdateViewBuilder.Build(portable.Updates.Snapshot)` has Primary `OpenReleasePage`, Secondary `GetInstaller` →
+  `[smoke] updates-portable ok`. It is kept for teardown only (contract: reused, not rebuilt per palette).
+- **Phase 2, per palette, step 3 (MainWindow open, binding listener running),** section `updates(<palette>)`, with
+  `NextVersion = 9.9.<palette index>` so each palette sees a newer version than the last ready one:
+  1. `FailNextCheck`; `await Updates.CheckAsync(manual: true)`; `Navigate(PageIds.Dashboard)`; pump. Assert
+     `UpdateBanner` visible, `UpdateView.Primary == Retry`.
+  2. `CheckAsync(manual: true)`; pump. Assert `Primary == UpdateNow` and `UpdateHeadline.Text == UpdateView.Headline`.
+  3. Start `DownloadAsync()`; wait for 50 %; pump; assert `State == Downloading` and the headline contains "50%".
+     Open the gate; await; pump. Assert `Primary == RestartToUpdate`.
+  4. With `--screenshots`, screenshot the **War Room** as `{palette}-update.png`.
+- **Phase 3:** both hosts are disposed with the others; the temp root is deleted.
+- The smoke test never calls `RestartToUpdate`, and the tray isn't created in smoke mode.
 
-- The release rehearsal and install/update/uninstall walkthrough: AC-DIST-10 to AC-DIST-16, AC-DIST-19.
-- The in-game check: AC-DIST-14, using AoE2 DE or any detected title.
-- Signing with a test PFX on a fork: AC-DIST-17.
+Expected cost: < 1 s per palette plus ~0.5 s once.
 
 ## Files touched
 
-| Path | Change | Shared file? |
+| Path | Change | Shared? |
 | --- | --- | --- |
 | `src/Envoy.Core/Updates/ReleaseVersion.cs` | new | |
-| `src/Envoy.Core/Updates/AppVersion.cs` | new | |
-| `src/Envoy.Core/Updates/UpdateBackend.cs` | new: `IUpdateBackend`, `AvailableUpdate`, `UpdateChannel`, `InstallKind`, `UpdateCheckException`, `UpdateEndpoints` | |
+| `src/Envoy.Core/Updates/UpdateBackend.cs` | new: `IUpdateBackend`, `AvailableUpdate`, `UpdateChannel`, `InstallKind`, `UpdateErrorKind`, `UpdateCheckException`, `UpdateEndpoints`, `PendingUpdatePolicy` | |
 | `src/Envoy.Core/Updates/GitHubReleaseBackend.cs` | new | |
+| `src/Envoy.Core/Updates/UpdatePreferences.cs` | new | |
 | `src/Envoy.Core/Updates/UpdateCoordinator.cs` | new: coordinator, `UpdateState`, `UpdateSnapshot` | |
 | `src/Envoy.Core/Updates/UpdateView.cs` | new: `UpdateView`, `UpdateAction`, `UpdateViewBuilder` | |
-| `src/Envoy.Core/Updates/ReleaseNotesText.cs` | new | |
-| `src/Envoy.Core/Updates/UpdateChecker.cs` | channel-aware `CheckAsync`, `PickLatest`, `Parse(json, includePrereleases)`, setup-vs-portable asset picking, typed errors; existing members unchanged | |
-| `src/Envoy.Core/Settings/AppSettings.cs` | add `Updates` property and `UpdateSettings` class | **yes** (AppSettings.cs) |
-| `src/Envoy.App/Program.cs` | new: `[STAThread] Main` with `VelopackApp` | |
-| `src/Envoy.App/Services/VelopackUpdateBackend.cs` | new: backend + `UpdateBackendFactory` + `AppVersionInfo` | |
-| `src/Envoy.App/Envoy.App.csproj` | `StartupObject`, `Velopack` 1.2.161 package | |
-| `src/Envoy.App/AppHost.cs` | `Updates` coordinator, `UpdateView`/`HasUpdate`/`UpdateText`/`JustUpdatedTo`, ctor `IUpdateBackend?` parameter, 30 min timer, Run-key refresh, `CancellationTokenSource`, version/User-Agent; remove `CheckForUpdatesAsync`/`Update` | **yes** (AppHost.cs) |
-| `src/Envoy.App/App.xaml.cs` | pending-update apply after mutex, `RestartToUpdate()`, tray item | **yes** (App.xaml.cs) |
-| `src/Envoy.App/SmokeTest.cs` | `SmokeUpdateBackend`, per-theme update-state rendering, `{theme}-update.png` | **yes** (SmokeTest.cs) |
-| `src/Envoy.App/Windows/MainWindow.xaml` (or `Pages/WarRoomPage.xaml`, `Pages/AppearancePage.xaml`, `Pages/AboutPage.xaml` after 01) | update banner, "updated to" notice, General update settings, About "Updates" block | **yes** (MainWindow*) |
-| `src/Envoy.App/Windows/MainWindow.xaml.cs` | remove `OnDownloadUpdate` (before 01: add click handlers that forward to the VM commands) | **yes** (MainWindow*) |
-| `src/Envoy.App/ViewModels/MainViewModel.cs` | `UpdateChannels`, `IsInstalled`, `InstallKindText`, `ChannelText`, update commands, `Version` from `AppVersionInfo` | |
-| `tools/typecheck/TypeCheck.csproj` | add `Velopack` package reference | (shared tooling) |
-| `.github/workflows/build.yml` | `VELOPACK_VERSION`, notes, signing setup/steps, folder publish, vpk download/pack/upload, gh release upload/edit, SHA256SUMS, setup artifact, winget render; `check` job script self-tests; remove `softprops/action-gh-release` | |
-| `tools/release/changelog_notes.py` | new | |
-| `tools/release/render_winget.py` | new | |
-| `tools/release/sign.ps1` | new | |
-| `tools/release/check_velopack_pin.sh` | new | |
-| `packaging/winget/PinnerSinner.Envoy*.yaml` (3) | new templates | |
-| `tests/Envoy.Core.Tests/Updates/*.cs` (6 files) | new tests | |
-| `tests/Envoy.Core.Tests/PlayerAndUpdateTests.cs` | new `UpdateCheckerTests` cases | |
-| `tests/Envoy.Core.Tests/Settings/UpdateSettingsTests.cs` | new (or add to an existing settings test file) | |
-| `README.md`, `docs/installing.md` (new), `docs/releasing.md`, `docs/faq.md`, `docs/architecture.md`, `THIRD-PARTY-NOTICES.md`, `CHANGELOG.md` | docs | |
+| `src/Envoy.Core/Updates/UpdateText.cs`, `ReleaseNotesText.cs`, `UserAgents.cs` | new | |
+| `src/Envoy.Core/Updates/UpdateChecker.cs` | channel-aware `CheckAsync`, `PickLatest`, `Parse(json, includePrereleases)`, setup-vs-portable picking, typed errors; 08a's URL checks kept | |
+| `src/Envoy.Core/Settings/AppSettings.cs` | `Updates` + `UpdateSettings` | **yes** |
+| `src/Envoy.Core/Diagnostics/SafeMode.cs` (02, `StartupPlan`) | `AutoCheckUpdates` | **yes** |
+| `src/Envoy.Core/Diagnostics/DiagnosticsReport.cs` (02) | "Updates" line (SHOULD, REQ-DIST-31) | **yes** |
+| `src/Envoy.App/Program.cs` | new | |
+| `src/Envoy.App/Services/VelopackUpdateBackend.cs` | new | |
+| `src/Envoy.App/Services/UpdateActions.cs` | new | |
+| `src/Envoy.App/Envoy.App.csproj` | `StartupObject`, `Velopack` 1.2.161 | **yes** |
+| `src/Envoy.App/AppHost.cs` | `AppHostOptions.UpdateBackend`, `UpdateBackendFactory`, `AppVersion`, `Updates`, `UpdateView`, `StartUpdates`, `SkipUpdate`, `JustUpdatedTo`, positions 8/7/3, `_updatesCts`, UA token; remove `CheckForUpdatesAsync`/`Update`/`HasUpdate`/`UpdateText` | **yes** |
+| `src/Envoy.App/IShell.cs` | 06 block: `RestartToUpdate()` | **yes** |
+| `src/Envoy.App/App.xaml.cs` | slots 1 (comment removed), 5 and 9; `ExitApp(…, applyUpdate)`; `RestartToUpdate`; tray item (SHOULD) | **yes** |
+| `src/Envoy.App/SmokeTest.cs` | `SmokeUpdateBackend`, setup Portable host, per-palette `updates(<palette>)`, `{palette}-update.png` | **yes** |
+| `src/Envoy.App/Pages/WarRoomPage.xaml`, `AppearancePage.xaml`, `AboutPage.xaml` | banner (slot 2), "Startup & updates" group, "Version & updates" block | **yes** |
+| `src/Envoy.App/ViewModels/MainViewModel.Updates.cs` | new partial; `Version` from `AppVersion`; delete `DownloadUpdateCommand` | **yes** (partials) |
+| `src/Envoy.App/Security/` or Core `LaunchTarget` (08a) | make the `RestartFlags` → args mapping public, only if 08a kept it private | **yes** |
+| `tools/typecheck/TypeCheck.csproj` | `Velopack` reference | **yes** |
+| `tools/typecheck/check_ui_rules.py` + `test_check_ui_rules.py` | `UPD1`, `UPD2` | **yes** |
+| `.config/dotnet-tools.json` | `vpk` 1.2.161 | **yes** (08a) |
+| `.github/workflows/build.yml` | environment expression, tool restore, notes, tag-only signing, folder publish, vpk download/pack/upload, asset assertion, SHA256SUMS, setup artifact, winget (SHOULD), `check` additions; remove `softprops/action-gh-release` | **yes** |
+| `tools/release/check_velopack_pin.sh`, `check_signing_scope.py`, `check_release_assets.py`, `sign.ps1`, `changelog_notes.py`, `render_winget.py` | new | |
+| `packaging/winget/PinnerSinner.Envoy*.yaml` (3, SHOULD) | new | |
+| `tests/Envoy.Core.Tests/Updates/*.cs`, `Settings/UpdateSettingsTests.cs`, `PlayerAndUpdateTests.cs`, 02's `StartupPlanTests` | tests | |
+| `README.md`, `docs/installing.md` (new), `docs/releasing.md`, `docs/faq.md`, `docs/architecture.md`, `docs/security/threat-model.md`, `CLAUDE.md`, `THIRD-PARTY-NOTICES.md`, `CHANGELOG.md` | docs | **yes** |
 
-Expected size: about 600 lines of C# (Core ~350, App ~250), 350 lines of tests, 150 lines of scripts/templates,
-120 lines of YAML, plus docs.
+Expected size: ~650 lines of C# (Core ~400, App ~250), ~400 lines of tests, ~250 lines of scripts/templates,
+~120 lines of YAML, plus docs.
 
 ## Risks & open questions
 
-1. **Velopack docs were unreachable.** Every API call in this spec was checked against the 1.2.161 binaries
-   (reflection and decompile) and the CLI. Three things were not verified:
-   - the exact install path and uninstall key name;
-   - the hidden Windows-only `vpk` signing options (not used here);
-   - how `--signTemplate` quotes `{{file}}` when paths contain spaces. CI paths have none; AC-DIST-17
-     exercises signing once.
+1. **Velopack docs were unreachable.** Every API call here was checked against the 1.2.161 binaries and CLI. Not
+   verified: the install path and uninstall key name (M-DIST-2 records them), the Windows-only `vpk` signing options
+   (unused), and how `--signTemplate` quotes `{{file}}` with spaces (CI paths have none; M-DIST-5 exercises it).
+2. **`packId` is forever.** `Envoy` fixes the install folder, uninstall key and installer name. `PinnerSinner.Envoy`
+   would avoid clashing with another Velopack app called Envoy. **Decide before the first release.**
+3. **Conditional `environment:` expression.** An empty name is expected to mean "no environment" on GitHub-hosted
+   runners. If it doesn't, move steps 5–12 into a tag-only `release` job (`needs: windows`, `environment: release`,
+   downloads the artifacts) now — the shape 08b adopts anyway — and record it under Deviations. Either way
+   `check_signing_scope.py` keeps secrets out of untagged runs. Tag builds wait for a reviewer before the job starts.
+4. **Two publishes.** Single-file (portable, smoke-tested) and folder (Velopack; a single-file bundle would make every
+   delta nearly full size). Same code, different host layout. **Open:** also smoke `publish-velo\Envoy.exe` once CI
+   time allows; M-DIST-1 covers it per release meanwhile.
+5. **GitHub rate limits.** 60 unauthenticated requests/hour/IP; a Velopack check is 1 API call plus up to 10 feed
+   downloads. The 1 h start-up floor and 12 h interval keep Envoy under it; 403/429 is quiet when automatic.
+6. **Beta → stable never downgrades** (`AllowVersionDowngrade=false`); UI and docs explain it.
+7. **No automatic rollback.** A broken release needs a new release or a reinstall of an older Setup.exe. 02's safe
+   mode (Shift) at least starts the broken build without applying anything further.
+8. **SmartScreen and AV heuristics.** Unsigned Setup.exe warns; OCR + SendInput + a self-updater can look suspicious.
+   Signing is the real fix (SignPath Foundation is free for OSS). `installing.md` documents "More info → Run anyway"
+   and the checksum check.
+9. **Apply on next launch while a game runs.** Starting Envoy mid-match with a package pending runs the updater for a
+   few seconds first. Acceptable; it never interrupts a running Envoy.
+10. **Restart-to-update failures after the log is closed** (ExitApp step 8) are not logged in that session; the
+    `RestartSelf` fallback and slot 5's retry make the failure visible in the next session's log.
+11. **`Updates.LastAnnouncedVersion` arrives with 07a**, not here, under the arrival rule; its semantics are fixed in
+    this spec's Settings section. If the integrator reads contract §2.5 as "06 adds the property", the only change is
+    who adds one string property.
+12. **Release body.** CHANGELOG-only notes drop GitHub's contributor list; `gh api …/releases/generate-notes` can be
+    appended if wanted.
+13. **winget submission is manual** (moderator review for the first one; automation needs a PAT).
 
-   If the uninstall key differs from `Envoy`, only the docs and the winget `AppsAndFeaturesEntries` change.
-2. **`packId` is forever.** `Envoy` decides the install folder (`%LocalAppData%\Envoy`), the uninstall key and
-   the `Envoy-win-Setup.exe` name. A more unique id (e.g. `PinnerSinner.Envoy`) would avoid a clash with another
-   Velopack app called Envoy, but gives an uglier installer name. This spec picks `Envoy`. **Decide before the
-   first release**: it can't be changed later without a migration.
-3. **The install folder and the settings folder share the name "Envoy"** (`%LocalAppData%\Envoy` vs
-   `%APPDATA%\Envoy`). They are different roots, so uninstall can't delete settings. Other areas must keep
-   writing user data under `%APPDATA%`, never `%LocalAppData%\Envoy`. This should become a rule in
-   `CLAUDE.md`.
-4. **Two publishes per CI run.** One is the single-file portable, the other the folder for Velopack. This adds
-   ~1–2 min. A single-file exe inside the Velopack package would make every delta almost as large as the full
-   package, because the bundle is compressed as one blob. The smoke test runs only on the single-file build. The
-   folder build has the same code but a different host layout. **Open:** also smoke-test `publish-velo\Envoy.exe`
-   (+~2 min)? Recommended once CI time allows.
-5. **GitHub rate limits.** Unauthenticated requests are limited to 60 per hour per IP. A Velopack check is 1 API
-   call plus up to 10 feed downloads, and the asset downloads don't count. Users behind CGNAT or LAN-party NAT
-   share the limit. The 1 h start-up floor and 12 h interval keep Envoy well under it, and a 403 is handled
-   quietly.
-6. **Beta → stable never downgrades.** A beta user who switches back stays on the beta until a higher stable
-   release exists. This is a deliberate choice: `AllowVersionDowngrade=false` avoids data-format surprises. The
-   UI and the docs explain it.
-7. **No automatic rollback.** If a release breaks start-up, Velopack can't roll it back by itself. The fix is to
-   ship a new version, or have users reinstall an older Setup.exe. This could combine with 02's crash marker,
-   which could offer "Reinstall previous version" — future work.
-8. **SmartScreen and antivirus false positives.** Unsigned `Setup.exe` files trigger SmartScreen "Unknown
-   publisher". OCR + SendInput + a self-updater can look suspicious to heuristic AV engines. Signing is the real
-   fix (SignPath Foundation is free for OSS). Until then, `installing.md` documents "More info → Run anyway" and
-   the checksum check.
-9. **Auto-apply on next launch while the game is running.** If the user starts Envoy mid-match with a package
-   pending, the updater runs (a few seconds) before Envoy appears. This is acceptable; it never interrupts an
-   already-running Envoy.
-10. **Interaction with other areas.**
-    - 01 (pages/commands): the UI goes into `Pages/*`, and `DownloadUpdateCommand` is replaced by
-      `UpdatePrimaryCommand`.
-    - 02 (logging): a backend error is logged at Warning and a check result at Info. `Program.Main` must stay
-      the very first code that runs. 02's `LogBootstrap` belongs in `OnStartup`, after `VelopackApp.Run()`.
-    - Onboarding: could offer the Beta channel in a first-run wizard. Not required.
-    - Quality-security-ci: may want `SHA256SUMS.txt` signed or SLSA provenance
-      (`actions/attest-build-provenance`). That fits after step 12 and is left to that area.
-11. **Release body.** Changing from GitHub's generated notes to CHANGELOG-only notes drops the automatic
-    contributor list. `gh release edit` can't generate notes. If wanted, the integrator can append
-    `gh api repos/{repo}/releases/generate-notes` output to `release-body.md`.
-12. **winget submission is manual.** Automating it needs a PAT with fork rights (`wingetcreate` with a
-    `WINGET_TOKEN` secret). Left as a follow-up. The first submission must be manual anyway (moderator review).
+## Revision notes
+
+Revised against `00-integration.md` and the set critique.
+
+- **Contract compliance.**
+  - Depends on 01, 08a, 02, 03, 05, 04 (step 7); all "if 01/02 has landed" branches removed.
+  - `AppHostOptions.UpdateBackend` replaces the extra constructor parameter. `UpdateBackendFactory.Create` moved into
+    `AppHost.cs`; `VelopackUpdateBackend.cs` names no network type (critique blocker on `network.allowedPaths`).
+  - Constructor position 8, `ApplySettings` position 7 (`Updates.Configure`), `RefreshGame` position 3.
+  - Start-up slot 1 (`Program.Main`), slot 5 (pending apply, skipped with `--safe-mode`/Shift, before the sentinel,
+    `PendingUpdatePolicy` tested), slot 9 (`StartUpdates` gated by new `StartupPlan.AutoCheckUpdates`).
+  - `ExitApp(…, applyUpdate)` launches the updater at step 8 with a `RestartSelf` fallback, and saves normally.
+  - `IShell.RestartToUpdate()` replaces "ShellActions".
+- **Versions and UA (critique major).** `AppHost.CurrentVersion` stays `Version`; new `AppHost.AppVersion`
+  (`ReleaseVersion`). The Core `AppVersion` class became `ReleaseVersion.FromInformational` to avoid a name clash.
+  The default UA keeps its browser-like form; only the `0.1` token changes.
+- **Signing (critique major).** Tag-only, under the `release` environment with environment secrets. A new
+  `check_signing_scope.py` CI check enforces it. REQ-DIST-8 reworded.
+- **`vpk` pin.** Moved to `.config/dotnet-tools.json` (`dotnet vpk`); `check_velopack_pin.sh` reads it.
+  `VELOPACK_VERSION` env removed.
+- **Settings thread safety (contract §7).** `Func<AppSettings>` replaced by the immutable `UpdatePreferences`
+  snapshot. `LastCheckUtc` is written via `Dispatcher.BeginInvoke`. `isGameRunning` replaced by `SetGameRunning` from
+  the UI thread, fed by `Host.Game`/`AppHost.GameWindow` (05).
+- **Notifications / 07a seam.** `UpdateCoordinator.Changed` is documented as a background event, marshalled through
+  `AppHost.UpdateView`. New `UpdateActions.Run` lets 07a's balloon run `UpdateView.Primary`. The
+  `LastAnnouncedVersion` semantics are fixed here, and 07a adds the field. The "Updated to" notice now shares
+  the banner slot. `Program.RestartedAfterUpdate` and `UpdateNoticeDismissed` were replaced by `LastRunVersion`.
+- **UI strings (contract §8.7).** New `UpdateText`. Errors are `UpdateErrorKind` values, not exception messages,
+  and nothing shows raw exception text. `AppHost.HasUpdate`/`UpdateText` were removed.
+- **Information architecture (§8.6).** The banner sits in War Room slot 2. "Startup & updates" is the last
+  Appearance group. "Version & updates" is the first block on About.
+- **Smoke (critique minor; contract §6).** The War Room is screenshotted, not About. One Portable host is created
+  in setup with a temp `DataFolder` and reused. The checks run per palette inside the binding window, with
+  `PaletteIds` wording. Rendering of the Portable state became a view assertion.
+- **Release integrity.** New `check_release_assets.py` asserts the draft, the asset list and the checksums before
+  publishing. This makes REQ-DIST-2/3/5/7 CI-verifiable.
+- **Scope (contract §9).** 17 MUSTs: 1, 2, 3, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 19, 20, 27.
+  - Demoted to SHOULD: 4 (now `main` pushes only, for the CI time budget), 6, 18, 28.
+  - Folded: 17 into 16. Moved to the DoD: 29.
+  - New SHOULD: 31 (diagnostics line). REQ-DIST-30 (COULD) is now limited to local folders.
+  - Every MUST has a unit, typecheck, smoke, CI or numbered M-step acceptance criterion.
+- **Allowlists.** No native, network-path or host additions. No new `BannedSymbols` exception. Velopack's own
+  updater launch is noted in the threat model. New static rules `UPD1`/`UPD2`.

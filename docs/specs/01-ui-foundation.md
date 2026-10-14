@@ -1,9 +1,23 @@
 # UI foundation: settings pages as UserControls, commands, and a typecheck that understands them
 
-Status: Proposed
+Status: Proposed (revised against `00-integration.md`)
 
-Area id: `01-ui-foundation` · Requirement prefix: `UIF` · Runs **first**, before every other area. This change must
-not alter behaviour: the screenshots and settings file stay the same, and every button does what it does today.
+Area id: `01-ui-foundation` · Requirement prefix: `UIF` · Step **1** of 11 (contract §1). It runs first and may assume
+only today's code. The change must not alter behaviour: the screenshots and settings file stay the same, and every
+button does what it does today.
+
+This spec follows `docs/specs/00-integration.md` (the contract). Where they differ, the contract wins. This area
+delivers the following for later steps (contract §1, row 1):
+
+- `Pages/*` and `PageIds`;
+- the `MainViewModel.*` partial files;
+- `Envoy.Core.Mvvm`;
+- `IShell` with the 01 block only;
+- `DialogService`;
+- `CapturePreviewViewModel` and `ChatWatcher.BeginPreview()`;
+- `HotkeyRegistrationResult` and `AppHost.HotkeyResults`;
+- the three-phase smoke test that loops over `ThemeManager.PaletteIds` × `PageIds.All`;
+- the `build.yml` smoke timeout `WaitForExit(600000)`.
 
 ## Context
 
@@ -26,107 +40,130 @@ not alter behaviour: the screenshots and settings file stay the same, and every 
   | Appearance | 717–760 | `OnOpenLogs` |
   | About | 762–791 | `OnOpenData`, `OnQuit` |
 
-- `src/Envoy.App/Windows/MainWindow.xaml.cs` (231 lines) has every handler above, plus:
-  - **Auto-apply.** It listens to bubbling `TextChanged`, `SelectionChanged`, `Checked`, `Unchecked`, `ValueChanged`
+- `src/Envoy.App/Windows/MainWindow.xaml.cs` (231 lines) contains every handler above, plus the following:
+  - **Auto-apply.** It listens for bubbling `TextChanged`, `SelectionChanged`, `Checked`, `Unchecked`, `ValueChanged`
     and `PasswordChanged` events and restarts a 400 ms `DispatcherTimer`. The timer calls `ApplyNow()`, which runs
     `AppHost.ApplySettings()`, `RefreshStatus()` and `RefreshProviderSections()`. Controls that are not settings are
-    left out by **checking the instance** (`fe == TestInput || fe == PreviewText || fe == PhrasePreviewLanguage`) or
-    by `RadioButton { GroupName: "Nav" }`.
-  - **Live capture preview.** `NavCapture.Checked`/`Unchecked` toggles `Watcher.PublishFrames`, and `OnFrame` builds a
-    `BitmapSource` into `PreviewImage`.
+    excluded by **checking the instance** (`fe == TestInput || fe == PreviewText || fe == PhrasePreviewLanguage`) or by
+    `RadioButton { GroupName: "Nav" }`.
+  - **Live capture preview.** `NavCapture.Checked`/`Unchecked` sets the single bool `Watcher.PublishFrames`. `OnFrame`
+    builds a `BitmapSource` into `PreviewImage`.
   - **Phrasebook preview.** `FillPhrases()` projects `PhraseBook.All` into a nested `PhraseRow` record. `OnEditPhrases`
     writes a template `phrases.json`, opens it, blocks on a `MessageBox`, then reloads.
-  - `OnInstallOcr` builds a PowerShell `Add-WindowsCapability` command line inline, including the special case that
-    `zh-CN`/`zh-TW` use the code instead of the OCR tag.
-  - `OnTestTranslate` is `async void`, flushes pending edits and formats the result string inline.
-  - `PageNames` (`Dashboard`, `Translation`, `Capture`, `Overlay`, `Reply`, `Phrases`, `Hotkeys`, `Appearance`, `About`)
-    and `Navigate(string)` are used by `SmokeTest.cs`.
-  - `OnClosed` flushes a pending apply, stops the preview, sets `FirstRunCompleted = true` and saves.
-- `src/Envoy.App/ViewModels/MainViewModel.cs` (270 lines) is one class plus `Option`, `OcrLanguageItem` and
-  `ThemeOption`. It has properties but no commands, and it reaches `App.Current` directly for `HotkeyErrors`.
-- `src/Envoy.App/SmokeTest.cs` creates `MainWindow` under each of the 5 themes, navigates every page, and with
-  `--screenshots` saves `{theme}-settings-{dashboard,translation,capture,appearance}.png`. CI publishes these to the
-  `ci-screenshots` branch, and README/docs images come from them.
-- `tools/typecheck/gen_stubs.py` writes a `partial class` stub for each `x:Class` XAML file, with an empty
-  `InitializeComponent()` and one `internal` field per `x:Name` outside templates. Its limitations:
+  - **OCR language install.** `OnInstallOcr` builds a PowerShell `Add-WindowsCapability` command line inline. It
+    special-cases `zh-CN`/`zh-TW`, which use the code instead of the OCR tag, and calls `Process.Start` with
+    `Verb=runas`.
+  - **Test translation.** `OnTestTranslate` is `async void`. It flushes pending edits and formats the result string
+    inline.
+  - **Page names.** `SmokeTest.cs` uses `PageNames` (`Dashboard`, `Translation`, `Capture`, `Overlay`, `Reply`,
+    `Phrases`, `Hotkeys`, `Appearance`, `About`) and `Navigate(string)`.
+  - **On close.** `OnClosed` flushes a pending apply, stops the preview, sets `FirstRunCompleted = true` and saves.
+- `src/Envoy.App/ViewModels/MainViewModel.cs` (270 lines) holds one class plus `Option`, `OcrLanguageItem` and
+  `ThemeOption`. It has properties but no commands. It reaches `App.Current.HotkeyErrors` directly. That list holds
+  `"Name (combo)"` strings, written by `App.RegisterHotkeys` for every combo that fails to parse or register.
+- `MessageBox.Show` appears in three places: `MainWindow.xaml.cs:137` (Edit phrases), `ComposeWindow.xaml.cs:212`
+  (send failure) and `App.xaml.cs:182` (unhandled exception). `Process.Start` appears in `App.OpenUrl` and
+  `MainWindow.OnInstallOcr`.
+- `src/Envoy.App/SmokeTest.cs` loops over `ThemeManager.Themes` (5). For each theme it creates `MainWindow` and
+  navigates every page. With `--screenshots` it saves `{theme}-settings-{dashboard,translation,capture,appearance}.png`,
+  then builds the overlay, compose, lookup and region-selector windows. The compose step waits a fixed 2.5 s for each
+  theme. `build.yml` waits `WaitForExit(180000)`. CI publishes the screenshots to the `ci-screenshots` branch, and the
+  README and docs images come from there.
+- `tools/typecheck/gen_stubs.py` writes a `partial class` stub for each `x:Class` XAML file. Each stub has an empty
+  `InitializeComponent()` and one `internal` field per `x:Name` outside templates. It has these limits:
   - It emits **no base class**. A root element that disagrees with the code-behind (`<UserControl>` vs `: Window`)
     passes on Linux and fails only on Windows CI.
-  - It writes `stubs/<ShortName>.g.cs`, so two XAML classes with the same short name in different namespaces overwrite
-    each other silently.
+  - It writes `stubs/<ShortName>.g.cs`, so two classes with the same short name overwrite each other silently.
   - It ignores `x:FieldModifier`.
-  - It does **not check event-handler names**. Once handlers move into pages, a `Click="OnFoo"` with no `OnFoo` in the
-    matching code-behind type-checks fine and only breaks the Windows build.
+  - It does **not check event-handler names**. A `Click="OnFoo"` with no matching `OnFoo` passes the typecheck and
+    only breaks the Windows build.
 
 ### What is weak for production
 
 1. Every later area edits the same 800-line XAML file and the same code-behind, so merges conflict and review is hard.
-2. Button logic lives in view code-behind. It can't be tested, and `async void` handlers crash the app on an unexpected
-   exception: `OnTestTranslate` catches its own exceptions, but nothing enforces that pattern.
-3. Small but real logic (OCR-pack command line, phrase preview projection, muted-player text parsing, test-translation
-   text) sits in the App project, where Linux CI cannot test it.
-4. The auto-apply exclusion list goes by field identity. Once controls move into separate pages, those fields no
+2. Button logic lives in view code-behind, where it can't be tested. An `async void` handler crashes the app on an
+   unexpected exception. `OnTestTranslate` happens to catch its own exceptions, but nothing enforces that.
+3. Some small but real logic sits in the App project, where Linux CI cannot test it: the OCR-pack command line, the
+   phrase preview projection, muted-player text parsing and the test-translation text.
+4. The auto-apply exclusion list works by field identity. Once controls move into separate pages, those fields no
    longer exist on `MainWindow`.
 5. CI does not fail on WPF binding errors. Splitting XAML is exactly the kind of change that breaks bindings silently,
-   for example `ElementName` across a namescope or a wrong `DataContext`.
+   for example an `ElementName` across a namescope or a wrong `DataContext`.
+6. Two preview consumers (this area's Reading Chat page and 07a's guide) would fight over one bool flag.
+7. Hotkey failures exist only as display strings on `App`, so 02's diagnostics and 07a's hints have nothing typed to
+   read.
 
 ## Goals / Non-goals
 
 **Goals**
 
 - One `UserControl` per settings page under `src/Envoy.App/Pages/`. All pages share the single `MainViewModel`
-  instance that `MainWindow` creates.
-- A small `ICommand` toolkit (`RelayCommand`, `RelayCommand<T>`, `AsyncRelayCommand`, `ObservableObject`) in
-  `Envoy.Core`, with unit tests. Page buttons and hyperlinks run through commands on the view model.
-- Move the logic hidden in `MainWindow.xaml.cs` into `Envoy.Core`, with tests. Behaviour stays byte-identical.
-- The typecheck stub generator understands UserControls, base classes, field modifiers and event-handler names.
-- The smoke test checks that every page loads, and fails on binding errors.
-- A pixel-identical look: same window size, layout, styles, palette keys, and screenshot file names.
+  instance that `MainWindow` creates, and `MainViewModel` is split into per-page partial files.
+- A small command toolkit in `Envoy.Core.Mvvm` (`RelayCommand`, `RelayCommand<T>`, `AsyncRelayCommand`,
+  `ObservableObject`), with unit tests. Page buttons and hyperlinks run through commands on the view model.
+- The logic hidden in `MainWindow.xaml.cs` moves into `Envoy.Core`, with tests. Behaviour stays byte-identical, and
+  the text moves into Core `*Text` classes (contract §8.7).
+- The contract's 01 seams: the `IShell` 01 block, `DialogService`, the preview lease, and `AppHost.HotkeyResults`.
+- The typecheck stub generator understands UserControls, base classes and event-handler names. A small
+  `check_ui_rules.py` enforces the structural rules mechanically.
+- The smoke test takes the contract §6 three-phase shape. It checks that every page loads, fails on binding errors,
+  covers auto-apply and the preview lease, and fits the 600 s budget.
+- A pixel-identical look: same window size, layout, styles, palette keys and screenshot file names.
 
 **Non-goals**
 
-- No visual redesign, new settings, new pages, or changes to text or wording. Those belong to other areas.
+- No visual redesign, new settings, new pages, new interactive controls, or changes to text or wording.
 - No MVVM framework dependency (CommunityToolkit.Mvvm, Prism and so on). The toolkit stays about 150 lines.
-- No splitting of `MainViewModel` into several view-model classes. It stays one class, optionally split into partial files.
+- No splitting of `MainViewModel` into several view-model classes. It stays one class in partial files, plus
+  `CapturePreviewViewModel`.
 - No conversion of `OverlayWindow`, `ComposeWindow`, `LookupWindow` or `RegionSelectorWindow` to commands.
-- No change to `AppSettings`, the settings JSON format, `AppHost` behaviour, threading of the capture loop, or CI workflow files.
+- No change to `AppSettings`, the settings JSON or the threading of the capture loop. `AppHost` changes only by the
+  `HotkeyResults` property and event. `ChatWatcher` changes only by `PublishFrames` → `BeginPreview()`. `OnStartup`
+  and `ExitApp` ordering are unchanged; 02 owns the §4 skeleton.
+- Nothing from a later step: no `AppHostOptions`, `ILog`, `ShellLauncher`, `ProviderHealth*`, notices, or
+  `HotkeyStatus.SkippedSafeMode` (02 adds it). There are no placeholder members (contract §1 arrival rule).
+- No CI restructure. The only `build.yml` change is the smoke `WaitForExit` value.
 - No lazy page loading or virtualisation. Pages are created eagerly, as the inline XAML is today.
 
 ## Requirements
 
+MUST count: **15**, matching contract §9 (UIF-1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 13, 15, 18, 19, 21). Ids keep their
+original numbers. Folded ids stay listed so references from other specs still resolve.
+
 | Id | Priority | Requirement |
 | --- | --- | --- |
-| REQ-UIF-1 | MUST | `MainWindow.xaml` contains only the window chrome, the sidebar navigation and nine page host elements. Each page's content lives in its own `UserControl` (`WarRoomPage`, `TranslationPage`, `ReadingChatPage`, `OverlayPage`, `ReplyingPage`, `PhrasebookPage`, `HotkeysPage`, `AppearancePage`, `AboutPage`) in namespace `Envoy.App.Pages` under `src/Envoy.App/Pages/`. |
+| REQ-UIF-1 | MUST | `MainWindow.xaml` contains only the window chrome, the sidebar navigation and nine page host elements. Each page's content lives in its own `UserControl` in namespace `Envoy.App.Pages` under `src/Envoy.App/Pages/`: `WarRoomPage`, `TranslationPage`, `ReadingChatPage`, `OverlayPage`, `ReplyingPage`, `PhrasebookPage`, `HotkeysPage`, `AppearancePage`, `AboutPage`. `MainViewModel` is split into the partial files listed in Design §3, and `Option`, `OcrLanguageItem` and `ThemeOption` move to their own files (absorbs REQ-UIF-22). |
 | REQ-UIF-2 | MUST | No page sets its own `DataContext`. Every page inherits the single `MainViewModel` instance that `MainWindow` creates. |
-| REQ-UIF-3 | MUST | `MainWindow.PageNames`, the strings `Navigate(string)` accepts, and the smoke-test screenshot file names stay exactly as they are today. |
-| REQ-UIF-4 | MUST | An edit to any settings control on any page still triggers one debounced (400 ms) `AppHost.ApplySettings()` + `RefreshStatus()` + `RefreshProviderSections()`. Controls that are not settings opt out through an inheritable `AutoApply.Ignore` attached property instead of field identity. |
-| REQ-UIF-5 | MUST | `Envoy.Core.Mvvm` provides `RelayCommand`, `RelayCommand<T>`, `AsyncRelayCommand` (all `System.Windows.Input.ICommand`) and `ObservableObject`, covered by unit tests. |
-| REQ-UIF-6 | MUST | While its task runs, `AsyncRelayCommand` reports `CanExecute == false` and `IsRunning == true` and ignores re-entrant `Execute` calls. An exception from the task goes to the supplied error handler and is never rethrown on the dispatcher. |
-| REQ-UIF-7 | MUST | Every `Button` and `Hyperlink` inside `Pages/*.xaml` runs through a `Command` binding to a `MainViewModel` command. Page code-behind files contain no `Click`/`RequestNavigate` handlers. |
-| REQ-UIF-8 | MUST | Each command does the same thing as the handler it replaces, including flushing pending edits before "Translate" (test) and "Test" (voice). |
-| REQ-UIF-9 | MUST | View-model commands call app-level actions (select region, toggle overlay edit mode, open compose, scan, quit, open URL, show info box) through an `IShell` interface implemented by `App`, not through `App.Current`. |
-| REQ-UIF-10 | MUST | The logic currently in `MainWindow.xaml.cs` moves to `Envoy.Core` with unit tests and identical output: phrase-preview rows and the user-phrases template (`PhrasePreview`), the OCR pack capability name and PowerShell arguments (`OcrPackInstall`), muted-player text parse/format (`PlayerListText`), and test-translation result text (`TranslationTestText`). |
-| REQ-UIF-11 | MUST | Settings screenshots produced by `--screenshots` for the existing four pages under all five themes match the pre-change renders. The only allowed difference is the live capture-preview image and text. |
-| REQ-UIF-12 | MUST | Closing `MainWindow` still applies a pending edit, stops frame publishing, sets `FirstRunCompleted = true` and saves. |
-| REQ-UIF-13 | MUST | `gen_stubs.py` generates a correct stub for `UserControl` roots, and for any root it knows. The stub declares the WPF base class of the root element, so a mismatch with the code-behind fails the typecheck. An unknown root element is a hard error. |
-| REQ-UIF-14 | MUST | `gen_stubs.py` names stub files by full class name and fails when two XAML files declare the same `x:Class`. |
+| REQ-UIF-3 | MUST | The page-name strings stay exactly as today. They are exposed as `const string`s plus `PageIds.All`, in today's order, in `Pages/PageIds.cs`. `MainWindow.PageNames` returns `PageIds.All`. `Navigate(string)` accepts the same strings. `MainWindow.PageFor(string)` returns the page instance. The smoke screenshot file names stay `{palette}-settings-{id.ToLowerInvariant()}.png` (absorbs REQ-UIF-23). |
+| REQ-UIF-4 | MUST | An edit to any settings control on any page triggers exactly one debounced (400 ms) `AppHost.ApplySettings()` + `RefreshStatus()` + `RefreshProviderSections()`. Controls that are not settings opt out through an inheritable `AutoApply.Ignore` attached property, not by field identity. |
+| REQ-UIF-5 | MUST | `Envoy.Core.Mvvm` provides `RelayCommand`, `RelayCommand<T>`, `AsyncRelayCommand` (all `System.Windows.Input.ICommand`) and `ObservableObject`, covered by unit tests. `AsyncRelayCommand` requires a non-null `onError` (`ArgumentNullException` otherwise). While its task runs it reports `CanExecute == false` and `IsRunning == true` and ignores re-entrant `Execute` calls. Every exception from the task, including `OperationCanceledException`, goes to `onError` and is never rethrown. `MainViewModel` passes its single `ReportCommandError` handler to every `AsyncRelayCommand` (contract §8.8; absorbs REQ-UIF-6). |
+| REQ-UIF-6 | — | Folded into REQ-UIF-5. |
+| REQ-UIF-7 | MUST | Every `Button` and `Hyperlink` inside `Pages/*.xaml` runs through a `Command` binding to a `MainViewModel` command. Page XAML has no event-handler attributes. Page code-behind has no `RoutedEventArgs` handlers. |
+| REQ-UIF-8 | MUST | Each command does the same thing as the handler it replaces, including flushing pending edits before "Translate" (test) and "Test" (voice). Closing `MainWindow` still applies a pending edit, releases the preview, sets `FirstRunCompleted = true` and saves (absorbs REQ-UIF-12). |
+| REQ-UIF-9 | MUST | View models reach app-level actions only through `IShell`, which has exactly the 01 block of contract §3 and is implemented by `App`. Hotkey state reaches them through `AppHost.HotkeyResults` (contract §2.3). `App.RegisterHotkeys` replaces that list after every registration pass, nothing else writes it, and `App.HotkeyErrors` is deleted. Every modal box in `src/Envoy.App` goes through `Services/DialogService.cs`. `ViewModels/*.cs` contain no `App.Current`, `Process.Start`, `ProcessStartInfo` or `MessageBox`. |
+| REQ-UIF-10 | MUST | The logic now in `MainWindow.xaml.cs` and `App.RegisterHotkeys` moves to `Envoy.Core` with unit tests and identical output: `PhrasePreview`, `OcrPackInstall`, `PlayerListText`, `TranslationTestText`, and `HotkeyText`. The user-facing strings these produce, plus the preview's `CapturePreviewText` and `PhrasebookText`, live in Core `*Text` classes as whole-sentence format strings (contract §8.7). |
+| REQ-UIF-11 | MUST | Settings screenshots from `--screenshots` for the four pages captured today (dashboard, translation, capture, appearance), under each of today's five palettes, match the pre-change renders. The only allowed differences are the live capture-preview image and text, and sub-pixel anti-aliasing. |
+| REQ-UIF-12 | — | Folded into REQ-UIF-8. |
+| REQ-UIF-13 | MUST | `gen_stubs.py` emits the WPF base class for each known root element (`Window`, `UserControl`, `Application`, `Page`, `ResourceDictionary`), so a mismatch with the code-behind fails the typecheck. An unknown root is a hard error. Each stub starts with `// <auto-generated/>` so 08a's analyzers skip it. |
+| REQ-UIF-14 | SHOULD | `gen_stubs.py` names stub files by full class name and fails when two XAML files declare the same `x:Class`. |
 | REQ-UIF-15 | MUST | `gen_stubs.py` emits a compile-time reference (`nameof`) for every event-handler attribute in a XAML file, including ones inside templates. A handler name missing from the class makes `typecheck.sh` fail. |
-| REQ-UIF-16 | SHOULD | `gen_stubs.py` honours `x:FieldModifier` (`public`, `internal`, `private`, `protected`) and defaults to `internal`. |
-| REQ-UIF-17 | SHOULD | `tools/typecheck/test_gen_stubs.py` (stdlib `unittest`, fixture XAML) covers REQ-UIF-13..16, and `typecheck.sh` runs it before generating stubs. |
-| REQ-UIF-18 | MUST | For each theme, the smoke test checks that after `Navigate(name)` the matching page is a loaded, visible instance of the expected `Pages` type with non-zero `ActualHeight`, and that every other page is collapsed. |
-| REQ-UIF-19 | MUST | The smoke test fails when WPF raises any data-binding error (`PresentationTraceSources.DataBindingSource` at `Error` level) while it builds and navigates `MainWindow`. It logs each error. |
-| REQ-UIF-20 | SHOULD | With `--screenshots`, the smoke test also saves the other five pages (`overlay`, `reply`, `phrases`, `hotkeys`, `about`) per theme, using the same `{theme}-settings-{page}.png` pattern. |
-| REQ-UIF-21 | SHOULD | Capture-preview state (`Image`, `Text`, `Stats`, `IsActive`) moves to a `CapturePreviewViewModel`. Frames are published only while `ReadingChatPage` is visible, and the model unsubscribes from `FrameCaptured` when `MainWindow` closes. |
-| REQ-UIF-22 | SHOULD | `MainViewModel` is split into partial-class files per page, and `Option`, `OcrLanguageItem` and `ThemeOption` move to their own files, so later areas edit separate files. |
-| REQ-UIF-23 | SHOULD | `Pages/PageIds.cs` exposes the page names as `const string`s, and `MainWindow.PageNames` plus the smoke test use them. |
-| REQ-UIF-24 | MUST | `docs/architecture.md`, `CLAUDE.md` (the "Settings changes" rule) and `CHANGELOG.md` (an "Internal" line) describe the Pages/commands structure. |
+| REQ-UIF-16 | SHOULD | `gen_stubs.py` honours `x:FieldModifier` and defaults to `internal`. |
+| REQ-UIF-17 | SHOULD | `test_gen_stubs.py` and `test_check_ui_rules.py` (stdlib `unittest`, fixture XAML) cover REQ-UIF-14 and REQ-UIF-16 and the `check_ui_rules.py` rules. The REQ-UIF-13 and REQ-UIF-15 cases are required by those MUSTs' acceptance criteria. |
+| REQ-UIF-18 | MUST | The smoke test has the contract §6 shape. It has three phases (setup, per palette, teardown). The per-palette loop runs over `ThemeManager.PaletteIds`, which this area adds as today's five theme ids; 07b appends high contrast later. For each palette and each `PageIds.All` entry, after `Navigate(id)` and a pump, `PageFor(id)` must be a loaded, visible instance of the expected `Pages` type with `ActualHeight > 0`, and every other page must be collapsed. With `--screenshots`, every page is saved (absorbs REQ-UIF-20), and teardown asserts `PaletteIds.Count × PageIds.All.Count` settings PNGs. Every section logs `[smoke] <section> ok elapsed_ms=<n>`. The test logs a warning when the total exceeds 420 s or one palette exceeds 30 s. `build.yml` waits `WaitForExit(600000)`. |
+| REQ-UIF-19 | MUST | For each palette, a binding-error listener (`PresentationTraceSources.DataBindingSource`, `Error` level) is attached when the palette is applied and removed after the palette's last window, which covers `MainWindow`, overlay, compose, lookup and region selector. Each error is logged as `[smoke] binding error ({palette}): {message}` and fails the run. The only exception is an exact-message allowlist in `SmokeTest.cs`, documented in the PR. |
+| REQ-UIF-20 | — | Folded into REQ-UIF-18. |
+| REQ-UIF-21 | MUST | Preview state lives only in `CapturePreviewViewModel` (`IsActive`, `Image`, `Text`, `Stats`). `ChatWatcher.PublishFrames` is replaced by `IDisposable ChatWatcher.BeginPreview()`, which keeps an `Interlocked` count with idempotent dispose, and `IsPreviewing => count > 0`. The view model holds a lease exactly while `IsActive` is true and releases it on deactivate or `Dispose`. `ReadingChatPage` code-behind only toggles `IsActive`. Two view-model instances never interfere with each other (contract §2.8). |
+| REQ-UIF-22 | — | Folded into REQ-UIF-1. |
+| REQ-UIF-23 | — | Folded into REQ-UIF-3. |
+| REQ-UIF-24 | — | Moved to the Definition of done (contract §10.4); see Design §7. |
 
 ## Design
 
 ### 1. Command toolkit: `src/Envoy.Core/Mvvm/`
 
 `System.Windows.Input.ICommand` lives in the BCL (`System.ObjectModel`), so these types build on `net8.0`. They are
-tested on Linux and WPF binds to them unchanged. They do **not** use WPF's `CommandManager.RequerySuggested`, because
-that type is WPF-only. Callers call `RaiseCanExecuteChanged()` explicitly.
+tested on Linux, and WPF binds to them unchanged. They do **not** use WPF's `CommandManager.RequerySuggested`,
+because that type is WPF-only. Callers call `RaiseCanExecuteChanged()` explicitly.
 
 ```csharp
 namespace Envoy.Core.Mvvm;
@@ -149,7 +186,7 @@ public sealed class RelayCommand(Action execute, Func<bool>? canExecute = null) 
 
 public sealed class RelayCommand<T>(Action<T?> execute, Func<T?, bool>? canExecute = null) : ICommand
 {
-    // parameter that is not T (and not null) => CanExecute false, Execute no-op (no InvalidCastException).
+    // A parameter that is not T (and not null) => CanExecute false, Execute no-op (no InvalidCastException).
     public event EventHandler? CanExecuteChanged;
     public bool CanExecute(object? parameter);
     public void Execute(object? parameter);
@@ -158,34 +195,46 @@ public sealed class RelayCommand<T>(Action<T?> execute, Func<T?, bool>? canExecu
 
 public sealed class AsyncRelayCommand : ICommand, INotifyPropertyChanged
 {
-    public AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute = null, Action<Exception>? onError = null);
+    /// <exception cref="ArgumentNullException">execute or onError is null.</exception>
+    public AsyncRelayCommand(Func<Task> execute, Action<Exception> onError, Func<bool>? canExecute = null);
     public bool IsRunning { get; }                      // raises PropertyChanged(nameof(IsRunning))
     public bool CanExecute(object? parameter);          // !IsRunning && (canExecute?.Invoke() ?? true)
     public void Execute(object? parameter);             // fire-and-forget wrapper over ExecuteAsync
-    public Task ExecuteAsync();                         // what tests await; never throws (error -> onError, or swallowed + Debug.WriteLine if onError is null)
+    public Task ExecuteAsync();                         // what tests await; never throws (every exception -> onError)
     public event EventHandler? CanExecuteChanged;       // raised when IsRunning flips and on RaiseCanExecuteChanged()
     public event PropertyChangedEventHandler? PropertyChanged;
     public void RaiseCanExecuteChanged();
 }
 ```
 
-**Threading.** `ExecuteAsync` awaits **without** `ConfigureAwait(false)`, so when a WPF button calls it on the UI
-thread, `IsRunning`/`CanExecuteChanged` changes and `onError` all run back on the UI thread. Tests run with no
-synchronisation context and get thread-pool continuations, which is fine for assertions. `OperationCanceledException`
-is treated like any other exception and goes to `onError`.
+**Threading.** `ExecuteAsync` awaits **without** `ConfigureAwait(false)`. When a WPF button calls it on the UI thread,
+the `IsRunning`/`CanExecuteChanged` changes and `onError` all run back on the UI thread. Tests run with no
+synchronisation context and get thread-pool continuations, which is fine for assertions. If `onError` itself throws,
+the exception propagates from `ExecuteAsync`. That is a programming error and is not caught.
 
-### 2. Logic moved to Core (behaviour-identical)
+**Sync commands.** An exception from a `RelayCommand` propagates exactly as the old click handler's did, to the
+dispatcher's unhandled-exception path. That path is `App.OnUnhandledException` today and 02's global handler later.
+
+### 2. Logic and text moved to Core (behaviour-identical)
+
+Every string below is moved verbatim from today's code. Format strings use positional placeholders, documented on each
+constant, so they can move to `.resx` unchanged (contract §8.7). No wording changes.
 
 ```csharp
 namespace Envoy.Core.Phrases;
 public sealed record PhrasePreviewRow(string Icon, string Category, string Mine, string Theirs);
 public static class PhrasePreview
 {
-    public const string Missing = "—";
-    /// Mine = p.In(myLanguage) ?? p.In("en") ?? p.Id; Theirs = p.In(targetLanguage) ?? Missing. Order = book order.
+    /// Mine = p.In(myLanguage) ?? p.In("en") ?? p.Id; Theirs = p.In(targetLanguage) ?? PhrasebookText.Missing.
+    /// Order = book order.
     public static IReadOnlyList<PhrasePreviewRow> Build(PhraseBook book, string myLanguage, string targetLanguage);
-    /// The exact JSON written today by OnEditPhrases when phrases.json doesn't exist.
+    /// The exact JSON written today by OnEditPhrases when phrases.json doesn't exist (file content, not UI text).
     public const string UserFileTemplate = """ ...current literal... """;
+}
+public static class PhrasebookText
+{
+    public const string Missing = "—";
+    public const string EditTitle = "Envoy";
     public const string EditInstructions =
         "Your phrases file is open. Save it, then press OK to reload.\n\nUse the same \"id\" as a built-in phrase to replace it.";
 }
@@ -194,13 +243,15 @@ namespace Envoy.Core.Languages;
 public static class OcrPackInstall
 {
     public const string SettingsFallbackUri = "ms-settings:regionlanguage";
-    /// "Language.OCR~~~{tag}~0.0.1.0" where tag = Code for zh-CN/zh-TW, else language.OcrTag.
-    /// Throws ArgumentException if the tag contains anything other than letters, digits and '-'
+    /// "Language.OCR~~~{tag}~0.0.1.0", where tag = Code for zh-CN/zh-TW, else language.OcrTag.
+    /// Throws ArgumentException if the tag contains anything other than ASCII letters, digits and '-'
     /// (the value is spliced into a PowerShell command run elevated).
     public static string CapabilityName(Language language);
-    /// The exact argument string passed to powershell.exe today:
+    /// Looks the code up in LanguageCatalog (ArgumentException if unknown), then returns the exact argument string
+    /// passed to powershell.exe today:
     /// -NoProfile -Command "Add-WindowsCapability -Online -Name '<cap>'; Write-Host 'Done - restart Envoy to use it.'; Start-Sleep 4"
-    public static string PowerShellArguments(Language language);
+    /// 08a's ShellLauncher.InstallOcrPack(languageTag) calls this with the same code (contract §5).
+    public static string PowerShellArguments(string languageCode);
 }
 
 namespace Envoy.Core.Chat;
@@ -216,9 +267,65 @@ public static class TranslationTestText
 {
     public const string SampleInput = "你好！再来一局吗？";
     public const string Pending = "…";
-    /// "{Text}    ({NameOf(detected)} → {NameOf(myLanguage)}, via {ProviderCatalog name ?? ProviderId})"
+    /// Named placeholders (contract §8.7), filled by TextTemplate.Format.
+    public const string ResultFormat = "{translation}    ({detected} → {mine}, via {provider})";
+    /// Provider name = ProviderCatalog.Find(id)?.Name ?? id; language names via LanguageCatalog.NameOf.
     public static string Describe(TranslationResult result, string myLanguage);
-    public static string Failure(Exception ex);                 // "⚠ " + ex.Message
+    /// Today's text; 03 replaces it with error-kind text (see Risks).
+    public const string FailureFormat = "⚠ {message}";
+    public static string Failure(Exception ex);
+}
+
+namespace Envoy.Core.Text;
+/// The one formatter for every Core *Text template (contract §8.7). Replaces each {name} or {name:format} with the
+/// matching value formatted by culture (null = CurrentCulture); "{{" and "}}" are literal braces. An unknown or
+/// missing name throws FormatException, so a template/argument mismatch fails its unit test. Output for the 01
+/// templates is identical to today's string.Format output.
+public static class TextTemplate
+{
+    public static string Format(string template, IFormatProvider? culture, params (string Name, object? Value)[] values);
+}
+
+namespace Envoy.Core.Ocr;
+public static class CapturePreviewText
+{
+    public const string NoText = "(no text found)";
+    /// Formatted with the current culture, as today.
+    public const string StatsFormat = "{lines} lines · OCR {ocrMs:0} ms";
+    public static string Stats(int lines, TimeSpan ocrTime);
+    public static string Lines(IReadOnlyList<string> lines);    // NoText if empty, else string.Join(Environment.NewLine, lines)
+}
+```
+
+**Hotkey results (contract §2.3).** These are new Core types, in namespace `Envoy.Core.Hotkeys`:
+
+```csharp
+public enum HotkeyStatus { Registered, NotSet, Taken, Invalid }   // 02 appends SkippedSafeMode (arrival rule)
+public sealed record HotkeyRegistrationResult(string ActionId, string ActionName, string Combo, HotkeyStatus Status);
+
+public static class HotkeyText
+{
+    /// Display names, keyed by ActionId (= the HotkeySettings property name): Compose → "Reply",
+    /// ToggleOverlay → "Show/hide overlay", ToggleCapture → "Pause/resume", SelectRegion → "Select chat area",
+    /// OverlayEditMode → "Move overlay", ScanAndTranslate → "Scan & translate".
+    public static string ActionName(string actionId);
+    /// {list} = comma-separated "Name (combo)" list.
+    public const string TakenFormat = "These hotkeys are taken by another app: {list}";
+    /// "" when no entry is Taken or Invalid; otherwise TakenFormat over those entries in list order.
+    /// Invalid entries are included because today's text lists them too (no wording change in 01).
+    public static string TakenSummary(IReadOnlyList<HotkeyRegistrationResult> results);
+}
+```
+
+**Preview lease counter**, in namespace `Envoy.Core.Threading`. It backs `ChatWatcher.BeginPreview()` and is unit
+tested in Core.
+
+```csharp
+public sealed class LeaseCounter
+{
+    public int Count { get; }                // Volatile read
+    public bool IsHeld => Count > 0;
+    public IDisposable Acquire();            // Interlocked.Increment; the lease's Dispose decrements once (idempotent)
 }
 ```
 
@@ -227,32 +334,101 @@ Settings.MutedPlayers = PlayerListText.Parse(value);`.
 
 ### 3. App-side infrastructure
 
-**`src/Envoy.App/IShell.cs`** (new)
+**`src/Envoy.App/IShell.cs`** (new). This is exactly the 01 block of contract §3. 02, 06 and 07a each add their own
+block in their own step.
 
 ```csharp
 namespace Envoy.App;
 /// <summary>App-level actions the view models may trigger. Implemented by App.</summary>
 public interface IShell
 {
+    // 01
     void SelectRegion();
     void ToggleOverlayEditMode();
     void OpenCompose();
     void ScanAndTranslate();
     void ExitApp();
-    void OpenUrl(string url);
-    /// <summary>Blocking information box, owned by the main window when it is open.</summary>
-    void ShowInfo(string message);
-    IReadOnlyList<string> HotkeyErrors { get; }
+    void OpenUrl(string urlOrDataPath);          // 08a reroutes to ShellLauncher.TryOpen(target, Host.DataFolder)
+    void InstallOcrPack(string languageTag);     // 08a reroutes to ShellLauncher.InstallOcrPack
+    void ShowInfo(string title, string message); // → DialogService, owned by MainWindow when it is open
 }
 ```
 
-`App` gets `: IShell`. Most members already exist with these exact signatures (`SelectRegion`, `ScanAndTranslate`
-and `OpenCompose` stay `async void`/`void`). The new members are:
+`App` becomes `public partial class App : Application, IShell`. `SelectRegion`, `ToggleOverlayEditMode`,
+`OpenCompose`, `ScanAndTranslate` and `ExitApp` already exist with matching signatures. `SelectRegion` and
+`ScanAndTranslate` stay `async void`. The new or changed members are:
 
-- `void IShell.OpenUrl(string url) => OpenUrl(url);`, because the existing static `App.OpenUrl` stays for other callers.
-- `public void ShowInfo(string message)`, which calls
-  `MessageBox.Show(_main, message, "Envoy", MessageBoxButton.OK, MessageBoxImage.Information)` when `_main` is non-null,
-  and otherwise the ownerless overload.
+- `public void OpenUrl(string urlOrDataPath)`. Today's static `App.OpenUrl` becomes this instance method. Its only
+  callers were in `MainWindow.xaml.cs`, and they move to the view model. The body is unchanged:
+  `Process.Start(new ProcessStartInfo(urlOrDataPath) { UseShellExecute = true })`.
+- `public void InstallOcrPack(string languageTag)`. It runs `Process.Start(new ProcessStartInfo("powershell.exe",
+  OcrPackInstall.PowerShellArguments(languageTag)) { UseShellExecute = true, Verb = "runas" })`. On `Win32Exception`
+  (UAC declined) or `ArgumentException` (unknown code, unreachable from the built-in catalog), it calls
+  `OpenUrl(OcrPackInstall.SettingsFallbackUri)`.
+- `public void ShowInfo(string title, string message) => DialogService.ShowInfo(_main, title, message);`.
+- `RegisterHotkeys` builds one `HotkeyRegistrationResult` per action, in today's order:
+  - an empty or whitespace combo gives `NotSet`;
+  - `!Hotkey.TryParse(combo, out _)` gives `Invalid`;
+  - `!_hotkeys.Register(...)` gives `Taken`;
+  - otherwise the result is `Registered`.
+
+  `ActionId` is `nameof(HotkeySettings.X)` and `ActionName` is `HotkeyText.ActionName(id)`. The method ends with
+  `Host.HotkeyResults = results;`. `HotkeyErrors` is deleted.
+
+After this step, `Process.Start` appears only in `App.OpenUrl` and `App.InstallOcrPack`. Both are `IShell` members,
+which 08a moves into `ShellLauncher` (contract §5). This area adds no P/Invoke and no network code.
+
+**`src/Envoy.App/AppHost.cs`**. This is the only change to the file (contract §2.3):
+
+```csharp
+public IReadOnlyList<HotkeyRegistrationResult> HotkeyResults
+{
+    get => _hotkeyResults;
+    set { _hotkeyResults = value; HotkeyResultsChanged?.Invoke(); }   // UI thread only; written only by App.RegisterHotkeys
+}
+public event Action? HotkeyResultsChanged;
+private IReadOnlyList<HotkeyRegistrationResult> _hotkeyResults = [];
+```
+
+**`src/Envoy.App/Services/DialogService.cs`** (new; the single owner of modal boxes, per contract §2):
+
+```csharp
+internal static class DialogService
+{
+    /// MessageBox with OK + Information. Owner is used when non-null and loaded; otherwise ownerless.
+    public static void ShowInfo(Window? owner, string title, string message);
+    /// MessageBox with OK + Warning. Only for App's existing unhandled-exception box until 02 replaces it.
+    public static void ShowWarning(Window? owner, string title, string message);
+    // 02 adds Confirm(...). No placeholder members here.
+}
+```
+
+All three existing `MessageBox.Show` sites route through it, with identical text, caption, buttons and icon:
+
+- Edit phrases goes through `IShell.ShowInfo`, owned by `MainWindow`.
+- `ComposeWindow`'s send failure calls `ShowInfo(null, "Envoy", …)`. 02 replaces it with a problem toast.
+- `App.OnUnhandledException` calls `ShowWarning(null, "Envoy", …)`. 02 replaces it with its global handler.
+
+Contract §2.2 forbids modal surfaces other than user-started `DialogService` confirmations. The two non-user-started
+boxes are today's behaviour, and 02 removes them.
+
+**`src/Envoy.App/Services/ChatWatcher.cs`**. `PublishFrames` is removed and replaced with:
+
+```csharp
+private readonly LeaseCounter _preview = new();
+/// Frames are published to FrameCaptured while at least one lease is held. Each call also Invalidate()s,
+/// as turning the old flag on did.
+public IDisposable BeginPreview() { var lease = _preview.Acquire(); Invalidate(); return lease; }
+public bool IsPreviewing => _preview.IsHeld;
+```
+
+The two existing reads of `PublishFrames` become `IsPreviewing`: the "skip when not reading" check and the
+unchanged-fingerprint early return. The `FrameCaptured` raise is guarded by `IsPreviewing`. 05's rewrite keeps this
+API. Its tick step 6 and step 11 key off `IsPreviewing` (contract §2.7, §2.8).
+
+**`src/Envoy.App/Services/ThemeManager.cs`**. Add
+`public static IReadOnlyList<string> PaletteIds { get; } = [.. Themes.Select(t => t.Id)];`. 07b redefines it to append
+high contrast. Nothing else changes.
 
 **`src/Envoy.App/Controls/AutoApply.cs`** (new)
 
@@ -270,9 +446,9 @@ public static class AutoApply
 These elements set it to `True`:
 
 - the sidebar `Nav` StackPanel, which replaces the `GroupName: "Nav"` check;
-- `TranslationPage` test input;
-- `ReadingChatPage` preview text box;
-- `PhrasebookPage` preview-language ComboBox.
+- the `TranslationPage` test input;
+- the `ReadingChatPage` preview text box;
+- the `PhrasebookPage` preview-language ComboBox.
 
 `MainWindow.OnEdited` becomes
 `if (e.OriginalSource is DependencyObject d && AutoApply.GetIgnore(d)) return; if (!IsLoaded) return; _applier.Schedule();`.
@@ -285,22 +461,31 @@ internal sealed class SettingsAutoApplier
     public SettingsAutoApplier(Dispatcher dispatcher, TimeSpan delay, Action apply); // delay = 400 ms (unchanged)
     public bool IsPending { get; }
     public void Schedule();        // (re)start the timer
-    public void ApplyNow();        // stop timer, apply unconditionally (used before Test translate / Test voice)
-    public void FlushIfPending();  // apply only if a change is pending (used on window close)
+    public void ApplyNow();        // stop the timer and apply unconditionally (before Test translate / Test voice)
+    public void FlushIfPending();  // apply only if a change is pending (window close)
 }
 ```
 
-The `apply` action is the old `ApplyNow` body: `host.ApplySettings(); vm.RefreshStatus(); vm.RefreshProviderSections();`.
-`MainWindow` creates it and passes it to `MainViewModel`.
+The `apply` action is the old `ApplyNow` body:
+`host.ApplySettings(); vm.RefreshStatus(); vm.RefreshProviderSections();`. `MainWindow` creates the applier and
+passes it to `MainViewModel`.
 
 **`MainViewModel`** keeps its public surface and gains a constructor, commands and new state.
 
-- **Constructor:** `MainViewModel(AppHost host, IShell shell, SettingsAutoApplier applier)`. `MainWindow(AppHost host)`
-  keeps its signature and passes `(IShell)App.Current`.
-- **Base class:** it derives from `ObservableObject`. `public void Notify([CallerMemberName] string? name = null)` stays
-  as a wrapper over `OnPropertyChanged`.
-- **`HotkeyErrors`** reads `_shell.HotkeyErrors` instead of `App.Current`.
-- **New commands**, all get-only properties created in the constructor:
+- **Constructor.** It is `MainViewModel(AppHost host, IShell shell, SettingsAutoApplier applier)`. `MainWindow` gains
+  `MainWindow(AppHost host, IShell shell)`. The existing `MainWindow(AppHost host) : this(host, App.Current)` stays,
+  so the call sites in `App.ShowMain` and the smoke test don't change. 02's safe-mode check builds a second
+  `MainWindow` the same way.
+- **Base class.** It derives from `ObservableObject` and implements `IDisposable`.
+  `public void Notify([CallerMemberName] string? name = null)` stays as a wrapper over `OnPropertyChanged`.
+- **`HotkeyErrors`.** It becomes `HotkeyText.TakenSummary(Host.HotkeyResults)`. The constructor subscribes
+  `Host.HotkeyResultsChanged += OnHotkeyResultsChanged`, which calls `Notify(nameof(HotkeyErrors))`. `RefreshStatus`
+  still notifies it too.
+- **`ReportCommandError(Exception ex)`.** This is the one handler passed to every `AsyncRelayCommand` (contract §8.8).
+  In 01 it calls `Trace.TraceError("command failed: {0}", ex)`. Every async command body in 01 catches its own
+  exceptions, so the handler is unreachable in normal use. 02 replaces the body with a log at Error plus a problem
+  toast.
+- **New commands.** All are get-only properties created in the constructor:
 
 | Command | Type | Replaces | Body |
 | --- | --- | --- | --- |
@@ -311,44 +496,47 @@ The `apply` action is the old `ApplyNow` body: `host.ApplySettings(); vm.Refresh
 | `OpenReplyBoxCommand` | `RelayCommand` | `OnCompose` | `_shell.OpenCompose()` |
 | `ScanAndTranslateCommand` | `RelayCommand` | `OnScan` | `_shell.ScanAndTranslate()` |
 | `NewMatchCommand` | `RelayCommand` | `OnNewMatch` | `Host.NewMatch()` |
-| `DownloadUpdateCommand` | `RelayCommand` | `OnDownloadUpdate` | `if (Host.Update is { } u) _shell.OpenUrl(u.PageUrl)` (CanExecute stays true; the banner is only visible when an update exists, so there is no greyed-out look change) |
-| `TestTranslateCommand` | `AsyncRelayCommand` | `OnTestTranslate` | `_applier.ApplyNow(); TranslationTestOutput = Pending; try { … Describe(…) } catch (Exception ex) { TranslationTestOutput = Failure(ex); }` |
-| `InstallOcrCommand` | `RelayCommand<string>` | `OnInstallOcr` (parameter = language code) | `Process.Start(new ProcessStartInfo("powershell.exe", OcrPackInstall.PowerShellArguments(lang)) { UseShellExecute = true, Verb = "runas" })`; on `Win32Exception` it calls `_shell.OpenUrl(SettingsFallbackUri)` |
+| `DownloadUpdateCommand` | `RelayCommand` | `OnDownloadUpdate` | `if (Host.Update is { } u) _shell.OpenUrl(u.PageUrl)`. `CanExecute` stays true, because the banner is only visible when an update exists. 06 replaces this command. |
+| `TestTranslateCommand` | `AsyncRelayCommand` | `OnTestTranslate` | `_applier.ApplyNow(); TranslationTestOutput = Pending; try { … Describe(…) } catch (Exception ex) { TranslationTestOutput = Failure(ex); }`, with `onError: ReportCommandError` |
+| `InstallOcrCommand` | `RelayCommand<string>` | `OnInstallOcr` (parameter = language code) | `_shell.InstallOcrPack(code)` |
 | `TestVoiceCommand` | `RelayCommand` | `OnTestVoice` | `_applier.ApplyNow(); Host.TestVoice();` |
-| `EditPhrasesCommand` | `RelayCommand` | `OnEditPhrases` | write `PhrasePreview.UserFileTemplate` if missing → `_shell.OpenUrl(path)` → `_shell.ShowInfo(EditInstructions)` → `Host.ReloadPhrases()` → `RefreshPhrasePreview()` |
-| `OpenLogsCommand` / `OpenDataFolderCommand` | `RelayCommand` | `OnOpenLogs` / `OnOpenData` | `Directory.CreateDirectory(folder); _shell.OpenUrl(folder)` |
-| `OpenLinkCommand` | `RelayCommand<string>` | `OnLink` | `_shell.OpenUrl(url)` (the Hyperlink keeps `NavigateUri` for tooltip/accessibility and binds `CommandParameter` to the same literal) |
+| `EditPhrasesCommand` | `RelayCommand` | `OnEditPhrases` | Write `PhrasePreview.UserFileTemplate` if missing → `_shell.OpenUrl(path)` → `_shell.ShowInfo(PhrasebookText.EditTitle, PhrasebookText.EditInstructions)` → `Host.ReloadPhrases()` → `RefreshPhrasePreview()` |
+| `OpenLogsCommand` / `OpenDataFolderCommand` | `RelayCommand` | `OnOpenLogs` / `OnOpenData` | `Directory.CreateDirectory(folder); _shell.OpenUrl(folder)`. Both folders sit under the data folder, so 08a's `TryOpen` allows them. |
+| `OpenLinkCommand` | `RelayCommand<string>` | `OnLink` | `_shell.OpenUrl(url)`. The Hyperlink keeps `NavigateUri` for the tooltip and accessibility, and binds `CommandParameter` to the same literal. |
 | `QuitCommand` | `RelayCommand` | `OnQuit` | `_shell.ExitApp()` |
 
 - **New state:**
-  - `string TranslationTestInput` (default `TranslationTestText.SampleInput`)
-  - `string TranslationTestOutput` (default `""`)
-  - `Language? PhrasePreviewLanguage`, defaulting to
+  - `string TranslationTestInput`, which defaults to `TranslationTestText.SampleInput`;
+  - `string TranslationTestOutput`, which defaults to `""`;
+  - `Language? PhrasePreviewLanguage`, which defaults to
     `LanguageCatalog.Find(Host.Pipeline.LastOpponentLanguage) ?? LanguageCatalog.Find("zh-CN")`. Its setter calls
-    `RefreshPhrasePreview()`.
-  - `IReadOnlyList<PhrasePreviewRow> PhraseRows`
-  - `void RefreshPhrasePreview()`
-  - `CapturePreviewViewModel CapturePreview`
-- **Disposal:** `void Dispose()` disposes `CapturePreview`. `MainWindow.OnClosed` calls it.
+    `RefreshPhrasePreview()`;
+  - `IReadOnlyList<PhrasePreviewRow> PhraseRows` and `void RefreshPhrasePreview()`;
+  - `CapturePreviewViewModel CapturePreview`.
+- **Disposal.** `Dispose()` unsubscribes `HotkeyResultsChanged` and disposes `CapturePreview`. `MainWindow.OnClosed`
+  calls it.
 
-All command bodies run on the UI thread, as the click handlers did. No command adds a new failure mode. Exceptions
-that escaped a click handler before still escape the `RelayCommand`, so `App`'s existing dispatcher-unhandled
-handling sees them as before. The only exception is `TestTranslateCommand`, which routes through `onError`; its body
-already catches everything.
+All command bodies run on the UI thread, as the click handlers did. No command adds a new failure mode.
 
-**`src/Envoy.App/ViewModels/CapturePreviewViewModel.cs`** (new; replaces `SetPreview`/`OnFrame`)
+**`src/Envoy.App/ViewModels/CapturePreviewViewModel.cs`** (new). It replaces `SetPreview`/`OnFrame` and is the only
+home for preview state (contract §2.8). 04 adds "Understood as" and the copy-as-test-capture command here, and 05 adds
+`MetricsText`/`HealthText` with their 1 s timer. 07a's guide creates its own instance.
 
 ```csharp
 public sealed class CapturePreviewViewModel : ObservableObject, IDisposable
 {
     public CapturePreviewViewModel(AppHost host, Dispatcher dispatcher); // subscribes host.Watcher.FrameCaptured
-    public bool IsActive { get; set; }   // true: Watcher.PublishFrames = true + Invalidate(); false: PublishFrames = false
+    /// true: _lease ??= host.Watcher.BeginPreview().  false: _lease?.Dispose(); _lease = null.
+    public bool IsActive { get; set; }
     public ImageSource? Image { get; }   // frozen BitmapSource built on the UI thread (same code as OnFrame)
-    public string Text { get; }          // "(no text found)" or lines joined by NewLine
-    public string Stats { get; }         // "{n} lines · OCR {ms:0} ms"
-    public void Dispose();               // unsubscribe + PublishFrames = false
+    public string Text { get; }          // CapturePreviewText.Lines(frame.Lines)
+    public string Stats { get; }         // CapturePreviewText.Stats(frame.Lines.Count, frame.OcrTime)
+    public void Dispose();               // IsActive = false; unsubscribe FrameCaptured (idempotent)
 }
 ```
+
+`OnFrame` marshals to the UI thread with `BeginInvoke`, as today. There it returns early unless `IsActive` is true,
+which replaces the old `if (!PublishFrames) return;`.
 
 `ReadingChatPage.xaml.cs` holds the page's only code-behind logic:
 
@@ -360,23 +548,28 @@ Visibility follows `NavCapture.IsChecked`, so the preview starts and stops at th
 one intended internal difference: frames also stop while the main window is hidden to the tray. Nothing is drawn in
 that state, so the user sees no change.
 
-**`src/Envoy.App/Pages/`** (new). Each page is a `*.xaml` + `*.xaml.cs` pair. Code-behind is just
-`public partial class XPage : UserControl { public XPage() => InitializeComponent(); }`, except `ReadingChatPage`
+**`src/Envoy.App/Pages/`** (new). Each page is a `*.xaml` + `*.xaml.cs` pair. The code-behind is just
+`public partial class XPage : UserControl { public XPage() => InitializeComponent(); }`, except for `ReadingChatPage`
 as described above.
 
-- The page root content is the **exact** `ScrollViewer Padding="32,24"` subtree cut from `MainWindow.xaml`. The
-  `Visibility` binding moves out to the host element, and `MaxWidth` stays 900, or 760 for About.
-- Each page XAML declares only the namespaces it uses (`x`, the default namespace, and `c` for `Controls` where
-  `HotkeyBox`/`SecretBox`/`AutoApply` appear).
-- `StaticResource`/`DynamicResource` keys resolve from `App.xaml` merged dictionaries as before.
-- The `InstallOcr` button in the OCR `DataTemplate` binds
-  `Command="{Binding DataContext.InstallOcrCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-  CommandParameter="{Binding Code}"`.
-- The phrase list binds `ItemsSource="{Binding PhraseRows}"`. The preview `ComboBox` binds
-  `SelectedItem="{Binding PhrasePreviewLanguage}"`.
-- `TestInput`/`TestOutput` bind to `TranslationTestInput` (`UpdateSourceTrigger=PropertyChanged`) and
-  `TranslationTestOutput`. Preview controls bind to `CapturePreview.Image/Text/Stats`. No `x:Name` fields are
-  needed in pages, but they are allowed.
+- **Root content.** The page root is the **exact** `ScrollViewer Padding="32,24"` subtree cut from `MainWindow.xaml`.
+  The `Visibility` binding moves out to the host element. `MaxWidth` stays 900, or 760 for About.
+- **Namespaces and resources.** Each page XAML declares only the namespaces it uses: `x`, the default namespace, and
+  `c` for `Controls` where `HotkeyBox`, `SecretBox` or `AutoApply` appear. `StaticResource` and `DynamicResource` keys
+  resolve from the `App.xaml` merged dictionaries, as before.
+- **Accessibility.** No interactive control is added. Moved controls keep their existing attributes. The
+  `AutomationProperties.Name` rule (contract §8.8) applies to *new* controls from this step on.
+- **Bindings.**
+  - The `InstallOcr` button in the OCR `DataTemplate` binds
+    `Command="{Binding DataContext.InstallOcrCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+    CommandParameter="{Binding Code}"`.
+  - The phrase list binds `ItemsSource="{Binding PhraseRows}"`, and the preview `ComboBox` binds
+    `SelectedItem="{Binding PhrasePreviewLanguage}"`.
+  - `TestInput` binds to `TranslationTestInput` with `UpdateSourceTrigger=PropertyChanged`, and `TestOutput` binds
+    to `TranslationTestOutput`.
+  - The preview controls bind to `CapturePreview.Image`, `CapturePreview.Text` and `CapturePreview.Stats`.
+
+  Pages need no `x:Name` fields, but they are allowed.
 
 **`src/Envoy.App/Pages/PageIds.cs`** (new)
 
@@ -391,103 +584,221 @@ public static class PageIds
 
 **`MainWindow.xaml`** after the split (about 90 lines):
 
-- The title bar and sidebar are unchanged, plus `c:AutoApply.Ignore="True"` on `Nav`.
+- The title bar and sidebar are unchanged, except that `Nav` gains `c:AutoApply.Ignore="True"`.
 - The page grid holds nine hosts, each like
   `<p:WarRoomPage x:Name="WarRoomPage" Visibility="{Binding IsChecked, ElementName=NavDashboard, Converter={StaticResource BoolToVisibility}}" />`.
   These `ElementName` bindings stay inside `MainWindow`'s namescope, so they still resolve.
+- 02 places the safe-mode banner above the page hosts (contract §8.6).
 
 **`MainWindow.xaml.cs`** after the split (about 80 lines) keeps:
 
-- the constructor, which creates the VM and applier, starts the status timer and registers the bubbling edit handlers;
+- the constructors, which create the view model and the applier, start the status timer and register the bubbling
+  edit handlers;
 - `PageNames => PageIds.All`;
 - `Navigate`;
-- the new `public UserControl PageFor(string name)`, a switch to the named host used by the smoke test;
+- `public UserControl PageFor(string pageId)`, a switch to the named host. The smoke test uses it, and so does 02
+  (`((AboutPage)PageFor(PageIds.About)).TroubleshootingFrame.BringIntoView()`);
 - `OnEdited`;
-- the window chrome handlers `OnMinimize`/`OnMaximize`/`OnClose`, which stay as view handlers;
-- `OnClosed`, which runs `_statusTimer.Stop(); _applier.FlushIfPending(); _vm.Dispose(); FirstRunCompleted = true; SaveNow();`.
+- the window-chrome handlers `OnMinimize`, `OnMaximize` and `OnClose`, which stay as view handlers;
+- `OnClosed`, which runs
+  `_statusTimer.Stop(); _applier.FlushIfPending(); _vm.Dispose(); FirstRunCompleted = true; SaveNow();`.
 
-**`MainViewModel` file split (SHOULD).** `ViewModels/MainViewModel.cs` keeps the shared part: constructor, `Host`,
-`Settings`, `RefreshStatus` and `Notify`. Page sections go in `MainViewModel.Translation.cs`,
-`MainViewModel.ReadingChat.cs`, `MainViewModel.Phrasebook.cs` and `MainViewModel.Actions.cs` (the commands). Helper
-types go in `ViewModels/Option.cs`, `OcrLanguageItem.cs` and `ThemeOption.cs`. Moving code does not change any
-member signature.
+**`MainViewModel` file split (part of REQ-UIF-1).** `ViewModels/MainViewModel.cs` keeps the shared part: the
+constructor, `Host`, `Settings`, `RefreshStatus`, `Notify`, `ReportCommandError` and `Dispose`. The page sections go
+in `MainViewModel.Translation.cs`, `MainViewModel.ReadingChat.cs`, `MainViewModel.Phrasebook.cs` and
+`MainViewModel.Actions.cs` (the commands). The helper types go in `ViewModels/Option.cs`, `OcrLanguageItem.cs` and
+`ThemeOption.cs`. Later areas add their own partials, such as `MainViewModel.Diagnostics.cs` (02). Moving code
+changes no member signature.
 
-### 4. Typecheck stub generator (`tools/typecheck/gen_stubs.py`)
+### 4. Typecheck tools (`tools/typecheck/`)
 
-- **Base class.** A map from root element to base type:
+**`gen_stubs.py`**
+
+- **Base class (REQ-UIF-13).** A map from root element to base type:
   `{Window: System.Windows.Window, UserControl: System.Windows.Controls.UserControl, Application: System.Windows.Application, Page: System.Windows.Controls.Page, ResourceDictionary: System.Windows.ResourceDictionary}`.
-  The stub becomes `public partial class {name} : {base}`, matching what the WPF markup compiler emits. An unmapped
-  root prints `"{path}: unsupported x:Class root <{tag}>"` and exits 1.
-- **Stub file names** are `{namespace}.{name}.g.cs`. A second XAML file with an already-seen `x:Class` makes it exit 1
-  with both paths.
-- **Field modifiers.** `x:FieldModifier` (case-insensitive `public|internal|private|protected|protected internal`)
-  sets the field's modifier. Anything else is an error.
-- **Event handlers.**
-  - Matched attributes have no namespace, a local name (or the part after the last `.`, for attached events such as
-    `ButtonBase.Click`) in a fixed `EVENT_NAMES` set, and a value matching `^[A-Za-z_][A-Za-z0-9_]*$`.
-  - `EVENT_NAMES` is about 50 entries: Click, Checked, Unchecked, Loaded, Unloaded, SelectionChanged, TextChanged,
+  The stub becomes `// <auto-generated/>` followed by `public partial class {name} : {base}`, which matches what the
+  WPF markup compiler emits. An unmapped root prints `"{path}: unsupported x:Class root <{tag}>"` and exits 1.
+- **Event handlers (REQ-UIF-15).**
+  - An attribute matches when it has no namespace, its local name (or the part after the last `.`, for attached
+    events such as `ButtonBase.Click`) is in a fixed `EVENT_NAMES` set, and its value matches
+    `^[A-Za-z_][A-Za-z0-9_]*$`.
+  - `EVENT_NAMES` has about 50 entries: Click, Checked, Unchecked, Loaded, Unloaded, SelectionChanged, TextChanged,
     ValueChanged, PasswordChanged, RequestNavigate, Mouse*/PreviewMouse*, Key*/PreviewKey*, Got/LostFocus,
     Got/LostKeyboardFocus, SizeChanged, IsVisibleChanged, Closing, Closed, Activated, Deactivated, ContentRendered,
     SourceInitialized, StateChanged, LocationChanged, DragStarted/DragDelta/DragCompleted, ScrollChanged,
     Expanded/Collapsed, Opened, Drop/DragOver/DragEnter/DragLeave.
-  - For each match, the stub gets a line `_ = nameof({value});` inside a
-    `private void __XamlEventHandlers() { … }` method. Templates are included, because the real markup compiler
-    wires template handlers to the root class too. A missing handler then fails with CS0103 in `dotnet build`.
-- **Tests.** `tools/typecheck/test_gen_stubs.py` uses `unittest` with fixtures in `tools/typecheck/fixtures/`. It
-  runs `gen_stubs` into a temp directory and asserts on the generated text. `typecheck.sh` runs
-  `python3 -m unittest discover -s "$here" -p 'test_*.py'` first.
-- **Unchanged.** `check_resources.py` already globs `**/*.xaml`, so it covers `Pages/` with no change. The
-  `TypeCheck.csproj` compile glob already includes `src/Envoy.App/**/*.cs`, so it needs no change either.
+  - Each match adds a line `_ = nameof({value});` inside a `private void __XamlEventHandlers() { … }` method. Template
+    handlers are included, because the real markup compiler wires them to the root class too. A missing handler then
+    fails with CS0103.
+  - `EVENT_NAMES` and the matcher are exposed as functions so that `check_ui_rules.py` can reuse them.
+- **Stub file names (REQ-UIF-14, SHOULD).** Files are named `{namespace}.{name}.g.cs`. A second XAML file with an
+  `x:Class` already seen makes the script exit 1, naming both paths.
+- **Field modifiers (REQ-UIF-16, SHOULD).** `x:FieldModifier` (case-insensitive
+  `public|internal|private|protected|protected internal`) sets the field's modifier. Any other value is an error.
 
-### 5. Smoke test additions (`src/Envoy.App/SmokeTest.cs`)
+**`check_ui_rules.py`** (new, stdlib only). It turns the structural rules into a mechanical check. Each violation
+prints `path:line: UIF-Rn message`, and any violation exits 1. 08a may later move R4 and R5 into
+`BannedSymbols.txt`/`policy.json`. Until then this script is the check.
 
-- **Binding errors.** Before the theme loop, set `PresentationTraceSources.Refresh();` and
-  `PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error;`. Add a `BindingErrorListener : TraceListener`
-  (a private nested class) that collects `WriteLine` messages.
-  - After each theme's `MainWindow` pass, any collected message is logged as `binding error ({theme}): {message}` and
-    then thrown as `InvalidOperationException`, which fails the run.
-  - The listener is removed before the overlay, compose and lookup windows are built. Those windows are out of
-    scope; a later area can widen the check.
-- **Page checks.** Replace `foreach (var page in main.PageNames) main.Navigate(page);` with a loop that calls
-  `Navigate(page)`, then `await Pump()`, then asserts that `main.PageFor(page)` has `IsLoaded`, `IsVisible` and
-  `ActualHeight > 0`, and that `PageFor(other).Visibility == Collapsed` for every other page. A failure throws with
-  the theme and page name.
-- **More screenshots.** With `--screenshots`, the page list for screenshots becomes `PageIds.All`. The four existing
-  file names are unchanged, and five new names are added.
+| Rule | Check | Backs |
+| --- | --- | --- |
+| R1 | `Pages/*.xaml` has no event-handler attribute (the `gen_stubs` matcher) | REQ-UIF-7 |
+| R2 | `Pages/*.xaml.cs` contains no `RoutedEventArgs` and no `DataContext =` | REQ-UIF-7, REQ-UIF-2 |
+| R3 | `Pages/*.xaml` has no `DataContext=` attribute (`DataContext.` inside a binding path is fine) | REQ-UIF-2 |
+| R4 | `ViewModels/*.cs` contains no `App.Current`, `Process.Start`, `ProcessStartInfo` or `MessageBox` | REQ-UIF-9 |
+| R5 | `MessageBox.Show` in `src/Envoy.App/**/*.cs` appears only in `Services/DialogService.cs` | REQ-UIF-9 |
+| R6 | `Windows/MainWindow.xaml` contains no `ScrollViewer` | REQ-UIF-1 |
+| R7 | These files exist: the nine `Pages/*Page.xaml(.cs)` pairs, `Pages/PageIds.cs`, the four `MainViewModel.*.cs` partials, `ViewModels/CapturePreviewViewModel.cs` and `Services/DialogService.cs` | REQ-UIF-1, REQ-UIF-21 |
 
-### Settings added
+**`typecheck.sh`** runs these steps in order:
 
-None. `AppSettings.cs` and the settings JSON are unchanged.
+1. `python3 -m unittest discover -s "$here" -p 'test_*.py'`;
+2. `gen_stubs.py`;
+3. `check_resources.py`;
+4. `check_ui_rules.py`;
+5. `dotnet build`.
+
+**Unchanged.** `check_resources.py` already globs `**/*.xaml`, so it covers `Pages/` without changes. The
+`TypeCheck.csproj` compile glob already includes `src/Envoy.App/**/*.cs`.
+
+### 5. Smoke test (`src/Envoy.App/SmokeTest.cs`, contract §6)
+
+The `Run(App app, string[] args)` signature is unchanged; 02 changes it. This area sets up the three-phase shape that
+later areas slot into. A helper `Section(string name, Stopwatch sw)` writes `[smoke] {name} ok elapsed_ms={n}`. Until
+02 brings `LogHub`, warnings are written as `[smoke] WARNING …` lines.
+
+1. **Setup (once).**
+   - Create the temp root `%TEMP%\envoy-smoke-{guid}` and the host on `{root}\settings.json`. 02 moves this to
+     `{root}\data` with `DataFolder`.
+   - List the OCR languages.
+   - Run the compose **provider warm-up**: one `host.Translator.TranslateAsync("good game! one more?", …)` with a
+     10 s timeout. A failure logs a `WARNING` but does not fail the run, as today.
+   - Run the existing one-shot capture + OCR check, moved here from the end as section `capture-ocr`.
+   - Assert that `PageIds.All` equals the legacy nine-name list, in order (section `page-ids`).
+2. **Per palette.** `foreach (var id in ThemeManager.PaletteIds)`:
+   1. Set `host.Settings.Theme = id`, call `ThemeManager.Apply(id)`, and start the binding-error listener.
+   2. **Pages.** Open `MainWindow`. For each `PageIds.All` entry: `Navigate`, pump, and assert that `PageFor(page)`
+      is the expected `Pages` type with `IsLoaded`, `IsVisible` and `ActualHeight > 0`, and that every other page is
+      `Collapsed`. With `--screenshots`, call `host.ShowDemoMessages()` once and then save
+      `{id}-settings-{page.ToLowerInvariant()}.png`. Section: `pages({id})`.
+   3. **MainWindow-dependent checks.** 01's own checks come first; later areas append theirs in contract order.
+      - `commands({id})`, first palette only. Every `Button` (not `ToggleButton`) in each page's visual tree and
+        every `Hyperlink` in its logical tree has a non-null `Command`. Each page is navigated first, so
+        `ItemsControl` templates are realised.
+      - `preview-lease({id})`, first palette only. `Navigate(Capture)` → `host.Watcher.IsPreviewing` is true. A
+        second `new CapturePreviewViewModel(host, Dispatcher)` with `IsActive = true` and then `false` leaves
+        `IsPreviewing` true, which is the guide-versus-main case. `Navigate(Dashboard)` → false. The second instance
+        is disposed.
+      - `autoapply({id})`, first palette only. Count `host.SettingsApplied`, then:
+        1. Find the `CheckBox` on `PageFor(Overlay)` whose `IsChecked` binding path is
+           `Settings.Overlay.ShowProvider`. Toggle it and wait 600 ms. The count must rise by exactly 1.
+        2. Find the `TextBox` on `PageFor(Translation)` where `AutoApply.GetIgnore` is true. Set its text and wait
+           600 ms. The count must not change.
+        3. Toggle the CheckBox back.
+   4. **Close.** On the first palette only, toggle `ShowProvider` once more and immediately call `main.Close()`.
+      Then reload `settings.json` with `SettingsStore` and assert that `Overlay.ShowProvider` has the new value and
+      `FirstRunCompleted` is true (section `close-flush`). That proves the pending-edit flush on close. Other
+      palettes just call `main.Close()`. Closing must not throw, and afterwards `IsPreviewing` must be false.
+   5. **Other windows**, as today: overlay (show, demo, edit mode on and off), compose, lookup, region selector.
+      Compose no longer sleeps a fixed 2.5 s. With `--screenshots` it polls up to 2.5 s until `compose.Preview.Text`
+      is neither `""` nor `"…"`, and the setup warm-up usually makes that instant.
+   6. Stop the listener and fail on any collected binding error that is not on the exact-message allowlist. Log
+      `[smoke] palette {id} ok elapsed_ms={n}`, plus a `WARNING` when that exceeds 30 s.
+3. **Teardown.** Dispose the host. With `--screenshots`, assert that the count of `*-settings-*.png` equals
+   `PaletteIds.Count × PageIds.All.Count`. Delete the temp root, ignoring an `IOException` with a `WARNING`. Log the
+   total elapsed time, plus a `WARNING` when it exceeds 420 s.
+
+**Binding errors.** At setup, call `PresentationTraceSources.Refresh()` and set
+`PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error`. A private nested
+`BindingErrorListener : TraceListener` collects `WriteLine` messages. Each collected message is logged as
+`[smoke] binding error ({palette}): {message}`, and the run then fails with `InvalidOperationException`.
+
+**`build.yml`.** The only change in this step is `$p.WaitForExit(180000)` → `$p.WaitForExit(600000)` (contract §6).
+
+### 6. Startup, settings and allowlists
+
+- **Startup and exit.** No reordering. `OnStartup`, `ExitApp` and the tray are untouched, apart from
+  `RegisterHotkeys` writing `Host.HotkeyResults`. 02 writes the contract §4 skeleton around them.
+- **Settings.** None added. `AppSettings.cs` and the JSON are unchanged, so no `[Personal]` or `[Location]` markers
+  are needed.
+- **P/Invoke allowlist additions.** None. `Native.cs` is unchanged.
+- **Network allowlist additions.** None. No new HTTP code or hosts.
+- **Process launching.** No new launch sites. The elevated PowerShell launch moves from `MainWindow.xaml.cs` into
+  `App.InstallOcrPack`, next to the existing `App.OpenUrl`. 08a moves both into `ShellLauncher` (contract §5).
+
+### 7. Docs and definition of done (contract §10; formerly REQ-UIF-24)
+
+- **`CLAUDE.md`.** Make these edits:
+  - Rewrite the "Settings changes" rule as "add the property to `AppSettings`, bind it on the relevant page in
+    `src/Envoy.App/Pages/` (edits auto-apply; a non-setting input sets `c:AutoApply.Ignore="True"`) …" (contract §7).
+  - Add a rule that every new interactive control gets `AutomationProperties.Name` (contract §8.8).
+  - Add a rule that user-facing text built in code lives in Core `*Text` classes (contract §8.7).
+  - Amend the "New windows … SmokeTest.cs" rule to say "in the per-palette phase; new pages are added to
+    `PageIds.All`".
+- **`docs/architecture.md`.** List `Pages/`, `Envoy.Core.Mvvm`, `IShell`, `DialogService`, the preview lease and
+  `HotkeyResults`.
+- **`CHANGELOG.md`.** Add an "Internal" line under `## Unreleased`.
+- **This spec.** Set `Status: Implemented` and add a `## Deviations` section.
 
 ### Failure behaviour
 
-- An exception in a sync command propagates exactly as the old click handler's did, to the existing
-  `DispatcherUnhandledException` path.
-- An exception in `TestTranslateCommand` is caught and shown as `⚠ message`, as today. The command also guards
-  against double-clicks while a test translation is running. That is a small, invisible improvement: the button greys
-  out via the existing `IsEnabled=false` style while running.
-- If the elevation prompt for `InstallOcrCommand` is declined, it opens Windows language settings, as today. If
-  `CapabilityName` rejects an unexpected tag, that is an `ArgumentException`. It is unreachable with the built-in
-  catalog, and the `catch` in the command routes it to the settings fallback too.
+- An exception in a sync command propagates exactly as the old click handler's did.
+- An exception in `TestTranslateCommand` is caught in its body and shown as `⚠ message`, as today. The command also
+  ignores double-clicks while a test translation is running. That is a small, invisible improvement: the button greys
+  out through the existing `IsEnabled=false` style.
+- If the elevation prompt for "Install" is declined, Windows language settings open, as today. An unknown code also
+  opens settings. The old code returned silently in that case, but the path is unreachable from the built-in catalog.
 
 ## Acceptance criteria
 
+Each MUST is verified by at least one of the contract §9 kinds: a Core unit test, `typecheck.sh`, a named smoke
+section, a CI check, or a numbered manual step (M-steps feed 08b's `docs/releasing.md`; P-steps run once on this PR).
+
 | Id | Maps to | Verified by |
 | --- | --- | --- |
-| AC-UIF-1 | REQ-UIF-1, REQ-UIF-2 | `tools/typecheck/typecheck.sh` passes. `src/Envoy.App/Pages/` has exactly the nine `*.xaml`/`*.xaml.cs` pairs. `grep -c 'ScrollViewer' src/Envoy.App/Windows/MainWindow.xaml` is `0`. `grep -n 'DataContext' src/Envoy.App/Pages/*.xaml` only matches `DataContext.` inside `RelativeSource` command bindings. The Windows CI build passes. |
-| AC-UIF-2 | REQ-UIF-3, REQ-UIF-23 | The smoke test produces `{theme}-settings-dashboard/translation/capture/appearance.png` with unchanged names (CI artifact listing). `MainWindow.PageNames` returns `PageIds.All` (typecheck). |
-| AC-UIF-3 | REQ-UIF-4 | Manual, Windows: change "Main provider" on Translation and a hotkey on Hotkeys, wait 1 s, close Envoy, and confirm both appear in `%APPDATA%\Envoy\settings.json`. Type in the Translation test box, switch nav pages, and change the phrase preview language. With a file watcher, or by checking that the file's modified time is unchanged, confirm none of these triggers a settings save. |
-| AC-UIF-4 | REQ-UIF-5, REQ-UIF-6 | Unit tests in `tests/Envoy.Core.Tests/MvvmTests.cs` (listed in the test plan) pass under `dotnet test`. |
-| AC-UIF-5 | REQ-UIF-7 | Typecheck passes. `grep -nE 'Click=\|RequestNavigate=' src/Envoy.App/Pages/*.xaml` returns nothing. `grep -n 'RoutedEventArgs' src/Envoy.App/Pages/*.cs` returns nothing. |
-| AC-UIF-6 | REQ-UIF-8, REQ-UIF-9 | Manual, Windows, one pass over every button. In each case the result matches the pre-change build: War Room Select chat area / Pause-resume / Show sample messages / Move the overlay / Open reply box / Scan & translate / New match; Translation "Translate" test (shows `…` then result), the two "Get a key" links open the browser; Reading Chat Select chat area, Install (declining UAC opens Language settings); Overlay Drag to place / Show sample messages / Test voice; Phrasebook Edit my phrases (opens file, info box owned by main window, list reloads); Appearance Open logs; About Open settings folder / Quit Envoy. `grep -n 'App.Current' src/Envoy.App/ViewModels/*.cs` returns nothing (typecheck run). |
-| AC-UIF-7 | REQ-UIF-10 | Unit tests in `PhrasePreviewTests.cs`, `OcrPackInstallTests.cs`, `PlayerListTextTests.cs` and `TranslationTestTextTests.cs` pass. |
-| AC-UIF-8 | REQ-UIF-11 | Manual CI comparison. Download the `screenshots` artifact from the last `main` run before the change and from the PR run. For each of the 20 existing settings PNGs (5 themes × 4 pages), confirm identical dimensions and no visible difference outside the capture preview box, by flipping between them or with `compare` from ImageMagick if available. Record the result in the PR description. |
-| AC-UIF-9 | REQ-UIF-12, REQ-UIF-21 | Manual, Windows: open Reading Chat and see the live preview update. Switch to Overlay; the preview stops, and the Scouts card shows normal capture status. Edit a setting and immediately close the window (X then Quit from tray); the edit is in `settings.json`. Reopen: no first-run behaviour. The smoke test also covers this, because closing `MainWindow` in each theme must not throw. |
-| AC-UIF-10 | REQ-UIF-13, REQ-UIF-14, REQ-UIF-15, REQ-UIF-16, REQ-UIF-17 | `python3 -m unittest discover -s tools/typecheck -p 'test_*.py'` passes. As a one-off manual negative check, temporarily rename `OnMinimize` in `MainWindow.xaml.cs` or change a page root to `<Window>`, run `typecheck.sh`, confirm it fails, then revert. |
-| AC-UIF-11 | REQ-UIF-18, REQ-UIF-19 | Windows CI smoke test passes. `smoke.log` contains `theme {id}: ok` for all 5 themes and no `binding error` lines. |
-| AC-UIF-12 | REQ-UIF-20 | The CI `screenshots` artifact contains 45 `*-settings-*.png` files (5 themes × 9 pages). |
-| AC-UIF-13 | REQ-UIF-22 | Typecheck passes. `ViewModels/` contains the partial and helper files listed in Design §3. |
-| AC-UIF-14 | REQ-UIF-24 | Review: `docs/architecture.md` lists `Pages/` and `Mvvm/`; the `CLAUDE.md` settings rule says "bind it on the relevant page in `src/Envoy.App/Pages/`"; `CHANGELOG.md` has the entry. |
+| AC-UIF-1 | REQ-UIF-1, REQ-UIF-2 | `typecheck.sh` passes, including `check_ui_rules.py` R2, R3, R6 and R7. Smoke `pages({id})` passes for every palette. |
+| AC-UIF-2 | REQ-UIF-3 | Smoke `page-ids` passes. With `--screenshots`, the teardown count assertion passes and the CI artifact keeps the four legacy names `{palette}-settings-{dashboard,translation,capture,appearance}.png`. |
+| AC-UIF-3 | REQ-UIF-4 | Smoke `autoapply(...)` passes: one apply per settings edit, none for an ignored control. Manual step **M2**. |
+| AC-UIF-4 | REQ-UIF-5 | `MvvmTests.cs` passes under `dotnet test`. |
+| AC-UIF-5 | REQ-UIF-7 | `check_ui_rules.py` R1 and R2 pass in `typecheck.sh`. Smoke `commands(...)` passes. |
+| AC-UIF-6 | REQ-UIF-8 | Smoke `close-flush` passes. Manual step **M1**. |
+| AC-UIF-7 | REQ-UIF-9 | `check_ui_rules.py` R4 and R5 pass. `typecheck.sh` compiles `App : IShell` against the 01 block, and `App.HotkeyErrors` no longer exists. `HotkeyTextTests` passes. In M1, the Edit-phrases box is owned by the main window. |
+| AC-UIF-8 | REQ-UIF-10 | `TextTemplateTests`, `PhrasePreviewTests`, `OcrPackInstallTests`, `PlayerListTextTests`, `TranslationTestTextTests`, `CapturePreviewTextTests` and `HotkeyTextTests` pass. |
+| AC-UIF-9 | REQ-UIF-11 | One-off step **P1** on this PR, with the result recorded in the PR description. |
+| AC-UIF-10 | REQ-UIF-13, REQ-UIF-15 | `test_gen_stubs.py` cases `test_usercontrol_base_class`, `test_unsupported_root_fails`, `test_auto_generated_header`, `test_event_handlers_emitted_including_templates`, `test_attached_event_name` and `test_binding_values_not_treated_as_handlers` pass in `typecheck.sh` (CI `check` job). |
+| AC-UIF-11 | REQ-UIF-14, REQ-UIF-16, REQ-UIF-17 (SHOULD) | The remaining `test_gen_stubs.py` cases and `test_check_ui_rules.py` pass. |
+| AC-UIF-12 | REQ-UIF-18 | The Windows CI smoke test passes within `WaitForExit(600000)`. `smoke.log` has `[smoke] palette {id} ok` for every `ThemeManager.PaletteIds` entry, a `pages({id})` section for each, and `elapsed_ms` on every section line. |
+| AC-UIF-13 | REQ-UIF-19 | The smoke test passes with no `binding error` lines outside the allowlist. One-off step **P2** on this PR. |
+| AC-UIF-14 | REQ-UIF-21 | `LeaseCounterTests` passes. Smoke `preview-lease(...)` passes, and `IsPreviewing` is false after every `main.Close()`. `check_ui_rules.py` R2 and R7 pass. |
+
+**Manual steps.** M-steps are added to 08b's pre-release pass. P-steps run once on this PR.
+
+- **M1 — settings buttons (Windows).** Click every page button once and compare the result with the previous
+  release:
+  - **War Room:** Select chat area, Pause/resume, Show sample messages, Move the overlay, Open reply box, Scan &
+    translate, New match.
+  - **Translation:** "Translate" shows `…` and then the result, and the two "Get a key" links open the browser.
+  - **Reading Chat:** Select chat area, and Install. Declining UAC opens Language settings.
+  - **Overlay:** Drag to place, Show sample messages, and Test voice, which uses the just-edited voice settings.
+  - **Phrasebook:** Edit my phrases opens the file, shows an info box owned by the main window, and reloads the
+    list.
+  - **Appearance:** Open logs.
+  - **About:** Open settings folder, Quit Envoy.
+- **M2 — settings round trip (Windows).**
+  1. Change "Main provider" on Translation and a hotkey on Hotkeys. Wait 1 s, then quit from the tray. Both values
+     must be in `settings.json`.
+  2. Type in the Translation test box, switch pages, and change the phrase preview language. The settings file's
+     modified time must not change.
+  3. Reopen Envoy. There must be no first-run behaviour.
+- **M3 — over the game (any AoE title, borderless).** With Envoy reading chat, open settings over the game, switch
+  pages including Reading Chat, then close the window. Capture keeps running and the overlay is unaffected.
+- **P1 — screenshot parity.**
+  1. Download the `screenshots` artifact from the last `main` run before the change, or use the `ci-screenshots`
+     branch, and the artifact from this PR's run.
+  2. Compare the 20 legacy settings PNGs (5 palettes × 4 pages): dimensions must be identical, with no visible
+     difference outside the capture-preview box. Flip between the images, or use `compare` from ImageMagick.
+- **P2 — listener sanity.** Temporarily add a bad binding to one page and push. The smoke test must fail with a
+  `binding error` line. Revert the change and record the run link in the PR.
 
 ## Test plan
 
@@ -496,37 +807,49 @@ None. `AppSettings.cs` and the settings JSON are unchanged.
 **`MvvmTests.cs`**
 
 - `RelayCommand_Execute_InvokesAction`: the action runs once per `Execute`.
-- `RelayCommand_CanExecuteFalse_ExecuteIsNoOp`: when the predicate returns false, the action does not run.
-- `RelayCommand_RaiseCanExecuteChanged_RaisesEvent`: the event is raised exactly once with `sender == command`.
+- `RelayCommand_CanExecuteFalse_ExecuteIsNoOp`.
+- `RelayCommand_RaiseCanExecuteChanged_RaisesEvent`: the event is raised exactly once, with `sender == command`.
 - `RelayCommandT_PassesTypedParameter`: `Execute("ko")` delivers `"ko"`.
 - `RelayCommandT_WrongParameterType_CanExecuteFalseAndNoThrow`: `Execute(42)` on `RelayCommand<string>` neither throws
-  nor invokes.
+  nor invokes the action.
+- `AsyncRelayCommand_NullOnError_Throws`: the constructor throws `ArgumentNullException`.
 - `AsyncRelayCommand_WhileRunning_CanExecuteFalseAndIsRunningTrue`: uses a `TaskCompletionSource` to hold the task.
-- `AsyncRelayCommand_ReentrantExecute_Ignored`: a second `Execute` during the run does not start the delegate again
-  (counter stays 1).
+- `AsyncRelayCommand_ReentrantExecute_Ignored`: the call counter stays 1.
 - `AsyncRelayCommand_RaisesCanExecuteChanged_OnStartAndFinish`: the event fires at least twice.
-- `AsyncRelayCommand_Exception_RoutedToOnError_NotThrown`: `await ExecuteAsync()` completes, `onError` receives the
-  exception, and afterwards `IsRunning` is false and `CanExecute` is true.
-- `AsyncRelayCommand_NoOnError_ExceptionSwallowed`: completes without throwing.
-- `ObservableObject_SetProperty_RaisesOnlyOnChange`: setting the same value returns false with no event; a new value
-  returns true with one event whose name is correct.
+- `AsyncRelayCommand_Exception_RoutedToOnError_NotThrown`: `await ExecuteAsync()` completes and `onError` receives the
+  exception. Afterwards `IsRunning` is false and `CanExecute` is true.
+- `AsyncRelayCommand_Cancellation_RoutedToOnError`: an `OperationCanceledException` reaches `onError`.
+- `ObservableObject_SetProperty_RaisesOnlyOnChange`.
+
+**`LeaseCounterTests.cs`**
+
+- `Acquire_SetsHeld_DisposeClears`.
+- `TwoLeases_DisposeOne_StillHeld`: this is the main-plus-guide case.
+- `Dispose_Twice_DecrementsOnce`.
+- `Parallel_AcquireRelease_EndsAtZero`: 8 threads run 10,000 acquire/dispose pairs each, and `Count` ends at 0.
+
+**`HotkeyTextTests.cs`**
+
+- `TakenSummary_AllRegisteredOrNotSet_Empty`.
+- `TakenSummary_MatchesLegacyText`: Reply `Ctrl+Shift+T` Taken gives
+  `"These hotkeys are taken by another app: Reply (Ctrl+Shift+T)"`.
+- `TakenSummary_IncludesInvalid_InListOrder`.
+- `ActionName_CoversEveryHotkeySettingsProperty`: reflects over `HotkeySettings` string properties.
 
 **`PhrasePreviewTests.cs`**
 
-- `Build_UsesMyLanguageThenEnglishThenId`: covers a phrase with only `en`, a phrase with `my` set, and a phrase with
-  neither.
-- `Build_MissingTargetShowsDash`: `Theirs == "—"`.
+- `Build_UsesMyLanguageThenEnglishThenId`.
+- `Build_MissingTargetShowsDash`.
 - `Build_PreservesBookOrder`.
-- `UserFileTemplate_LoadsAsUserPhrase`: write the template to a temp file, call `PhraseBook.LoadWithUserFile`, and
-  find id `my-first-phrase` with `ko` text `만나서 반가워요!`.
+- `UserFileTemplate_LoadsAsUserPhrase`: id `my-first-phrase`, with `ko` text `만나서 반가워요!`.
 
 **`OcrPackInstallTests.cs`**
 
-- `CapabilityName_ChineseUsesCode`: `zh-CN` gives `Language.OCR~~~zh-CN~0.0.1.0`; the same for `zh-TW`.
-- `CapabilityName_OthersUseCatalogOcrTag`: for every catalog language except `zh-*`, the name equals
-  `$"Language.OCR~~~{lang.OcrTag}~0.0.1.0"`. This asserts against the catalog rather than hard-coded tags.
-- `CapabilityName_RejectsUnsafeTag`: a `Language` with `OcrTag = "en'; rm"` throws `ArgumentException`.
-- `PowerShellArguments_MatchesLegacyString`: an exact string equality for `ko` against the pre-change format.
+- `CapabilityName_ChineseUsesCode`: covers `zh-CN` and `zh-TW`.
+- `CapabilityName_OthersUseCatalogOcrTag`: asserted against the catalog, not hard-coded tags.
+- `CapabilityName_RejectsUnsafeTag`: `OcrTag = "en'; rm"` throws `ArgumentException`.
+- `PowerShellArguments_MatchesLegacyString`: exact equality for `ko`.
+- `PowerShellArguments_UnknownCode_Throws`.
 
 **`PlayerListTextTests.cs`**
 
@@ -539,106 +862,188 @@ None. `AppSettings.cs` and the settings JSON are unchanged.
 
 **`TranslationTestTextTests.cs`**
 
-- `Describe_KnownProvider_UsesDisplayName`: provider `google-free` gives the expected
-  `"hello    (Chinese (Simplified) → English, via Google Translate (free))"`. Build the expected value from
-  `LanguageCatalog.NameOf` and `ProviderCatalog.Find(..).Name` so catalog naming is not hard-coded.
+- `Describe_KnownProvider_UsesDisplayName`: builds the expected value from `LanguageCatalog.NameOf` and
+  `ProviderCatalog`.
 - `Describe_UnknownProvider_FallsBackToId`.
 - `Describe_NullDetected_UsesNameOfNull`.
 - `Failure_PrefixesWarning`.
 
-### Typecheck-tool tests (`tools/typecheck/test_gen_stubs.py`, stdlib unittest)
+**`CapturePreviewTextTests.cs`**
 
-Fixtures live in `tools/typecheck/fixtures/`: `SampleControl.xaml` (a UserControl with a named element, an
-`x:FieldModifier="public"` element, and a `Click` inside a `DataTemplate`), `Dup1.xaml`/`Dup2.xaml` with the same
-`x:Class`, and `Weird.xaml` with a `<Canvas x:Class>` root.
+- `Lines_Empty_NoText`.
+- `Lines_JoinsWithNewLine`.
+- `Stats_MatchesLegacyFormat`: `3` and `41.6 ms` give `"3 lines · OCR 42 ms"` under the invariant culture.
 
-- `test_usercontrol_base_class`: the stub contains `: System.Windows.Controls.UserControl`.
-- `test_file_named_by_full_class`.
-- `test_field_modifier_public`.
-- `test_default_field_modifier_internal`.
-- `test_template_names_not_fields`.
-- `test_event_handlers_emitted_including_templates`: `nameof(OnRowClick)` is present.
-- `test_attached_event_name`: `ButtonBase.Click="OnX"` counts.
-- `test_binding_values_not_treated_as_handlers`: `Click="{Binding X}"` is not emitted.
-- `test_duplicate_class_fails`: nonzero exit.
-- `test_unsupported_root_fails`: nonzero exit.
+### Typecheck-tool tests (stdlib `unittest`, run first by `typecheck.sh`)
 
-### Smoke test additions
+Fixtures live in `tools/typecheck/fixtures/`:
 
-- A binding-error listener, with each error logged and failing the run (§5).
-- Per-page load and visibility assertions in every theme (§5).
-- Screenshots of all nine pages.
+- `SampleControl.xaml`: a UserControl with a named element, an `x:FieldModifier="public"` element, and a `Click` inside
+  a `DataTemplate`;
+- `Dup1.xaml` and `Dup2.xaml`, which declare the same `x:Class`;
+- `Weird.xaml`, which has a `<Canvas x:Class>` root;
+- a mini `ui_rules/` tree with one violation per rule.
 
-### Manual checks (Windows, real game optional)
+**`test_gen_stubs.py`**
 
-- AC-UIF-3, AC-UIF-6, AC-UIF-8 and AC-UIF-9 as written above.
-- A keyboard pass: Tab order through each page matches the pre-change build. A UserControl adds no tab stop
-  (`IsTabStop` defaults to false and `Focusable` to false for UserControl).
-- In game (any AoE title, windowed fullscreen): with Envoy reading chat, open the settings window over the game,
-  switch pages, and close it. Capture keeps running and the overlay is unaffected.
+- **MUST** (REQ-UIF-13 and REQ-UIF-15):
+  - `test_usercontrol_base_class`;
+  - `test_unsupported_root_fails`;
+  - `test_auto_generated_header`;
+  - `test_event_handlers_emitted_including_templates`;
+  - `test_attached_event_name`;
+  - `test_binding_values_not_treated_as_handlers`.
+- **SHOULD:**
+  - `test_file_named_by_full_class`;
+  - `test_duplicate_class_fails`;
+  - `test_field_modifier_public`;
+  - `test_default_field_modifier_internal`;
+  - `test_template_names_not_fields`.
+
+**`test_check_ui_rules.py`** (SHOULD)
+
+- One failing fixture per rule R1–R7, each reported with its rule id.
+- The clean tree passes.
+- `DataContext.` inside a `RelativeSource` path does not trip R3.
+
+### Smoke sections (Windows CI)
+
+- `page-ids`, `capture-ocr`.
+- Per palette: `pages({id})`, then `commands`, `preview-lease`, `autoapply` and `close-flush` (first palette only),
+  then the other windows, then the binding-error assertion and `palette {id}`.
+- Teardown: the screenshot count and the total time.
+
+### Manual
+
+M1–M3 and P1–P2 as listed under Acceptance criteria. Also a keyboard pass: the Tab order through each page matches
+the pre-change build. A `UserControl` adds no tab stop, because `Focusable` defaults to false.
 
 ## Files touched
 
 | Path | Change | Shared file? |
 | --- | --- | --- |
-| `src/Envoy.Core/Mvvm/ObservableObject.cs` | new | |
-| `src/Envoy.Core/Mvvm/RelayCommand.cs` | new: `RelayCommand`, `RelayCommand<T>` | |
-| `src/Envoy.Core/Mvvm/AsyncRelayCommand.cs` | new | |
-| `src/Envoy.Core/Phrases/PhrasePreview.cs` | new: rows, template, instructions | |
+| `src/Envoy.Core/Mvvm/{ObservableObject,RelayCommand,AsyncRelayCommand}.cs` | new | |
+| `src/Envoy.Core/Phrases/PhrasePreview.cs`, `PhrasebookText.cs` | new | |
 | `src/Envoy.Core/Languages/OcrPackInstall.cs` | new | |
 | `src/Envoy.Core/Chat/PlayerListText.cs` | new | |
 | `src/Envoy.Core/Translation/TranslationTestText.cs` | new | |
-| `tests/Envoy.Core.Tests/MvvmTests.cs`, `PhrasePreviewTests.cs`, `OcrPackInstallTests.cs`, `PlayerListTextTests.cs`, `TranslationTestTextTests.cs` | new | |
-| `src/Envoy.App/IShell.cs` | new | |
-| `src/Envoy.App/Controls/AutoApply.cs` | new: attached `Ignore` | |
+| `src/Envoy.Core/Ocr/CapturePreviewText.cs` | new | |
+| `src/Envoy.Core/Hotkeys/{HotkeyStatus,HotkeyRegistrationResult,HotkeyText}.cs` | new (contract §2.3) | |
+| `src/Envoy.Core/Threading/LeaseCounter.cs` | new | |
+| `src/Envoy.Core/Text/TextTemplate.cs` | new (contract §8.7; every later `*Text` class uses it) | |
+| `tests/Envoy.Core.Tests/{Mvvm,TextTemplate,LeaseCounter,HotkeyText,PhrasePreview,OcrPackInstall,PlayerListText,TranslationTestText,CapturePreviewText}Tests.cs` | new | |
+| `src/Envoy.App/IShell.cs` | new: the 01 block only | **yes** (02, 06, 07a add blocks) |
+| `src/Envoy.App/Services/DialogService.cs` | new: `ShowInfo`, `ShowWarning` | **yes** (02 adds `Confirm`) |
+| `src/Envoy.App/Controls/AutoApply.cs` | new | |
 | `src/Envoy.App/Services/SettingsAutoApplier.cs` | new | |
-| `src/Envoy.App/Pages/{WarRoom,Translation,ReadingChat,Overlay,Replying,Phrasebook,Hotkeys,Appearance,About}Page.xaml(.cs)` | new: XAML cut from `MainWindow.xaml` with handlers swapped for commands | |
+| `src/Envoy.App/Services/ChatWatcher.cs` | `PublishFrames` → `BeginPreview()`/`IsPreviewing` (3 lines plus the lease field) | **yes** (05 rewrites) |
+| `src/Envoy.App/Services/ThemeManager.cs` | adds `PaletteIds` | **yes** (07b) |
+| `src/Envoy.App/AppHost.cs` | adds `HotkeyResults` and `HotkeyResultsChanged` only | **yes** |
+| `src/Envoy.App/App.xaml.cs` | `: IShell`; instance `OpenUrl`; `InstallOcrPack`; `ShowInfo`; `RegisterHotkeys` → `HotkeyResults`; `HotkeyErrors` removed; the unhandled-exception box goes through `DialogService` | **yes** |
+| `src/Envoy.App/Windows/ComposeWindow.xaml.cs` | the send-failure `MessageBox.Show` → `DialogService.ShowInfo` (same text) | **yes** (02, 07c) |
+| `src/Envoy.App/Pages/{WarRoom,Translation,ReadingChat,Overlay,Replying,Phrasebook,Hotkeys,Appearance,About}Page.xaml(.cs)` | new: XAML cut from `MainWindow.xaml`, with handlers swapped for commands | **yes** (every later UI area) |
 | `src/Envoy.App/Pages/PageIds.cs` | new | |
-| `src/Envoy.App/ViewModels/MainViewModel.cs` | adds ctor params, `ObservableObject` base, commands, test/phrase state, `CapturePreview`, `Dispose`; split into partials | |
-| `src/Envoy.App/ViewModels/MainViewModel.{Translation,ReadingChat,Phrasebook,Actions}.cs` | new partials (SHOULD) | |
-| `src/Envoy.App/ViewModels/{Option,OcrLanguageItem,ThemeOption,CapturePreviewViewModel}.cs` | moved / new | |
-| `src/Envoy.App/Windows/MainWindow.xaml` | about 794 → about 90 lines: chrome + nav + 9 page hosts, `xmlns:p="clr-namespace:Envoy.App.Pages"`, `c:AutoApply.Ignore` on `Nav` | **yes (MainWindow\*)** |
-| `src/Envoy.App/Windows/MainWindow.xaml.cs` | about 231 → about 80 lines. Removes all page handlers, `PhraseRow`, `FillPhrases`, `SetPreview`/`OnFrame`. Adds `SettingsAutoApplier`, `PageFor(string)`, `PageNames => PageIds.All`. Keeps `MainWindow(AppHost)` signature, `Navigate`, chrome handlers | **yes (MainWindow\*)** |
-| `src/Envoy.App/App.xaml.cs` | `public partial class App : Application, IShell`; adds `public void ShowInfo(string message)` and explicit `void IShell.OpenUrl(string url) => OpenUrl(url);`. `HotkeyErrors`, `SelectRegion`, `ToggleOverlayEditMode`, `OpenCompose`, `ScanAndTranslate` and `ExitApp` already exist with matching signatures. No behaviour change | **yes** |
-| `src/Envoy.App/SmokeTest.cs` | binding-error listener around the `MainWindow` block; per-page load and visibility assertions via `PageFor`; screenshot list becomes `PageIds.All`; `using Envoy.App.Pages;` | **yes** |
-| `src/Envoy.App/AppHost.cs` | **no change** | yes (untouched) |
-| `src/Envoy.Core/Settings/AppSettings.cs` | **no change** | yes (untouched) |
-| `tools/typecheck/gen_stubs.py` | base class, full-name files, duplicate detection, `x:FieldModifier`, event-handler `nameof` checks | |
-| `tools/typecheck/test_gen_stubs.py`, `tools/typecheck/fixtures/*.xaml` | new | |
-| `tools/typecheck/typecheck.sh` | runs the unittest discovery before generation | |
-| `docs/architecture.md`, `CLAUDE.md`, `CHANGELOG.md` | describe `Pages/`, `Mvvm/` and commands; the settings rule now points at Pages | |
+| `src/Envoy.App/ViewModels/MainViewModel.cs` + `.{Translation,ReadingChat,Phrasebook,Actions}.cs` | constructor, `ObservableObject` base, commands, state, `ReportCommandError`, `Dispose`; split into partials | **yes** |
+| `src/Envoy.App/ViewModels/{Option,OcrLanguageItem,ThemeOption,CapturePreviewViewModel}.cs` | moved or new | **yes** (04, 05 extend `CapturePreviewViewModel`) |
+| `src/Envoy.App/Windows/MainWindow.xaml` | about 794 → about 90 lines: chrome, nav, 9 page hosts, `xmlns:p`, `c:AutoApply.Ignore` on `Nav` | **yes** |
+| `src/Envoy.App/Windows/MainWindow.xaml.cs` | about 231 → about 80 lines; adds `(AppHost, IShell)` constructor, `PageFor`, `PageNames => PageIds.All`, `SettingsAutoApplier` | **yes** |
+| `src/Envoy.App/SmokeTest.cs` | three-phase shape, sections and timing, `PaletteIds` × `PageIds.All`, binding listener, 01 checks, compose warm-up and poll, temp-root cleanup | **yes** (every area) |
+| `src/Envoy.Core/Settings/AppSettings.cs`, `src/Envoy.App/Interop/Native.cs` | **no change** | yes (untouched) |
+| `tools/typecheck/gen_stubs.py` | base class, header, event-handler `nameof`, full-name files, duplicate detection, `x:FieldModifier` | |
+| `tools/typecheck/check_ui_rules.py`, `test_gen_stubs.py`, `test_check_ui_rules.py`, `fixtures/**` | new | |
+| `tools/typecheck/typecheck.sh` | unittest discovery first; runs `check_ui_rules.py` | **yes** (07b adds `check_a11y.py`) |
+| `.github/workflows/build.yml` | smoke `WaitForExit(180000)` → `WaitForExit(600000)` only | **yes** (06, 08b) |
+| `CLAUDE.md`, `docs/architecture.md`, `CHANGELOG.md` | see Design §7 | **yes** |
 
-Estimated size is about 1,300 changed lines. Most of it is XAML moved verbatim; new C# and Python come to about 600
-lines, plus about 350 lines of tests.
+The estimated size is about 1,500 changed lines. Most of it is XAML moved verbatim. New C# and Python come to about
+750 lines, plus about 450 lines of tests.
 
 ## Risks & open questions
 
 - **Binding breakage across the UserControl boundary.** `ElementName` bindings to `Nav*` must stay in `MainWindow`.
-  Any `ElementName` *inside* a page may only target elements in that same page. Mitigation: REQ-UIF-19 makes CI fail
-  on binding errors. Unknown: there may already be binding errors today, for example on `PrimaryInfo.Name` or
-  provider sections. Mitigation: in that case the implementer fixes them if they are trivial and behaviour-neutral, or
-  adds a documented, exact-message allowlist in `SmokeTest.cs` and records it in the PR. A blanket suppression is not
-  allowed.
-- **Data-binding tracing in release builds.** The `DataBindingSource` switch must be set explicitly, because without
-  a debugger WPF does not trace by default. If `Refresh()` plus the switch level still produce no output on the
-  single-file published exe, fall back to also listening with `SourceLevels.Warning`. Confirm on the first CI run by
-  temporarily introducing a bad binding on one page and checking that the smoke test fails.
-- **Pixel parity.** Moving the subtree into a `UserControl` adds one element to the visual tree, and that should not
-  change layout or rendering. Font hinting and layout rounding are inherited, so the risk is low. The CI-runner capture
-  preview content is non-deterministic and is excluded from the comparison. If screenshots differ by sub-pixel
-  anti-aliasing only, that is accepted, and the PR notes it.
-- **Auto-apply via `Inherits`.** Inheritance of `AutoApply.Ignore` flows through the logical tree. Controls inside
-  `ComboBox` popups or `DataTemplate`s still inherit, and that matches the identity check, which only compared the
-  outer control. Risk: a settings control accidentally placed under an ignored container stops auto-applying.
-  AC-UIF-3 covers the cases we know of.
-- **The `App.Current` cast in `MainWindow`.** In the smoke test `App.Current` is the real `App`, so the cast is safe.
-  A future headless test harness would need another `IShell`; that is out of scope here.
+  An `ElementName` inside a page may only target elements in that same page. REQ-UIF-19 makes CI fail on any
+  breakage.
+- **Existing binding errors.** Some may already exist, now that overlay, compose, lookup and the region selector are
+  also covered (contract §6). The implementer fixes them if the fix is trivial and behaviour-neutral. Otherwise they
+  go on the exact-message allowlist in `SmokeTest.cs`, and the PR records them. A blanket suppression is not allowed.
+- **Data-binding tracing in release builds.** The `DataBindingSource` switch must be set explicitly. If the published
+  single-file exe still traces nothing, the fallback is to also listen at `SourceLevels.Warning`. P2 confirms this on
+  the first run.
+- **Smoke time.** This step adds 5 screenshots per palette and four first-palette checks (about 3 s), and removes the
+  fixed 2.5 s compose sleep from every palette. The net change is expected to be neutral or faster. The 600 s timeout
+  and the 420 s/30 s warnings leave room for later areas.
+- **Smoke host and the real data folder.** Until 02, `AppHost.DataFolder` is static, so the smoke host still reads
+  `%APPDATA%\Envoy\phrases.json` and can write transcripts there, as it does today. This step deletes only its own
+  temp root. 02 fixes this by giving every smoke host a temp `DataFolder` (contract §3).
+- **Interim modal boxes.** The compose send-failure box and the unhandled-exception box remain modal, routed through
+  `DialogService`, until 02 replaces them with a toast and the global handler (contract §2.2).
+- **`HotkeyStatus.SkippedSafeMode`.** Contract §2.3 shows it in the final enum, but nothing in 01 can produce it. Under
+  the §1 arrival rule ("no placeholder members"), 02 appends it when it adds safe mode (contract §4, step 10). The
+  integrator should confirm this reading; including it in 01 instead costs one line.
+- **Interim wording.** `TranslationTestText.Failure` still shows the raw exception message, and `HotkeyText` still
+  says "taken" for an invalid combo. Both are today's text, and this area changes no wording. 03 (error kinds) and
+  07a (cheat sheet and hints) own the new text under the §8.7 voice rule.
+- **Pixel parity.** Moving the subtree into a `UserControl` adds one element to the visual tree. That should not change
+  layout or rendering, because font hinting and layout rounding are inherited. The capture-preview content on the CI
+  runner is non-deterministic and is excluded from the comparison. Sub-pixel anti-aliasing differences are accepted
+  and noted in the PR.
+- **Auto-apply via `Inherits`.** `AutoApply.Ignore` is inherited through the logical tree. A settings control placed
+  by mistake under an ignored container stops auto-applying. The smoke `autoapply` check covers one positive and one
+  negative case; M2 covers the rest.
+- **The `App.Current` cast in `MainWindow(AppHost)`.** In the smoke test, `App.Current` is the real `App`. The
+  `(AppHost, IShell)` constructor exists so that a future headless harness can pass another shell.
 - **Event-name heuristic in `gen_stubs.py`.** A handler on an event outside `EVENT_NAMES` is not checked. That is a
-  false negative only: the Windows build still catches it. The list can grow as needed.
-- **Open question:** should `AsyncRelayCommand` expose cancellation (`CancellationToken`) for later areas, for example
-  translation-resilience timeouts? It is left out to stay minimal and can be added without breaking callers.
-- **Open question:** should a palette-only colour lint for `Pages/*.xaml` live in `check_resources.py`?
-  `AppearancePage` would inherit the literal swatch stroke `#40000000`, and Overlay/Region windows have similar
-  literals. That is deferred to quality-security-ci so this area stays behaviour- and palette-neutral.
-- **Merge order.** Every other area edits page XAML or `MainViewModel`. This area must merge first, and the others
-  should rebase onto it and edit `Pages/<Page>.xaml` plus the matching `MainViewModel.<Page>.cs` partial.
+  false negative only, because the Windows build still catches it. The list can grow as needed.
+- **Open question.** Should `AsyncRelayCommand` expose cancellation (`CancellationToken`)? It is left out to stay
+  minimal. It can be added later without breaking callers.
+- **Deferred.** The palette-only colour lint for `Pages/*.xaml` (for example the `#40000000` swatch stroke on
+  Appearance) belongs to 07b's `check_a11y.py` rule 4.
+
+## Revision notes
+
+Changes from the pre-review draft, made to comply with `00-integration.md` and the set critique:
+
+- **MUST budget (contract §9).** The spec now has 15 MUSTs: UIF-1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 13, 15, 18, 19 and 21.
+  - REQ-UIF-6 is folded into 5, and 12 into 8.
+  - REQ-UIF-14 is now SHOULD.
+  - REQ-UIF-24 moves to the Definition of done (Design §7).
+  - REQ-UIF-21 (the preview lease) is promoted to MUST.
+  - REQ-UIF-20, 22 and 23 are folded into REQ-UIF-18, 1 and 3, because contract §1 and §6 make every-page
+    screenshots, the partial files and `PageIds` deliverables that later steps rely on. The MUST count is unchanged.
+- **Major issue: `ShowInfo` used `MessageBox` in `App.xaml.cs`.** `Services/DialogService.cs` now owns every modal box.
+  All three existing `MessageBox.Show` sites route through it with unchanged text, and `check_ui_rules.py` R5
+  enforces this. `IShell.ShowInfo` now takes `(title, message)`, as in contract §3.
+- **Major issue: `AsyncRelayCommand` swallowed errors.** `onError` is now required and `MainViewModel.ReportCommandError`
+  is the single sink, which 02 rewires to the log and a toast (contract §8.8). The `NoOnError_Swallowed` test is
+  replaced by `NullOnError_Throws`.
+- **Minor issue: the single `PublishFrames` flag.** It is replaced by `ChatWatcher.BeginPreview()`, backed by a Core
+  `LeaseCounter` with unit tests. The smoke `preview-lease` section covers the two-instance case (contract §2.8).
+- **Minor issue: ACs hard-coded "5 themes" and "45 PNGs".** The ACs now name `ThemeManager.PaletteIds`, and the
+  expected count is `PaletteIds.Count × PageIds.All.Count`, asserted by the smoke test itself (contract §6). 01 adds
+  `PaletteIds` so the loop already has its final form; 07b appends high contrast.
+- **Contract §1, §2.3 and §3 (`IShell`).** `IShell` is exactly the 01 block. `HotkeyErrors` is removed and
+  `InstallOcrPack` and `OpenUrl(urlOrDataPath)` are added. The elevated PowerShell launch moves out of the view model
+  into `App.InstallOcrPack`, ready for 08a's `ShellLauncher.InstallOcrPack`. `OcrPackInstall.PowerShellArguments` now
+  takes the language code, matching contract §5.
+- **Contract §2.3 (hotkey results).** New Core `HotkeyStatus`, `HotkeyRegistrationResult` and `HotkeyText`.
+  `AppHost.HotkeyResults` and `HotkeyResultsChanged` are written only by `App.RegisterHotkeys`. `App.HotkeyErrors` is
+  deleted. `SkippedSafeMode` is left to 02 under the arrival rule, and this is flagged under Risks.
+- **Contract §6 (smoke).** The smoke test now has the three-phase structure with `[smoke] <section> ok elapsed_ms`
+  lines. The binding listener now spans every window of a palette, not just `MainWindow`. The provider wait runs once
+  in setup, and compose polls instead of sleeping 2.5 s per palette. The test logs budget warnings and deletes its
+  temp root, and `build.yml` uses `WaitForExit(600000)`. The non-goal "no CI workflow changes" is narrowed to allow
+  this one line.
+- **Contract §8.7 (strings).** The moved user-facing text now lives in Core `*Text` classes: `PhrasebookText`,
+  `CapturePreviewText`, `HotkeyText`, and `TranslationTestText` as format constants. The wording is unchanged.
+- **Contract §7 and §8.8 (`CLAUDE.md` rules).** This area adds the Pages binding rule and the `AutomationProperties.Name`
+  rule, plus the §8.7 string rule and the smoke-placement rule.
+- **Verifiable MUSTs (contract §9).** Several ACs used to be greps or manual-only checks. They are now mechanical:
+  - `check_ui_rules.py`, run by `typecheck.sh`, enforces the Pages, ViewModel and DialogService rules;
+  - the smoke sections `autoapply`, `close-flush`, `commands`, `preview-lease` and `page-ids` cover the rest.
+
+  The remaining manual checks are numbered: M1–M3 for 08b's release pass, and P1–P2 as one-off checks on this PR.
+- **08a analyzers.** Stubs now carry `// <auto-generated/>`, so 08a's analyzers don't flag `__XamlEventHandlers`.
+- **Allowlists (contract §5).** This area adds no P/Invoke, no network code and no new launch sites. That is now
+  stated explicitly in Design §6.
+- **Non-goals.** They now record the narrow `AppHost`, `ChatWatcher`, `ThemeManager` and `build.yml` edits that the
+  contract assigns to this step. The merge-order risk is replaced by contract §1.
