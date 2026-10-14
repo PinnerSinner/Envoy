@@ -15,7 +15,7 @@
     <RootNamespace>Envoy.App</RootNamespace>
     <NoWarn>CA1416;WFAC010</NoWarn>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <!-- stubs/*.cs are picked up by the default glob. -->
+    <!-- stubs/*.cs are picked up by the default glob; fixtures/ belong to the Python tests. -->
     <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)obj/</BaseIntermediateOutputPath>
   </PropertyGroup>
   <ItemGroup>
@@ -23,6 +23,7 @@
     <Using Remove="System.IO" />
     <Using Remove="System.Net.Http" />
     <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+    <Compile Remove="fixtures/**" />
     <Compile Include="../../src/Envoy.App/**/*.cs" Exclude="../../src/Envoy.App/obj/**;../../src/Envoy.App/bin/**" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <ProjectReference Include="../../src/Envoy.Core/Envoy.Core.csproj" />

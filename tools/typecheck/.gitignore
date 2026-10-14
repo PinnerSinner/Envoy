@@ -1,3 +1,4 @@
-stubs/
-obj/
-bin/
+/stubs/
+/obj/
+/bin/
+__pycache__/

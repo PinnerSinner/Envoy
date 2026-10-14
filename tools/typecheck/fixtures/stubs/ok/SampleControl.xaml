@@ -1,0 +1,26 @@
+<UserControl x:Class="Fixtures.Ui.SampleControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:Fixtures.Controls"
+             Loaded="OnLoaded">
+    <StackPanel x:Name="Root" ButtonBase.Click="OnAnyButton">
+        <Button x:Name="PublicButton" x:FieldModifier="public" Content="Go" Click="OnGo" />
+        <Button x:Name="PrivateButton" x:FieldModifier="Private" Command="{Binding GoCommand}" />
+        <c:Gauge x:Name="Meter" />
+        <TextBlock Text="{Binding Name}" ToolTip="OnNotAnEvent" />
+        <Button Click="{Binding NotAHandler}" Content="bound" />
+        <CheckBox Checked="OnGo" Content="same handler twice" />
+        <ItemsControl ItemsSource="{Binding Items}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Button x:Name="InTemplate" Content="{Binding}" Click="OnTemplateClick" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <StackPanel.Resources>
+            <Style TargetType="Button">
+                <EventSetter Event="MouseEnter" Handler="OnHover" />
+            </Style>
+        </StackPanel.Resources>
+    </StackPanel>
+</UserControl>
