@@ -1,6 +1,6 @@
 # Reliability & Observability
 
-Status: Proposed (revised against `00-integration.md`)
+Status: Implemented (revised against `00-integration.md`; see Deviations)
 
 Area: `02-reliability-observability`. Step 3 of 11. **Depends on:** `01-ui-foundation` (pages, `IShell`,
 `DialogService`, `HotkeyResults`, `Envoy.Core.Mvvm`, smoke loop over `PageIds.All`) and `08a-quality-gates`
@@ -1153,3 +1153,49 @@ Changes from the pre-review draft, and why:
 - **Scope trimmed to 20 MUSTs (was 30).** Folded: 10 and 25 into 23, 14 into 11, 41 into 40, 20 into 18. Demoted to
   SHOULD: 8, 15, 17, 21, 24, 30, 31 (and 38, already SHOULD). REQ-REL-42 stays COULD with `autoThreshold` 0 by default.
   Removed: 26. Added: 44 (MUST, assigned by the contract). The migrator ships with no steps, as contract §7 requires.
+
+---
+
+## Deviations
+
+Every MUST (REQ-REL-1, 2, 3, 4, 5, 11, 12, 13, 16, 18, 19, 23, 27, 29, 33, 34, 39, 40, 43, 44) is built. Every SHOULD
+is built, and both COULDs (REQ-REL-28 recent problems and last crash with **Dismiss**; REQ-REL-42 automatic safe mode
+after two unfinished starts, `SafeModeDecision.AutoThreshold = 2`). Differences from the text above:
+
+1. **Small signature changes.** `IShell.CopyText` returns `bool`, so "Copied." shows only when the clipboard took the
+   text. `SettingsStore.ResetToDefaults()` returns `string?` (null when there was no settings file).
+   `ToastWindow.Place(Rect, double offsetFromBottom)` replaces `Place(Rect, int stackIndex)`, because toasts differ in
+   height. `RollingFileSink` takes an optional `TimeProvider` (the 30 s retry is unit-tested), and
+   `DiagnosticsReport.Render` takes an optional `LogRedactor`: the report is redacted with the registered secrets
+   piece by piece before the 60,000-character cap is applied, so redaction can't push it over the cap.
+2. **`Forget` messages.** A fault logs `"{what} failed"` (a cancellation `"{what} cancelled"`) instead of one fixed
+   message with a field, so repeat collapsing (keyed on the message) never merges two different tasks.
+3. **Temp files.** `CrashMarker.Write` uses `last-crash.json.tmp`, which joins `DataInventory` and `docs/privacy.md`.
+   The `.bak` refresh reuses `settings.json.tmp` as its scratch file (settings I/O is UI-thread only), so no new name
+   is needed for it.
+4. **Settings load failures** also count `FormatException` and `ArgumentException` (both seen from malformed JSON
+   values) as a damaged file. `MigrationFailed` loads the unmigrated file best-effort and does not refresh `.bak`.
+5. **Safe mode** also skips today's automatic update check, as contract §4 step 9 says for 06's checks.
+6. **Clean session end on sign-out.** `App` handles `SessionEnding` (save unless suppressed, `StartupSentinel.EndSession`,
+   flush), so Windows shutting down is not reported as "closed unexpectedly" at the next start.
+7. **Crash-loop box location.** `DialogService.ShowWarning` for the crash loop is called from
+   `Services/GlobalExceptionHandlers.cs`, which applies the policy's outcome; `App.xaml.cs` has none. R10's "at most
+   once in `App.xaml.cs`" holds. Its text is Core `CrashLoopText`.
+8. **REQ-REL-16 outside the listed files.** `_ = …Async(` discards also lived in `Services/SpeechService.cs` and
+   `Services/ChatWatcher.cs`. Both now use `.Forget(...)` with an `ILog` from AppHost; `ChatWatcher` keeps setting
+   `LastError` on a pipeline fault. This is the minimal change R9 needs; 05's rewrite replaces the watcher line with
+   `ProcessAsync(lines, CancellationToken.None).Forget(log, "pipeline")` (contract §2.7).
+9. **Smoke test.** The file sink is added right after the main host is built, immediately before the header, so the
+   header is reliably `envoy.log`'s first line (host-constructor entries still reach the memory ring). The `toast`
+   section asserts that showing a toast leaves the foreground window unchanged and is not the toast, and logs a
+   `[smoke] WARNING` if `MainWindow` was not in front to begin with (a CI desktop may refuse foreground). It also saves
+   `{palette}-safe-mode.png` with `--screenshots`. The temp root's deletion is checked in teardown.
+10. **Export** lists `envoy*.log` from `AppHost.LogsFolder` by name (`RollingFileSink.IsLogFileName`) instead of the
+    file sink's `ExistingFiles()`, because the hub, not the host, owns the sink.
+11. **About page order.** Troubleshooting sits after the disclaimer and before "How it stays safe", the data-folder
+    note and the licences. Version is at the top; 07a adds the Setup guide above Troubleshooting.
+12. **Additions.** `HotkeyText.StatusLine` (the Hotkeys page shows `SafeModeText.HotkeysOff` in safe mode),
+    `ShellLauncher` also logs failed starts, `MainWindow.FlushPendingEdits` for `ExitApp` step 2, and `MainWindow.OnClosed`
+    skips applying and saving once saving is suppressed (so a pending edit can't re-add the Run value after Delete all).
+13. **Manual steps** M1–M9 are in `docs/releasing.md` as M-REL-1…9 for 08b's ordered pass.
+

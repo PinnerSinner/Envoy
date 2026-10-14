@@ -16,7 +16,8 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - The real WPF build + `Envoy.exe --smoke-test` only run on Windows CI (`.github/workflows/build.yml`).
 
 ## Layout
-- `src/Envoy.Core` — all logic: chat parsing, OCR merging, pipeline, providers, settings. Put new logic here with tests.
+- `src/Envoy.Core` — all logic: chat parsing, OCR merging, pipeline, providers, settings, diagnostics (logging,
+  safe mode, data inventory) and notifications. Put new logic here with tests.
 - `src/Envoy.App` — WPF shell: `AppHost` (composition root), `IShell` (app actions for view models),
   `Security/ShellLauncher.cs` (the only process launcher), `Services/`
   (capture, OCR, hotkeys, SendInput, `DialogService`), `Windows/`, `Pages/` (one `UserControl` per settings page,
@@ -50,4 +51,14 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - .NET CLI tools are pinned in `.config/dotnet-tools.json` and run after `dotnet tool restore`, never
   `dotnet tool install -g`.
 - New credential settings are `string` properties marked `[Secret]` on a settings class reachable from `AppSettings`
-  (not inside a collection); `SettingsSecretTests` enforces it.
+  (not inside a collection); `SettingsSecretTests` enforces it. A new setting holding player names or chat text is
+  marked `[Personal]`, one holding screen positions `[Location]` (`SettingsRedactionTests` checks every marker).
+- Log through `ILog` (`AppHost.Log.For("Category")`), never `Debug`/`Trace`/`Console`. Chat text and player names go
+  only through `LogField.Sensitive(...)`. Every `catch` in `AppHost.cs` logs. Fire-and-forget is
+  `task.Forget(log, "what")`, never `_ = SomethingAsync()` (typecheck R9).
+- Errors never open a modal box: report them with `AppHost.ReportProblem(ProblemText.…)` (a non-activating toast).
+  `DialogService` is only for confirmations the user starts in `MainWindow`.
+- All Envoy files live under the instance `AppHost.DataFolder`; only `SettingsStore.DefaultPath` names `%APPDATA%`
+  (typecheck R8). A new data file joins `DataInventory.Items` and `docs/privacy.md` in the same change.
+- Anything written during `Host.Dispose` or exit checks `Host.SaveSuppressed` first, so a reset or "Delete all Envoy
+  data" is never undone. Start-up and exit code goes in its slot of `App.OnStartup`/`ExitApp` (contract §4).

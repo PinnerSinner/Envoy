@@ -14,7 +14,8 @@
   <a href="docs/getting-started.md">Getting started</a> ·
   <a href="docs/translation-providers.md">Providers &amp; cost</a> ·
   <a href="docs/troubleshooting.md">Troubleshooting</a> ·
-  <a href="docs/faq.md">FAQ</a>
+  <a href="docs/faq.md">FAQ</a> ·
+  <a href="docs/privacy.md">Privacy</a>
 </p>
 
 ---

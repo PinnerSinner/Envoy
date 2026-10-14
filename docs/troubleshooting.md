@@ -1,7 +1,37 @@
 # Troubleshooting
 
-Envoy writes unexpected errors to `%APPDATA%\Envoy\error.log`. Attach it when you
-[report a bug](../../../issues/new/choose).
+## Reporting a bug
+
+Open **About › Troubleshooting** and click **Copy diagnostics**, then paste it into your
+[bug report](../../../issues/new/choose). The report lists Envoy, Windows and monitor details, the detected game, OCR
+languages, which providers have a key set, hotkeys that failed and the last 50 log lines. It never contains your API
+keys, chat, player names or where the chat area is on screen; see [Privacy](privacy.md). **Export diagnostics…**
+saves the same report with the full diagnostic log as a `.zip` you can attach instead.
+
+When something goes wrong, Envoy shows a small pop-up in the bottom-right corner instead of a dialog, so the game
+keeps focus. **Details** opens Troubleshooting. Turn the pop-ups off with **Show a pop-up when something goes wrong**;
+problems are still written to the log (**Open log folder**). **Detailed logging** adds more entries if a developer
+asks for them.
+
+## Safe mode
+
+If Envoy misbehaves at start-up, start it in safe mode: hold **Shift** while you start Envoy (keep holding until the
+window appears), run `Envoy.exe --safe-mode`, or click **Restart in safe mode** under About › Troubleshooting. Envoy
+also starts in safe mode by itself after two starts in a row that never finished.
+
+In safe mode the overlay, the hotkeys and automatic chat reading are off; you can still change and save every setting
+and start reading chat by hand. A banner at the top of the window says why, and **Restart normally** leaves safe mode.
+
+## "Your settings file was damaged"
+
+Envoy keeps a copy of the last settings that loaded correctly (`settings.json.bak`). If `settings.json` is damaged
+(for example by a power cut while saving), Envoy loads that copy, keeps the damaged file as `settings.json.broken`
+and tells you with a pop-up. Only if both are unusable does it start with default settings.
+
+## "Envoy closed unexpectedly last time"
+
+Envoy noticed that the previous session didn't end normally (a crash, or Envoy was ended from Task Manager). If it
+happens again, copy diagnostics into a bug report; the report includes the last crash.
 
 ## Nothing is being translated
 
@@ -59,4 +89,7 @@ Envoy skips OCR entirely when the chat area hasn't changed since the last check,
 
 ## Resetting everything
 
-Quit Envoy and delete `%APPDATA%\Envoy\settings.json`. API keys are stored there too, so you'll need to re-enter them.
+- **Reset settings…** (About › Troubleshooting) restarts Envoy with default settings. Your API keys are removed too;
+  a copy of the old settings is kept as `settings.json.reset-<date>.bak`.
+- **Delete all Envoy data…** deletes every file Envoy stores (settings, keys, phrases, logs, transcripts; the list is
+  in [Privacy](privacy.md)), removes the "Start with Windows" entry and restarts Envoy as if newly installed.

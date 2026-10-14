@@ -44,7 +44,9 @@ the screen, the keyboard and the user.
 | `Mvvm/` | `ObservableObject`, `RelayCommand`, `RelayCommand<T>`, `AsyncRelayCommand` (required `onError`; never rethrows) |
 | `Text/` | `TextTemplate.Format`, the one formatter for the `*Text` classes (named placeholders such as `{count}`) |
 | `Threading/` | `LeaseCounter` (backs the watcher's preview leases) |
-| `Settings/` | `AppSettings` (the whole settings model) and `SettingsStore` (JSON, `[Secret]` properties encrypted via `ISecretProtector`) |
+| `Settings/` | `AppSettings` (the whole settings model; `[Secret]`, `[Personal]` and `[Location]` markers) and `SettingsStore` (JSON, `[Secret]` properties encrypted via `ISecretProtector`; atomic flushed saves, last-known-good `.bak`, `.broken` recovery, `LoadWithReport`, `SuppressSaves`, `ResetToDefaults`), `SettingsMigrator` (no steps yet), `SettingsSanitizer`, `SettingsRedaction` (masks marked values for diagnostics) |
+| `Diagnostics/` | `LogHub`/`ILog` with `RollingFileSink` (`logs/envoy.log`, 5 × 1 MiB) and `MemoryLogSink` (500-entry ring); `LogRedactor`, the one redactor; `Task.Forget`; `UnhandledErrorPolicy` (the global handlers' bodies), `CrashLoopGuard`, `CrashMarker`; `SafeModeDecision`, `StartupSentinel`, `StartupPlan`; `DiagnosticsReport`/`DiagnosticsBundle`; `DataInventory`; `ProblemText`, `SafeModeText`, `DiagnosticsText`, `DataText` |
+| `Notifications/` | `NotificationThrottle` (the single throttle every notification surface asks), `ProblemReport` |
 | `Updates/` | `UpdateChecker` (GitHub Releases; only this repository's `https://github.com/…/releases/…` URLs are accepted) |
 | `Security/` | `OutgoingText` (sanitises everything Envoy types or pastes), `SendTargetGuard` + `SecurityText` (which window a reply may be typed into), `LaunchTarget` (validation behind `ShellLauncher`), `ReleaseUrlPolicy`, `PhraseLimits` |
 
@@ -66,14 +68,14 @@ Everything here is covered by `tests/Envoy.Core.Tests` and runs on any OS.
 
 | Folder / file | What's there |
 | --- | --- |
-| `AppHost.cs` | Composition root: owns settings, services and history; marshals events to the UI thread; applies settings live; holds `HotkeyResults` (written only by `App.RegisterHotkeys`) |
-| `App.xaml.cs` | Start-up, single instance, tray icon, hotkey bindings, window management; implements `IShell` |
+| `AppHost.cs` | Composition root, built from `AppHostOptions`: owns settings, services and history; the instance data paths (`DataFolder`, `LogsFolder`, `UserPhrasesPath`, `CrashMarkerPath`); the log hub, the notification throttle and `ReportProblem`; marshals events to the UI thread; applies settings live; holds `HotkeyResults` (written only by `App.RegisterHotkeys`) |
+| `App.xaml.cs` | Start-up and exit in the contract §4 order (see below), single instance, tray icon, hotkey bindings, window management; implements `IShell` |
 | `IShell.cs` | The app-level actions view models may trigger (select region, open compose, open a URL, install an OCR pack, show an info box…). Each area adds its own block |
 | `Security/` | `ShellLauncher`: the only code that starts processes (`TryOpen`, `InstallOcrPack`, `RestartSelf`, `RevealFile`), each validated by Core `LaunchTarget` |
-| `Services/` | `ScreenCapturer` (GDI), `OcrService` (Windows.Media.Ocr), `ChatWatcher` (the loop), `HotkeyService` (RegisterHotKey), `KeyboardSender` (SendInput, guarded by `SendTargetGuard`), `GameDetector`, `ThemeManager`, `DpapiProtector`, `StartupRegistration`, `DialogService` (the only place that shows a `MessageBox`), `SettingsAutoApplier` (the 400 ms debounce) |
-| `Windows/` | `MainWindow` (title bar, sidebar and page hosts), `OverlayWindow`, `ComposeWindow`, `LookupWindow`, `RegionSelectorWindow` |
+| `Services/` | `ScreenCapturer` (GDI), `OcrService` (Windows.Media.Ocr), `ChatWatcher` (the loop), `HotkeyService` (RegisterHotKey), `KeyboardSender` (SendInput, guarded by `SendTargetGuard`), `GameDetector`, `ThemeManager`, `DpapiProtector`, `StartupRegistration`, `DialogService` (the only place that shows a `MessageBox`), `SettingsAutoApplier` (the 400 ms debounce), `LogBootstrap`, `GlobalExceptionHandlers` (wires the four exception events to `UnhandledErrorPolicy`), `ToastService` (problem toasts), `DiagnosticsCollector` |
+| `Windows/` | `MainWindow` (title bar, safe-mode banner, sidebar and page hosts), `OverlayWindow`, `ComposeWindow`, `LookupWindow`, `RegionSelectorWindow`, `ToastWindow` (non-activating problem toast) |
 | `Pages/` | One `UserControl` per settings page (`WarRoomPage`, `TranslationPage`, `ReadingChatPage`, `OverlayPage`, `ReplyingPage`, `PhrasebookPage`, `HotkeysPage`, `AppearancePage`, `AboutPage`) and `PageIds` |
-| `ViewModels/` | `MainViewModel` (one instance shared by every page, split into `.Translation`, `.ReadingChat`, `.Phrasebook` and `.Actions` partials), `CapturePreviewViewModel` (the live view), `Option`, `OcrLanguageItem`, `ThemeOption` |
+| `ViewModels/` | `MainViewModel` (one instance shared by every page, split into `.Translation`, `.ReadingChat`, `.Phrasebook`, `.Diagnostics` and `.Actions` partials), `CapturePreviewViewModel` (the live view), `Option`, `OcrLanguageItem`, `ThemeOption` |
 | `Controls/` | `HotkeyBox`, `SecretBox`, converters, `AutoApply.Ignore` |
 | `Themes/` | `Palette.<theme>.xaml` (colours only) + `Controls.xaml` (all control templates) |
 | `SmokeTest.cs` | `Envoy.exe --smoke-test` builds every window and settings page under every palette and fails on binding errors; CI runs it on Windows |
@@ -85,6 +87,28 @@ their own. Buttons and links bind to the view model's commands (`Envoy.Core.Mvvm
 app-level actions only through `IShell`. Any edit bubbles up to `MainWindow`, which restarts a 400 ms
 `SettingsAutoApplier`; the apply runs `AppHost.ApplySettings()` and refreshes the status text. Controls that aren't
 settings (the sidebar, the "Try it" box, the live view, the phrase preview language) set `c:AutoApply.Ignore="True"`.
+
+### Start-up and exit
+
+`App.OnStartup` runs in a fixed order (contract §4): read Shift → log hub and the four global exception handlers →
+the `--smoke-test` branch → the single-instance mutex → the safe-mode decision and `StartupSentinel.BeginStartup` →
+`AppHost` → toasts → `Host.Start()` → overlay and hotkeys (not in safe mode) → tray and window →
+`StartupSentinel.MarkHealthy` after 30 s or the first render. `ExitApp` hides and unregisters, saves unless saving is
+suppressed, disposes the host, ends the session, closes toasts and tray, closes the log, optionally deletes the data
+folder's inventory files, releases the mutex and optionally restarts through `ShellLauncher.RestartSelf`. Later areas
+fill the slots marked `[NN …]` in the code.
+
+### Errors, logging and notifications
+
+- Everything goes through `ILog` from `AppHost.Log` (`LogHub`). Every entry is redacted by `LogRedactor` before any
+  sink sees it: registered `[Secret]` values, key patterns, URL queries and user-info, the user-profile path. Chat
+  text and player names are logged only as `LogField.Sensitive`, which writes their length unless the user opted in.
+- Unhandled exceptions (WPF dispatcher, WinForms tray callbacks, unobserved tasks, the AppDomain) go through
+  `UnhandledErrorPolicy`: logged, then a problem toast (UI) or a redacted `last-crash.json` (AppDomain). During the
+  smoke test UI exceptions stay unhandled so CI fails.
+- Problems are shown as `ToastWindow`s through `ToastService`, gated by the single `NotificationThrottle` on
+  `AppHost.Notifications`. No error opens a modal box; `DialogService` only confirms actions the user starts in
+  `MainWindow`, plus the one crash-loop message.
 
 ### Live view and preview leases
 
@@ -105,8 +129,12 @@ true; `ReadingChatPage` sets that from its visibility. Two live views never swit
 - **Guard the edges.** Text typed into another window goes through `OutgoingText.Sanitize`; typing stops when the
   reply target closes or loses focus (`SendTargetGuard`); only `Security/ShellLauncher.cs` starts processes; native
   calls, network code and URL hosts are allowlisted in `tools/ci/policy.json`. See "Quality gates" below.
-- **Fail soft.** Translation errors show on the message; a broken provider falls through to the next; OCR or capture
-  errors show in the status line and never crash the loop.
+- **Fail soft: log, then toast.** Translation errors show on the message; a broken provider falls through to the
+  next; OCR or capture errors show in the status line and never crash the loop. Every failure is logged with a
+  category (every `catch` in `AppHost.cs` logs), and a problem the user must know about is a non-activating toast via
+  `AppHost.ReportProblem`, never a modal box. Fire-and-forget tasks use `.Forget(log, what)`.
+- **Data stays in one folder.** Every file lives under the instance `AppHost.DataFolder` and is listed in
+  `DataInventory` and `docs/privacy.md`; only `SettingsStore.DefaultPath` names `%APPDATA%`.
 
 ## Threading
 

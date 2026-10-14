@@ -60,3 +60,25 @@ ordered pass). Each uses any supported title in a skirmish against AI.
 - **M-QSC-5** Check each launcher: the About links open the browser; "Open data folder" and "Open logs" open
   Explorer; Phrasebook "Edit" opens `phrases.json`; OCR "Install" shows a UAC prompt, and declining it opens Windows
   language settings.
+
+### Reliability and observability (02)
+
+- **M-REL-1** Run `Envoy.exe --safe-mode`. The safe-mode banner shows above every page, there is no overlay,
+  `Ctrl+Shift+T` does nothing, the Hotkeys page says "Hotkeys are off in safe mode." and the tray tooltip reads
+  "Envoy (safe mode)". **Restart normally** brings back the overlay and the hotkeys.
+- **M-REL-2** Quit Envoy, then start it from the Start menu while holding Shift until the window appears: safe mode.
+- **M-REL-3** About › Troubleshooting › **Delete all Envoy data…**: the confirmation lists the files. After the
+  restart Envoy is at first run, `%APPDATA%\Envoy` holds only the new session's files, and the
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` value `Envoy` is gone.
+- **M-REL-4** (Debug build) In a borderless match, press Ctrl+Alt+Shift+F12 on the About page, then return to the
+  game. A toast appears on the game's monitor, the game keeps focus (WASD and hotkeys work), it closes after 10 s,
+  and **Details** opens Troubleshooting.
+- **M-REL-5** (Debug build) Tray › **Throw test error**: a toast, and no WinForms error dialog.
+- **M-REL-6** Set a DeepL key and a player name, then **Copy diagnostics** into Notepad. Every section is there,
+  `DeepL [deepl]: key set`, and neither the key nor the name appears; the chat area is a size only.
+- **M-REL-7** Quit, delete a brace from `settings.json`, start. The previous settings and the decrypted key are back
+  (from `.bak`), `settings.json.broken` exists, and a toast says the settings file was damaged.
+- **M-REL-8** (Debug build) Tray › **Crash (background thread)**: `last-crash.json` exists; the next start shows
+  "Envoy closed unexpectedly last time", and Troubleshooting shows the last crash with **Dismiss**.
+- **M-REL-9** Make `%APPDATA%\Envoy\logs` read-only and use Envoy for a minute: no errors appear, and the report shows
+  `Dropped log writes:` above 0. Make it writable again.

@@ -10,8 +10,28 @@ versioning: [SemVer](https://semver.org/).
   an instant translation popup.
 - **Herald**: optionally reads translated messages aloud with a Windows voice, with voice, volume and speed settings.
 - CI renders screenshots of every window in every theme.
+- **Copy diagnostics** (About › Troubleshooting): a report for bug reports with versions, Windows and monitor
+  details, the detected game, OCR languages, which providers have a key set, failed hotkeys and the recent log.
+  It never contains API keys, chat, player names or where the chat area is. **Export diagnostics…** saves it with the
+  diagnostic log as a `.zip`. Nothing is ever uploaded.
+- A diagnostic log, `logs\envoy.log` (five files of 1 MiB at most). Keys, web-address queries and your Windows user
+  folder are masked; chat text and names are written only as their length unless you turn on "Include chat text in
+  logs".
+- **Safe mode**: hold Shift while Envoy starts, run `Envoy.exe --safe-mode`, or use **Restart in safe mode**. The
+  overlay, hotkeys and automatic reading are off and a banner says why; Envoy also starts in safe mode by itself
+  after two starts in a row that never finished.
+- **Settings recovery**: Envoy keeps the last settings that loaded correctly (`settings.json.bak`) and uses them, with
+  your keys, if `settings.json` is damaged; the damaged file is kept as `settings.json.broken`. Saves are flushed to
+  disk before they replace the old file.
+- **Reset settings…** and **Delete all Envoy data…** under About › Troubleshooting. Delete all removes exactly the files
+  listed in the new [privacy page](docs/privacy.md) and the "Start with Windows" entry, then restarts.
+- Start-up tells you once if Envoy closed unexpectedly last time or the settings file had to be recovered.
 
 ### Changed
+- **Errors no longer open dialogs.** A problem shows as a small pop-up in the bottom-right corner that never takes
+  focus from the game and closes by itself; **Details** opens Troubleshooting, and the pop-ups can be turned off.
+  This includes a reply that couldn't be typed into the game (it is still copied to the clipboard). `error.log` is no
+  longer written.
 - **Replies only go where you meant them to.** The reply box now types into the detected game window, or the window
   that was in front when you opened it, and never into the taskbar or Envoy itself. Typing stops if that window
   closes or another window comes to the front. A reply opened from the tray or the settings window while no game is
@@ -28,6 +48,11 @@ versioning: [SemVer](https://semver.org/).
   Envoy's own repository, so a spoofed update response can't open a local program or a network share.
 
 ### Internal
+- Reliability and observability (spec 02): `Envoy.Core.Diagnostics` (`LogHub`, `LogRedactor`, `UnhandledErrorPolicy`,
+  safe mode, `DiagnosticsReport`, `DataInventory`) and `Envoy.Core.Notifications.NotificationThrottle`;
+  `AppHostOptions` and per-instance data paths; `App.OnStartup`/`ExitApp` in the contract §4 order; settings markers
+  `[Personal]`/`[Location]`; the smoke test runs on temporary data folders and checks the safe-mode banner, toasts,
+  handler wiring, diagnostics and the log; typecheck rules R8–R10.
 - Settings pages are now one `UserControl` each under `Pages/`, driven by commands on a shared `MainViewModel`
   (new `Envoy.Core.Mvvm` toolkit). Page logic and text moved into tested Core classes, app actions go through
   `IShell`, message boxes through `DialogService`, and the live view through preview leases
