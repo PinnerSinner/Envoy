@@ -11,6 +11,15 @@ versioning: [SemVer](https://semver.org/).
 - **Herald**: optionally reads translated messages aloud with a Windows voice, with voice, volume and speed settings.
 - CI renders screenshots of every window in every theme.
 
+### Internal
+- Settings pages are now one `UserControl` each under `Pages/`, driven by commands on a shared `MainViewModel`
+  (new `Envoy.Core.Mvvm` toolkit). Page logic and text moved into tested Core classes, app actions go through
+  `IShell`, message boxes through `DialogService`, and the live view through preview leases
+  (`ChatWatcher.BeginPreview()`). Hotkey registration results are typed (`AppHost.HotkeyResults`). No visible change.
+- The Linux type-check now catches XAML root/base-class mismatches, missing event handlers and UI-structure rule
+  breaks; the Windows smoke test covers every page under every palette, fails on binding errors and logs per-section
+  timings.
+
 ## [0.1.0] — first release
 
 ### Reading chat

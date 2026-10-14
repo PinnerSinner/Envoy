@@ -39,7 +39,11 @@ the screen, the keyboard and the user.
 | `Languages/` | `LanguageCatalog` (codes, names, OCR tags, normalising provider codes), `ScriptDetector` (offline language guess from Unicode blocks) |
 | `Translation/` | `ITranslator` and providers (`Providers/`), `FallbackTranslator`, `CachingTranslator`, `BudgetedTranslator` + `UsageTracker`, `TranslatorFactory`, `SlangGlossary` |
 | `Pipeline/` | `ChatPipeline` (OCR lines → `IncomingMessage` events), `OutgoingTranslator` (your text → their language) |
-| `Phrases/` | `PhraseBook` + embedded `phrases.json` |
+| `Phrases/` | `PhraseBook` + embedded `phrases.json`; `PhrasePreview` (the Phrasebook page's rows and starter file) |
+| `Hotkeys/` | `HotkeyStatus`, `HotkeyRegistrationResult` (one per action, published as `AppHost.HotkeyResults`), `HotkeyText` |
+| `Mvvm/` | `ObservableObject`, `RelayCommand`, `RelayCommand<T>`, `AsyncRelayCommand` (required `onError`; never rethrows) |
+| `Text/` | `TextTemplate.Format`, the one formatter for the `*Text` classes (named placeholders such as `{count}`) |
+| `Threading/` | `LeaseCounter` (backs the watcher's preview leases) |
 | `Settings/` | `AppSettings` (the whole settings model) and `SettingsStore` (JSON, `[Secret]` properties encrypted via `ISecretProtector`) |
 | `Updates/` | `UpdateChecker` (GitHub Releases) |
 
@@ -61,12 +65,30 @@ Everything here is covered by `tests/Envoy.Core.Tests` and runs on any OS.
 
 | Folder / file | What's there |
 | --- | --- |
-| `AppHost.cs` | Composition root: owns settings, services and history; marshals events to the UI thread; applies settings live |
-| `App.xaml.cs` | Start-up, single instance, tray icon, hotkey bindings, window management |
-| `Services/` | `ScreenCapturer` (GDI), `OcrService` (Windows.Media.Ocr), `ChatWatcher` (the loop), `HotkeyService` (RegisterHotKey), `KeyboardSender` (SendInput), `GameDetector`, `ThemeManager`, `DpapiProtector`, `StartupRegistration` |
-| `Windows/` | `MainWindow` (settings + War Room), `OverlayWindow`, `ComposeWindow`, `RegionSelectorWindow` |
+| `AppHost.cs` | Composition root: owns settings, services and history; marshals events to the UI thread; applies settings live; holds `HotkeyResults` (written only by `App.RegisterHotkeys`) |
+| `App.xaml.cs` | Start-up, single instance, tray icon, hotkey bindings, window management; implements `IShell` |
+| `IShell.cs` | The app-level actions view models may trigger (select region, open compose, open a URL, install an OCR pack, show an info box…). Each area adds its own block |
+| `Services/` | `ScreenCapturer` (GDI), `OcrService` (Windows.Media.Ocr), `ChatWatcher` (the loop), `HotkeyService` (RegisterHotKey), `KeyboardSender` (SendInput), `GameDetector`, `ThemeManager`, `DpapiProtector`, `StartupRegistration`, `DialogService` (the only place that shows a `MessageBox`), `SettingsAutoApplier` (the 400 ms debounce) |
+| `Windows/` | `MainWindow` (title bar, sidebar and page hosts), `OverlayWindow`, `ComposeWindow`, `LookupWindow`, `RegionSelectorWindow` |
+| `Pages/` | One `UserControl` per settings page (`WarRoomPage`, `TranslationPage`, `ReadingChatPage`, `OverlayPage`, `ReplyingPage`, `PhrasebookPage`, `HotkeysPage`, `AppearancePage`, `AboutPage`) and `PageIds` |
+| `ViewModels/` | `MainViewModel` (one instance shared by every page, split into `.Translation`, `.ReadingChat`, `.Phrasebook` and `.Actions` partials), `CapturePreviewViewModel` (the live view), `Option`, `OcrLanguageItem`, `ThemeOption` |
+| `Controls/` | `HotkeyBox`, `SecretBox`, converters, `AutoApply.Ignore` |
 | `Themes/` | `Palette.<theme>.xaml` (colours only) + `Controls.xaml` (all control templates) |
-| `SmokeTest.cs` | `Envoy.exe --smoke-test` builds every window under every theme; CI runs it on Windows |
+| `SmokeTest.cs` | `Envoy.exe --smoke-test` builds every window and settings page under every palette and fails on binding errors; CI runs it on Windows |
+
+### Settings window
+
+`MainWindow` creates one `MainViewModel` and sets it as its `DataContext`; the nine pages inherit it and never set
+their own. Buttons and links bind to the view model's commands (`Envoy.Core.Mvvm`), and the view model reaches
+app-level actions only through `IShell`. Any edit bubbles up to `MainWindow`, which restarts a 400 ms
+`SettingsAutoApplier`; the apply runs `AppHost.ApplySettings()` and refreshes the status text. Controls that aren't
+settings (the sidebar, the "Try it" box, the live view, the phrase preview language) set `c:AutoApply.Ignore="True"`.
+
+### Live view and preview leases
+
+`ChatWatcher.BeginPreview()` returns a lease; while at least one is held (`IsPreviewing`), every capture is published
+to `FrameCaptured` even when nothing changed. `CapturePreviewViewModel` holds a lease exactly while its `IsActive` is
+true; `ReadingChatPage` sets that from its visibility. Two live views never switch each other off.
 
 ### Design rules
 
@@ -74,6 +96,10 @@ Everything here is covered by `tests/Envoy.Core.Tests` and runs on any OS.
 - **Logic goes in Core.** If something can be tested without Windows, it belongs in `Envoy.Core` with a test.
 - **Everything themeable is a `DynamicResource`.** Colours never appear in window XAML.
 - **Settings apply live.** `MainWindow` debounces any edit, calls `AppHost.ApplySettings()` and auto-saves.
+- **Pages bind; view models command.** Page XAML has no event handlers and page code-behind no logic; view models use
+  `IShell`, never `App.Current`, `Process.Start` or `MessageBox`. `tools/typecheck/check_ui_rules.py` enforces this.
+- **Text built in code lives in Core.** User-facing strings assembled in code are `*Text` classes in `Envoy.Core`
+  with named placeholders, filled by `TextTemplate.Format`.
 - **Fail soft.** Translation errors show on the message; a broken provider falls through to the next; OCR or capture
   errors show in the status line and never crash the loop.
 

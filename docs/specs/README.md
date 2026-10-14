@@ -38,7 +38,7 @@ MUST counts are the requirements whose level is MUST. Folded and removed rows ar
 | # | Spec | Area | Status | MUST | SHOULD | COULD |
 | --- | --- | --- | --- | ---: | ---: | ---: |
 | — | [00-integration.md](00-integration.md) | Integration contract (binding) | Accepted | — | — | — |
-| 1 | [01-ui-foundation.md](01-ui-foundation.md) | Settings pages as UserControls, commands, `IShell`, `DialogService`, preview lease, smoke structure, stub typecheck | Proposed | 15 | 3 | 0 |
+| 1 | [01-ui-foundation.md](01-ui-foundation.md) | Settings pages as UserControls, commands, `IShell`, `DialogService`, preview lease, smoke structure, stub typecheck | Implemented | 15 | 3 | 0 |
 | 2 | [08a-quality-gates.md](08a-quality-gates.md) | Analyzers, `BannedSymbols.txt`, the policy check, `Security/*` (`ShellLauncher`, `OutgoingText`, `SendTargetGuard`, `ReleaseUrlPolicy`, `PhraseLimits`) | Proposed | 14 | 2 | 1 |
 | 3 | [02-reliability-observability.md](02-reliability-observability.md) | Logging, global handlers, problem toasts and the notification throttle, diagnostics, settings durability, safe mode, data inventory and "Delete all Envoy data", start-up and exit skeleton | Proposed | 20 | 16 | 2 |
 | 4 | [03-translation-resilience.md](03-translation-resilience.md) | Error kinds, retry, circuit breaker, throttling, provider health, lasting cache (lands as PR A, then PR B) | Proposed | 16 | 10 | 1 |

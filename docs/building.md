@@ -26,6 +26,10 @@ To run the UI smoke test locally:
 publish\Envoy.exe --smoke-test smoke.log; Get-Content smoke.log
 ```
 
+It opens every settings page and window under every palette, checks commands, auto-apply and the live-view lease, and
+fails on any WPF binding error. Each section logs `[smoke] <section> ok elapsed_ms=<n>`. Add
+`--screenshots <folder>` to save a PNG of every page and window.
+
 ## On Linux or macOS
 
 The core library and its tests are cross-platform:
@@ -41,9 +45,13 @@ The WPF app can't be *built* off Windows, because the XAML compiler ships only w
 tools/typecheck/typecheck.sh
 ```
 
-This generates stand-ins for the XAML-generated code, then compiles the app's C# against the Windows reference
-assemblies with warnings as errors. It also checks that every `StaticResource`/`DynamicResource` key exists and that
-all palettes define the same keys. CI runs the real Windows build and smoke test on every push.
+This first runs the tool's own Python tests, then generates stand-ins for the XAML-generated code and compiles the
+app's C# against the Windows reference assemblies with warnings as errors. The stand-ins carry each XAML root's base
+class and a `nameof` for every event handler the XAML names, so a `<UserControl>` paired with `: Window`, or a
+`Click="OnFoo"` with no `OnFoo`, fails here rather than on Windows. It also checks that every
+`StaticResource`/`DynamicResource` key exists, that all palettes define the same keys, and the UI-structure rules in
+`check_ui_rules.py` (no handlers or `DataContext` in `Pages/`, no `MessageBox` outside `DialogService`, and so on). CI
+runs the real Windows build and smoke test on every push.
 
 ## Project settings worth knowing
 
