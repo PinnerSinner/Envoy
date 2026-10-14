@@ -8,11 +8,16 @@ namespace Envoy.Core.Diagnostics;
 /// Writes <c>{folder}\envoy.log</c> and rolls it to <c>envoy.1.log</c> … <c>envoy.{maxFiles-1}.log</c> when the next
 /// line would pass <c>maxBytes</c> (REQ-REL-2). It touches only names matching <c>^envoy(\.\d+)?\.log$</c>, so chat
 /// transcripts in the same folder are safe. On an I/O failure it throws to the hub (which counts the drop) and does
-/// not try to reopen for <see cref="RetryDelay"/>.
+/// not try to reopen for <see cref="RetryDelay"/>. When only the roll fails (an old file held open by a viewer), it
+/// keeps appending to envoy.log past the cap, up to <see cref="HardCapFactor"/> × <c>maxBytes</c>, and tries the roll
+/// again after <see cref="RetryDelay"/>, so logging degrades instead of stopping.
 /// </summary>
 public sealed partial class RollingFileSink : ILogSink, IDisposable
 {
     public static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(30);
+
+    /// <summary>While rolling fails, envoy.log may grow to this many times the cap before writes are dropped.</summary>
+    public const int HardCapFactor = 2;
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -25,6 +30,7 @@ public sealed partial class RollingFileSink : ILogSink, IDisposable
     private StreamWriter? _writer;
     private long _size;
     private DateTimeOffset _retryAfter = DateTimeOffset.MinValue;
+    private DateTimeOffset _rollRetryAfter = DateTimeOffset.MinValue;
     private bool _disposed;
 
     public RollingFileSink(string folder, string baseName = "envoy", long maxBytes = 1_048_576, int maxFiles = 5,
@@ -67,16 +73,19 @@ public sealed partial class RollingFileSink : ILogSink, IDisposable
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_clock.GetUtcNow() < _retryAfter) throw new IOException("The log file is unavailable; retrying later.");
+            var now = _clock.GetUtcNow();
+            if (now < _retryAfter) throw new IOException("The log file is unavailable; retrying later.");
             try
             {
                 var bytes = Utf8NoBom.GetByteCount(text);
                 EnsureOpen();
-                if (_size > 0 && _size + bytes > _maxBytes)
+                if (_size > 0 && _size + bytes > _maxBytes && now >= _rollRetryAfter)
                 {
-                    Roll();
+                    TryRoll(now);
                     EnsureOpen();
                 }
+                if (_size > 0 && _size + bytes > _maxBytes * HardCapFactor)
+                    throw new IOException("The log file is over its size cap and could not be rolled.");
                 _writer!.Write(text);
                 _size += bytes;
             }
@@ -130,6 +139,20 @@ public sealed partial class RollingFileSink : ILogSink, IDisposable
         var stream = new FileStream(CurrentPath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
         _size = stream.Length;
         _writer = new StreamWriter(stream, Utf8NoBom) { AutoFlush = true };
+    }
+
+    /// <summary>Rolls; on failure leaves envoy.log in place (it is reopened for append) and waits before trying again.</summary>
+    private void TryRoll(DateTimeOffset now)
+    {
+        try
+        {
+            Roll();
+            _rollRetryAfter = DateTimeOffset.MinValue;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _rollRetryAfter = now + RetryDelay;
+        }
     }
 
     private void Roll()

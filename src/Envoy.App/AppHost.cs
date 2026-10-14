@@ -61,6 +61,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     private RunningGame? _game;
     private string _providerStatus = "";
     private UpdateInfo? _update;
+    private bool _disposed;
 
     public AppHost(string settingsPath, Dispatcher ui, AppHostOptions? options = null)
     {
@@ -106,9 +107,9 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Transcript = new TranscriptWriter(LogsFolder);
         // [06 UpdateCoordinator] [07a NoticeCenter, skipped in safe mode]
 
-        Pipeline.MessageReceived += m => _ui.BeginInvoke(() => OnMessage(m, isNew: true));
-        Pipeline.MessageUpdated += m => _ui.BeginInvoke(() => OnMessage(m, isNew: false));
-        Watcher.StateChanged += state => _ui.BeginInvoke(() => OnWatcherState(state));
+        Pipeline.MessageReceived += OnPipelineMessageReceived;
+        Pipeline.MessageUpdated += OnPipelineMessageUpdated;
+        Watcher.StateChanged += OnWatcherStateChanged;
 
         ConfigureOcr();
 
@@ -366,8 +367,14 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         }
     }
 
+    // Background events, marshalled to the UI thread. Dispose unsubscribes them; a call already queued checks _disposed.
+    private void OnPipelineMessageReceived(IncomingMessage m) => _ui.BeginInvoke(() => OnMessage(m, isNew: true));
+    private void OnPipelineMessageUpdated(IncomingMessage m) => _ui.BeginInvoke(() => OnMessage(m, isNew: false));
+    private void OnWatcherStateChanged(WatcherState state) => _ui.BeginInvoke(() => OnWatcherState(state));
+
     private void OnWatcherState(WatcherState state)
     {
+        if (_disposed) return;
         Notify(nameof(CaptureStatus));
         if (state != WatcherState.Error) return;
         _captureLog.Warn("Capture stopped with an error", null, LogField.Of("error", Watcher.LastError));
@@ -376,6 +383,9 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
 
     private void OnMessage(IncomingMessage message, bool isNew)
     {
+        // A translation can finish after Dispose (the watcher does not wait for in-flight work) or after a reset or
+        // "Delete all Envoy data": nothing may write logs/chat-*.txt or speak then.
+        if (_disposed || SaveSuppressed) return;
         if (!isNew && message.Status == IncomingStatus.Failed)
         {
             _translationLog.Warn("Message translation failed", null, LogField.Sensitive("text", message.Chat.Text),
@@ -504,6 +514,11 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     /// <summary>Stops services and saves (unless suppressed). App owns and disposes a hub it passed in.</summary>
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+        Pipeline.MessageReceived -= OnPipelineMessageReceived;
+        Pipeline.MessageUpdated -= OnPipelineMessageUpdated;
+        Watcher.StateChanged -= OnWatcherStateChanged;
         _gameTimer.Stop();
         Watcher.Dispose();
         _speech?.Dispose();

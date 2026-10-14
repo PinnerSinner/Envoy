@@ -914,6 +914,7 @@ Structs `POINT` and `MONITORINFO` (reused by 05). `MakeNoActivate` reuses `GetWi
 | Situation | Behaviour |
 | --- | --- |
 | Log folder unwritable or disk full | Envoy keeps running; `DroppedWrites` grows and is in the report; retry after 30 s. |
+| An old log file is locked, so rolling fails | `envoy.log` keeps growing past the cap (to 2×), roll retried after 30 s (Deviation 14). |
 | Exception inside a handler or toast | Logged at Critical; no recursion, no UI. |
 | Clipboard locked | 3 tries, then `ClipboardBusy` toast. |
 | `settings.json` and `.bak` both corrupt | Defaults; `.broken` kept; startup toast (SHOULD). |
@@ -1171,16 +1172,23 @@ after two unfinished starts, `SafeModeDecision.AutoThreshold = 2`). Differences 
 2. **`Forget` messages.** A fault logs `"{what} failed"` (a cancellation `"{what} cancelled"`) instead of one fixed
    message with a field, so repeat collapsing (keyed on the message) never merges two different tasks.
 3. **Temp files.** `CrashMarker.Write` uses `last-crash.json.tmp`, which joins `DataInventory` and `docs/privacy.md`.
-   The `.bak` refresh reuses `settings.json.tmp` as its scratch file (settings I/O is UI-thread only), so no new name
-   is needed for it.
+   The `.bak` refresh reuses `settings.json.tmp` as its scratch file, so no new name is needed for it. That is safe
+   within one process because settings I/O is UI-thread only, and across a restart because `ExitApp` writes settings
+   for the last time in steps 2–3, before `RestartSelf`: `MainWindow.PrepareForAppExit` (step 2) makes the later
+   `OnClosed` apply and save nothing.
 4. **Settings load failures** also count `FormatException` and `ArgumentException` (both seen from malformed JSON
    values) as a damaged file. `MigrationFailed` loads the unmigrated file best-effort and does not refresh `.bak`.
 5. **Safe mode** also skips today's automatic update check, as contract §4 step 9 says for 06's checks.
 6. **Clean session end on sign-out.** `App` handles `SessionEnding` (save unless suppressed, `StartupSentinel.EndSession`,
    flush), so Windows shutting down is not reported as "closed unexpectedly" at the next start.
-7. **Crash-loop box location.** `DialogService.ShowWarning` for the crash loop is called from
+7. **Crash-loop box location and latch.** `DialogService.ShowWarning` for the crash loop is called from
    `Services/GlobalExceptionHandlers.cs`, which applies the policy's outcome; `App.xaml.cs` has none. R10's "at most
-   once in `App.xaml.cs`" holds. Its text is Core `CrashLoopText`.
+   once in `App.xaml.cs`" holds. Its text is Core `CrashLoopText`. The box pumps messages, so a recurring source (a
+   timer) keeps throwing while it is open: `UnhandledErrorPolicy` returns `ExitCrashLoop` exactly once and every later
+   UI exception gets the extra outcome `UiErrorAction.HandledWhileExiting` (logged at Error, marked handled, no UI,
+   marker not rewritten), so exactly one box is shown. The crash-loop exit skips `ExitApp`, so before the box
+   `App.PrepareCrashLoopExit` hides and disposes the tray icon, closes toasts and unregisters hotkeys. The session is
+   left unclean on purpose so the next start reports it.
 8. **REQ-REL-16 outside the listed files.** `_ = …Async(` discards also lived in `Services/SpeechService.cs` and
    `Services/ChatWatcher.cs`. Both now use `.Forget(...)` with an `ILog` from AppHost; `ChatWatcher` keeps setting
    `LastError` on a pipeline fault. This is the minimal change R9 needs; 05's rewrite replaces the watcher line with
@@ -1195,7 +1203,20 @@ after two unfinished starts, `SafeModeDecision.AutoThreshold = 2`). Differences 
 11. **About page order.** Troubleshooting sits after the disclaimer and before "How it stays safe", the data-folder
     note and the licences. Version is at the top; 07a adds the Setup guide above Troubleshooting.
 12. **Additions.** `HotkeyText.StatusLine` (the Hotkeys page shows `SafeModeText.HotkeysOff` in safe mode),
-    `ShellLauncher` also logs failed starts, `MainWindow.FlushPendingEdits` for `ExitApp` step 2, and `MainWindow.OnClosed`
-    skips applying and saving once saving is suppressed (so a pending edit can't re-add the Run value after Delete all).
-13. **Manual steps** M1–M9 are in `docs/releasing.md` as M-REL-1…9 for 08b's ordered pass.
+    `ShellLauncher` also logs failed starts, `MainWindow.PrepareForAppExit` for `ExitApp` step 2, and `MainWindow.OnClosed`
+    skips applying and saving once saving is suppressed (so a pending edit can't re-add the Run value after Delete all)
+    or once `ExitApp` has started (step 2 already saved, and the host is disposed by then).
+13. **"Closed unexpectedly" toast trigger (REQ-REL-22).** The start-up toast keys on the session marker only
+    (`StartupHistory.PreviousSessionEndedUncleanly`), not on `last-crash.json` being present. The marker file stays until
+    the user dismisses it on the About page (REQ-REL-28), so keying on it would toast at every start after one crash.
+    Every path that writes the marker (crash loop, `AppDomain` crash) also leaves the session unclean, so no crash is
+    missed; the marker's presence is logged with the warning and shown on the About page and in the report.
+14. **Log roll failure (REQ-REL-2/3).** When rolling fails (an old `envoy.N.log` held open by a viewer without
+    delete sharing), `RollingFileSink` keeps appending to `envoy.log` past the cap, up to `HardCapFactor` (2) × the cap,
+    and retries the roll after 30 s, instead of dropping every entry until the file is released. Beyond the hard cap
+    writes are dropped and counted as for an unwritable folder.
+15. **Late pipeline events.** `AppHost.Dispose` unsubscribes the pipeline and watcher events, and `OnMessage` /
+    `OnWatcherState` do nothing once the host is disposed or saving is suppressed, so a translation finishing during
+    "Delete all Envoy data" (for example while the step-6a message pumps) can't recreate `logs/chat-*.txt`.
+16. **Manual steps** M1–M9 are in `docs/releasing.md` as M-REL-1…9 for 08b's ordered pass.
 

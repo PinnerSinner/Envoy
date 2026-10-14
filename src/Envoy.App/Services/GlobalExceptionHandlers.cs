@@ -28,6 +28,12 @@ internal sealed class GlobalExceptionHandlers
     /// <summary>Shows a problem toast. Until the toast service exists (early start-up) problems are only logged.</summary>
     public Action<ProblemReport>? ShowProblem { get; set; }
 
+    /// <summary>
+    /// Runs once, just before the crash-loop box: hides the tray icon and closes toasts, because <c>Shutdown(1)</c> skips
+    /// <c>ExitApp</c> and a NotifyIcon that is never disposed stays in the tray as a ghost.
+    /// </summary>
+    public Action? BeforeCrashLoopExit { get; set; }
+
     /// <summary>The events this instance subscribed to, for the smoke test's <c>handlers</c> section.</summary>
     public IReadOnlyList<UnhandledSource> InstalledSources => _installed;
 
@@ -90,8 +96,20 @@ internal sealed class GlobalExceptionHandlers
                 }
                 return true;
             case UiErrorAction.ExitCrashLoop:
+                // The policy returns this once; later exceptions (the box below pumps messages, so a recurring source
+                // keeps throwing) come back as HandledWhileExiting, so exactly one box is shown.
+                try
+                {
+                    BeforeCrashLoopExit?.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    _log.Critical("Preparing the crash-loop exit failed", ex);
+                }
                 DialogService.ShowWarning(null, CrashLoopText.Title, CrashLoopText.Message);
                 _app.Shutdown(1);
+                return true;
+            case UiErrorAction.HandledWhileExiting:
                 return true;
             default:
                 return false;

@@ -108,6 +108,7 @@ public partial class App : Application, IShell
         _toasts = new ToastService(Dispatcher, Host.Notifications, () => Host.Settings.Diagnostics.ShowErrorToasts,
             () => Host.Game?.MainWindow ?? IntPtr.Zero, OpenTroubleshooting, hub.For("Toast"));
         _handlers.ShowProblem = _toasts.Show;
+        _handlers.BeforeCrashLoopExit = PrepareCrashLoopExit;
         Host.ProblemReported += _toasts.Show;
 
         // 9. Start (no automatic capture in safe mode). [06 Updates.StartAsync unless safe]
@@ -191,6 +192,26 @@ public partial class App : Application, IShell
         if (problem is not null) Host.ReportProblem(problem);
     }
 
+    /// <summary>
+    /// The crash-loop exit (REQ-REL-15) skips <see cref="ExitApp(RestartFlags?, bool)"/>: hide what would otherwise
+    /// outlive the process (tray icon, toasts) and stop hotkeys. The session stays unclean on purpose, so the next start
+    /// reports the crash.
+    /// </summary>
+    private void PrepareCrashLoopExit()
+    {
+        _exiting = true;
+        _healthyTimer?.Stop();
+        _hotkeys?.Dispose();
+        _hotkeys = null;
+        _toasts?.CloseAll();
+        if (_tray is not null)
+        {
+            _tray.Visible = false;
+            _tray.Dispose();
+            _tray = null;
+        }
+    }
+
     /// <summary>Windows is signing out or shutting down: end the session cleanly so the next start isn't a "crash".</summary>
     private void OnSessionEnding(object sender, SessionEndingCancelEventArgs e)
     {
@@ -261,12 +282,10 @@ public partial class App : Application, IShell
         _hotkeys?.Dispose();
         _hotkeys = null;
 
-        // 2. Apply pending edits and save, unless a reset or Delete-all suppressed saving.
-        if (!Host.SaveSuppressed)
-        {
-            _main?.FlushPendingEdits();
-            Host.SaveNow();
-        }
+        // 2. Apply pending edits and save, unless a reset or Delete-all suppressed saving. This is the last settings write:
+        //    MainWindow.OnClosed (run later by Shutdown) no longer applies or saves.
+        _main?.PrepareForAppExit();
+        if (!Host.SaveSuppressed) Host.SaveNow();
 
         // 3. Dispose the host. [06 cancels the update CTS] [03 saves the cache unless suppressed]
         Host.Dispose();

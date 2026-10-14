@@ -30,6 +30,12 @@ public enum UiErrorAction
 
     /// <summary>Too many errors in a short time: show the one crash-loop message and exit with code 1 (REQ-REL-15).</summary>
     ExitCrashLoop,
+
+    /// <summary>
+    /// The crash-loop exit is already under way: mark it handled and show nothing. The crash-loop box pumps messages,
+    /// so the recurring source keeps throwing until the user dismisses it; each repeat is only logged.
+    /// </summary>
+    HandledWhileExiting,
 }
 
 public sealed record UiErrorOutcome(UiErrorAction Action, ProblemReport? Problem);
@@ -45,10 +51,15 @@ public sealed class UnhandledErrorPolicy(LogHub hub, Func<bool> isSmokeTest, Fun
 
     private readonly ILog _log = hub.For(Category);
     private int _active;
+    private int _exitingCrashLoop;
+
+    /// <summary>True once <see cref="UiErrorAction.ExitCrashLoop"/> has been returned. Never resets.</summary>
+    public bool IsExitingCrashLoop => Volatile.Read(ref _exitingCrashLoop) != 0;
 
     /// <summary>
     /// Logs at Error with the source. During the smoke test → <see cref="UiErrorAction.LeaveUnhandled"/> (CI must fail).
-    /// Crash loop tripped → logs Critical, writes the crash marker, flushes → <see cref="UiErrorAction.ExitCrashLoop"/>.
+    /// Crash loop tripped → logs Critical, writes the crash marker, flushes → <see cref="UiErrorAction.ExitCrashLoop"/>,
+    /// exactly once: every later call returns <see cref="UiErrorAction.HandledWhileExiting"/> without touching the marker.
     /// Otherwise → <see cref="UiErrorAction.ShowProblem"/> with <see cref="ProblemText.Unexpected"/>, keyed by the
     /// exception type and target site. An exception raised while one is being handled logs Critical and is left
     /// unhandled, so the handler never recurses.
@@ -66,8 +77,10 @@ public sealed class UnhandledErrorPolicy(LogHub hub, Func<bool> isSmokeTest, Fun
         {
             _log.Error("Unhandled exception", ex, LogField.Of("source", source));
             if (isSmokeTest()) return new UiErrorOutcome(UiErrorAction.LeaveUnhandled, null);
+            if (IsExitingCrashLoop) return new UiErrorOutcome(UiErrorAction.HandledWhileExiting, null);
             if (crashLoop?.RecordAndCheckTripped() == true)
             {
+                if (Interlocked.Exchange(ref _exitingCrashLoop, 1) != 0) return new UiErrorOutcome(UiErrorAction.HandledWhileExiting, null);
                 _log.Critical("Too many errors in a short time; Envoy is closing", null, LogField.Of("source", source));
                 WriteMarker(ex, source.ToString());
                 hub.Flush();

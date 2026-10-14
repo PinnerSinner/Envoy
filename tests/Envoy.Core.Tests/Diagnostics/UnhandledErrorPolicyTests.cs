@@ -142,6 +142,47 @@ public sealed class UnhandledErrorPolicyTests : IDisposable
         Assert.Contains(_sink.Entries, e => e.Level == LogLevel.Critical);
     }
 
+    [Fact]
+    public void Crash_loop_exit_is_decided_once()
+    {
+        var clock = new FakeTimeProvider(DateTimeOffset.UnixEpoch);
+        var policy = Policy(guard: new CrashLoopGuard(5, TimeSpan.FromSeconds(30), clock));
+        for (var i = 0; i < 4; i++) policy.OnUiException(Thrown("again"), UnhandledSource.Dispatcher);
+        Assert.False(policy.IsExitingCrashLoop);
+        Assert.Equal(UiErrorAction.ExitCrashLoop, policy.OnUiException(Thrown("again"), UnhandledSource.Dispatcher).Action);
+        Assert.True(policy.IsExitingCrashLoop);
+        var marker = File.ReadAllText(MarkerPath);
+        var criticals = _sink.Entries.Count(e => e.Level == LogLevel.Critical);
+        _hub.Flush();
+        var errors = ErrorCount();
+
+        // The crash-loop box pumps messages, so a timer keeps throwing: each repeat is handled with no UI and no marker.
+        File.Delete(MarkerPath);
+        for (var i = 0; i < 3; i++)
+        {
+            clock.Advance(TimeSpan.FromSeconds(1));
+            var later = policy.OnUiException(Thrown("still failing"), i % 2 == 0 ? UnhandledSource.Dispatcher : UnhandledSource.WinForms);
+            Assert.Equal(UiErrorAction.HandledWhileExiting, later.Action);
+            Assert.Null(later.Problem);
+        }
+        Assert.False(File.Exists(MarkerPath));
+        Assert.Equal(criticals, _sink.Entries.Count(e => e.Level == LogLevel.Critical));
+        _hub.Flush(); // writes the summary of collapsed repeats (REQ-REL-7)
+        Assert.Equal(errors + 3, ErrorCount());
+        Assert.NotEmpty(marker);
+    }
+
+    /// <summary>Logged Error entries, counting a repeat summary as its <see cref="LogEntry.RepeatCount"/>.</summary>
+    private int ErrorCount() => _sink.Entries.Where(e => e.Level == LogLevel.Error).Sum(e => e.RepeatCount == 0 ? 1 : e.RepeatCount);
+
+    [Fact]
+    public void Smoke_still_leaves_errors_unhandled()
+    {
+        var policy = Policy(smoke: true, guard: new CrashLoopGuard(1, TimeSpan.FromSeconds(30)));
+        Assert.Equal(UiErrorAction.LeaveUnhandled, policy.OnUiException(Thrown("x"), UnhandledSource.Dispatcher).Action);
+        Assert.False(policy.IsExitingCrashLoop);
+    }
+
     private sealed class ReenteringSink(Action onFirstError) : ILogSink
     {
         public int Calls { get; private set; }

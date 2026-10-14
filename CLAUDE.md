@@ -61,4 +61,5 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - All Envoy files live under the instance `AppHost.DataFolder`; only `SettingsStore.DefaultPath` names `%APPDATA%`
   (typecheck R8). A new data file joins `DataInventory.Items` and `docs/privacy.md` in the same change.
 - Anything written during `Host.Dispose` or exit checks `Host.SaveSuppressed` first, so a reset or "Delete all Envoy
-  data" is never undone. Start-up and exit code goes in its slot of `App.OnStartup`/`ExitApp` (contract §4).
+  data" is never undone. Handlers of background events (pipeline, watcher) are unsubscribed in `AppHost.Dispose` and
+  do nothing once the host is disposed or saving is suppressed. Start-up and exit code goes in its slot of `App.OnStartup`/`ExitApp` (contract §4).

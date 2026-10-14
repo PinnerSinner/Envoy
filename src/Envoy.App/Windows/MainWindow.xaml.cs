@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private readonly MainViewModel _vm;
     private readonly SettingsAutoApplier _applier;
     private readonly DispatcherTimer _statusTimer;
+    private bool _appExiting;
 
     public MainWindow(AppHost host) : this(host, App.Current)
     {
@@ -50,8 +51,19 @@ public partial class MainWindow : Window
 #endif
     }
 
-    /// <summary>Applies an edit still waiting for its debounce (exit path).</summary>
-    public void FlushPendingEdits() => _applier.FlushIfPending();
+    /// <summary>
+    /// <c>ExitApp</c> step 2: applies an edit still waiting for its debounce and records that the window was seen (unless
+    /// saving is suppressed). From now on <see cref="OnClosed"/> applies and saves nothing, so the exit save is the last
+    /// settings write and a restarted copy never races this process on <c>settings.json.tmp</c>.
+    /// </summary>
+    public void PrepareForAppExit()
+    {
+        _appExiting = true;
+        _statusTimer.Stop();
+        if (_host.SaveSuppressed) return;
+        _applier.FlushIfPending();
+        _host.Settings.FirstRunCompleted = true;
+    }
 
     /// <summary>Page ids, in sidebar order (the smoke test walks them).</summary>
     public IReadOnlyList<string> PageNames => PageIds.All;
@@ -100,8 +112,9 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _statusTimer.Stop();
-        // After a reset or "Delete all Envoy data" nothing may be applied or written again (contract §4).
-        if (!_host.SaveSuppressed)
+        // After a reset or "Delete all Envoy data" nothing may be applied or written again (contract §4). During
+        // ExitApp, step 2 already applied and saved, and the host is disposed by the time Shutdown closes this window.
+        if (!_appExiting && !_host.SaveSuppressed)
         {
             _applier.FlushIfPending();
             _host.Settings.FirstRunCompleted = true;
