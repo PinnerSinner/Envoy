@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Threading;
-using Envoy.App.Interop;
 using Envoy.App.Security;
 using Envoy.App.Services;
 using Envoy.App.Windows;
@@ -91,11 +90,8 @@ public partial class App : Application, IShell
 
     public void OpenCompose()
     {
-        // Remember the game window so we can give focus back to it when sending.
-        var target = Native.GetForegroundWindow();
-        if (_main is not null && new System.Windows.Interop.WindowInteropHelper(_main).Handle == target)
-            target = Host.Game?.MainWindow ?? IntPtr.Zero;
-
+        // Choose the reply target now: the game window, else whatever was in front unless it is Envoy or the taskbar.
+        var target = KeyboardSender.ResolveTarget(Host.Game?.MainWindow ?? IntPtr.Zero);
         _compose ??= new ComposeWindow(Host);
         _compose.Open(target);
     }

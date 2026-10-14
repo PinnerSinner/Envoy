@@ -5,6 +5,7 @@ using Envoy.App.Services;
 using Envoy.Core.Languages;
 using Envoy.Core.Phrases;
 using Envoy.Core.Pipeline;
+using Envoy.Core.Security;
 using Envoy.Core.Settings;
 
 namespace Envoy.App.Windows;
@@ -182,7 +183,7 @@ public partial class ComposeWindow : Window
     {
         var text = await TranslateNowAsync();
         if (string.IsNullOrEmpty(text)) return;
-        SetClipboard(AppendOriginal(text));
+        SetClipboard(OutgoingText.Sanitize(AppendOriginal(text)));
         Hide();
     }
 
@@ -191,7 +192,8 @@ public partial class ComposeWindow : Window
         var settings = _host.Settings.Compose;
         var text = await TranslateNowAsync();
         if (string.IsNullOrEmpty(text)) return;
-        text = AppendOriginal(text);
+        text = OutgoingText.Sanitize(AppendOriginal(text));
+        if (text.Length == 0) return;
 
         if (settings.SendMode == SendMode.Clipboard)
         {
