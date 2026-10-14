@@ -8,14 +8,21 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
   classes and event-handler names, resource keys, and the UI rules in `check_ui_rules.py` (after running its own
   Python tests). Run it after every app change; it mirrors the real project's compiler settings
   (keep `tools/typecheck/TypeCheck.csproj` in sync with `src/Envoy.App/Envoy.App.csproj`).
+- `python3 tools/ci/check_policy.py` (+ `python3 -m unittest discover -s tools/ci -p "test_*.py"`) — the policy
+  check CI runs first: P/Invoke allowlist and denied names, network code and URL hosts, manifest, process launches,
+  `#pragma`s, suppressions and build settings (`tools/ci/policy.json`).
+- CI sets `CI=true`, which turns every warning into an error. Run `CI=true dotnet test tests/Envoy.Core.Tests -c Release`
+  and `CI=true tools/typecheck/typecheck.sh` locally before pushing.
 - The real WPF build + `Envoy.exe --smoke-test` only run on Windows CI (`.github/workflows/build.yml`).
 
 ## Layout
 - `src/Envoy.Core` — all logic: chat parsing, OCR merging, pipeline, providers, settings. Put new logic here with tests.
-- `src/Envoy.App` — WPF shell: `AppHost` (composition root), `IShell` (app actions for view models), `Services/`
+- `src/Envoy.App` — WPF shell: `AppHost` (composition root), `IShell` (app actions for view models),
+  `Security/ShellLauncher.cs` (the only process launcher), `Services/`
   (capture, OCR, hotkeys, SendInput, `DialogService`), `Windows/`, `Pages/` (one `UserControl` per settings page,
   ids in `PageIds`), `ViewModels/` (`MainViewModel` partials, `CapturePreviewViewModel`), `Themes/` (palettes +
   `Controls.xaml`).
+- `tools/ci/` — `check_policy.py` + `policy.json` (allowlists); `tools/typecheck/` — the Linux type-check.
 - `docs/` — user and developer docs. Update them with user-facing changes, plus `CHANGELOG.md`.
 
 ## Rules
@@ -32,3 +39,15 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - Every new interactive control gets `AutomationProperties.Name`.
 - User-facing text built in code lives in a Core `public static class *Text` with whole-sentence templates and named
   placeholders (`{count}`, never `{0}`), filled only by `TextTemplate.Format`. XAML labels stay inline.
+- Only `src/Envoy.App/Security/ShellLauncher.cs` starts processes (`TryOpen`, `InstallOcrPack`, `RestartSelf`,
+  `RevealFile`, each validated by Core `LaunchTarget`); `Process.Start`/`ProcessStartInfo` are banned elsewhere (RS0030).
+  Text typed or pasted into another window goes through `OutgoingText.Sanitize`.
+- Allowlists change in the same PR as the code: a new P/Invoke goes into `Interop/Native.cs` **and**
+  `tools/ci/policy.json` → `native.allowed`; a new literal URL host into `hosts.allowed`. Network types stay in
+  `Core/Translation/`, `Core/Updates/` and `AppHost.cs`. Never name denied native calls, even in comments.
+- Fix analyzer warnings; don't silence them. No `#pragma warning disable` (the launcher's one RS0030 line is the
+  only exception). A `[SuppressMessage]` always has a `Justification = "..."`.
+- .NET CLI tools are pinned in `.config/dotnet-tools.json` and run after `dotnet tool restore`, never
+  `dotnet tool install -g`.
+- New credential settings are `string` properties marked `[Secret]` on a settings class reachable from `AppSettings`
+  (not inside a collection); `SettingsSecretTests` enforces it.

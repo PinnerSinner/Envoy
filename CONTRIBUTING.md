@@ -16,8 +16,12 @@ See [docs/building.md](docs/building.md). In short:
 ```bash
 dotnet test                      # any OS
 tools/typecheck/typecheck.sh     # type-check the Windows app from Linux/macOS
+python3 tools/ci/check_policy.py # product promises: native calls, network, hosts, launches, manifest
 dotnet run --project src/Envoy.App   # Windows only
 ```
+
+CI treats every warning as an error (`CI=true`); run `CI=true dotnet test tests/Envoy.Core.Tests -c Release` to see
+what CI sees. See [docs/building.md](docs/building.md#analyzers-and-the-policy-check).
 
 ## Ground rules
 
@@ -28,9 +32,12 @@ dotnet run --project src/Envoy.App   # Windows only
    `Themes/Controls.xaml`; don't hard-code colours. See [docs/theming.md](docs/theming.md).
 4. **No game assets.** Don't add logos, fonts, icons or art from the games; Envoy's look is original.
 5. **No telemetry.** Chat goes only to the translation provider the user picks.
-6. Keep `CHANGELOG.md`'s *Unreleased* section up to date for user-facing changes.
+6. **Only `Security/ShellLauncher.cs` starts processes,** and every new P/Invoke or URL host is added to
+   `tools/ci/policy.json` in the same PR. Fix analyzer warnings rather than silencing them; the rare
+   `[SuppressMessage]` needs a `Justification`, and `#pragma warning disable` is not allowed.
+7. Keep `CHANGELOG.md`'s *Unreleased* section up to date for user-facing changes.
 
 ## Pull requests
 
 - One topic per PR; describe what you checked (unit tests, type-check, tried in which game).
-- CI must be green: unit tests, the Linux type-check, the Windows build and the smoke test.
+- CI must be green: the policy check, unit tests, the Linux type-check, the Windows build and the smoke test.

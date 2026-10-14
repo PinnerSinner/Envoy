@@ -37,3 +37,14 @@ The source is `src/Envoy.Core/Phrases/phrases.json`. Corrections from native spe
 - Languages you leave out fall back to machine translation when you send the phrase.
 
 Save the file, then press OK in Envoy to reload.
+
+### Limits
+
+Phrase text is typed into game chat, so Envoy cleans and bounds the file (a shared file shouldn't be able to type
+anything odd):
+
+- A `phrases.json` larger than 1 MiB is ignored; only the built-in phrases load.
+- At most 500 of your phrases are loaded. Phrases with an empty `id` are skipped.
+- `id` and `category` are cut to 64 characters, `icon` to 16, and each text to 500.
+- Line breaks and tabs in a text become spaces; control characters and invisible text-direction overrides are
+  removed. A text that ends up empty is dropped.

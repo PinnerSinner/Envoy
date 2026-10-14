@@ -31,6 +31,10 @@ Envoy writes unexpected errors to `%APPDATA%\Envoy\error.log`. Attach it when yo
 - **Nothing is typed:** if the game runs as administrator, Windows blocks keystrokes from non-admin apps. Run Envoy
   as administrator too, or (better) stop running the game as admin.
 - **It types before the game has focus:** raise **Replying → Wait for game to focus** to 250–400 ms.
+- **"Nothing was typed…" / "Envoy stopped typing…":** Envoy only types into the window you were replying to, and
+  stops the moment another window comes to the front. Open the reply box over the game with your hotkey (not from the
+  tray while no game is detected), stay in the game while it types, then send again. The reply is always on your
+  clipboard in that case.
 - As a fallback, choose **When I press Enter → Copy to clipboard only** and paste it yourself.
 
 ## Hotkeys don't work

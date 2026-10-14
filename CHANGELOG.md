@@ -11,6 +11,22 @@ versioning: [SemVer](https://semver.org/).
 - **Herald**: optionally reads translated messages aloud with a Windows voice, with voice, volume and speed settings.
 - CI renders screenshots of every window in every theme.
 
+### Changed
+- **Replies only go where you meant them to.** The reply box now types into the detected game window, or the window
+  that was in front when you opened it, and never into the taskbar or Envoy itself. Typing stops if that window
+  closes or another window comes to the front. A reply opened from the tray or the settings window while no game is
+  detected now goes to the clipboard instead of being typed into whatever happens to be in front.
+- Text Envoy types is cleaned first: line breaks and tabs become spaces (so a stray newline can't end the chat line
+  early and turn the rest into game hotkeys), control characters and invisible text-direction overrides are removed,
+  and a reply is capped at 1000 characters.
+- `phrases.json` limits: files over 1 MiB are ignored, at most 500 user phrases load, phrases without an `id` are
+  skipped, and long ids, categories, icons and texts are shortened. See [the phrasebook docs](docs/phrasebook.md#limits).
+
+### Security
+- Links, files and folders are opened only through one launcher that accepts web links, Windows Settings pages and
+  non-executable files in Envoy's data folder. The update check only trusts `https://github.com/…/releases/…` URLs of
+  Envoy's own repository, so a spoofed update response can't open a local program or a network share.
+
 ### Internal
 - Settings pages are now one `UserControl` each under `Pages/`, driven by commands on a shared `MainViewModel`
   (new `Envoy.Core.Mvvm` toolkit). Page logic and text moved into tested Core classes, app actions go through
@@ -19,6 +35,12 @@ versioning: [SemVer](https://semver.org/).
 - The Linux type-check now catches XAML root/base-class mismatches, missing event handlers and UI-structure rule
   breaks; the Windows smoke test covers every page under every palette, fails on binding errors and logs per-section
   timings.
+- Quality gates: a shared `Directory.Build.props` with pinned analyzers (warnings are errors in CI, nullable warnings
+  always), `BannedSymbols.txt` (no `Process.Start` outside `Security/ShellLauncher.cs`, no TLS bypass, no
+  `BinaryFormatter`/`XamlReader`/`WebClient`), and `tools/ci/check_policy.py`, which checks P/Invokes, network code,
+  URL hosts, the `asInvoker` manifest, `#pragma`s and suppressions in the CI `check` job. The Windows job reports the
+  app's warning count. `.config/dotnet-tools.json` is the one place to pin .NET tools. Culture-sensitive formatting
+  fixed (transcript timestamps, hotkey names).
 
 ## [0.1.0] — first release
 

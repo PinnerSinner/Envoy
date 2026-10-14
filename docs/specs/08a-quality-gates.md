@@ -1,6 +1,6 @@
 # Quality gates: analyzers, banned APIs, the policy check and the security types
 
-Status: Proposed (revised against `00-integration.md`, which is binding)
+Status: Implemented (revised against `00-integration.md`, which is binding; see Deviations)
 
 Area id: `08a-quality-gates` · Requirement prefix: `QSC` (ids keep the numbers from the old
 `08-quality-security-ci.md`) · **Step 2 of 11.** Depends on `01-ui-foundation` only. Lands right after 01 and before
@@ -788,3 +788,52 @@ docs.
 - **Arrival rule.** References to the threat model were removed from `BannedSymbols.txt` messages, because that doc
   only arrives in 08b. Logging of rejected launches moves to 02, and the uses of `Host.DataFolder` stay static
   `AppHost.DataFolder` until 02.
+
+## Deviations
+
+Every MUST (QSC-1, 2, 3, 4, 6, 8, 9, 11, 28, 29, 30, 31, 32, 34) and both SHOULDs (QSC-7, 10) are implemented. The
+differences from this spec and the contract:
+
+1. **REQ-QSC-35 (COULD) is deferred.** The warning it describes is a `Callout`, and the `Callout` style arrives with
+   07a (step 8). Under the arrival rule (contract §1) this step cannot use it, and shipping `EndpointPolicy` without
+   its only consumer would be a placeholder member. 07a or a later area may build it on top of its `Callout`.
+2. **`PhraseLimits` lives in `src/Envoy.Core/Security/PhraseLimits.cs`** (namespace `Envoy.Core.Security`), as
+   contract §1 lists it under `Security/*`, not in `PhraseBook.cs` as "Files touched" suggested. It also has a
+   surrogate-safe `Truncate(value, max)` used for the id, category and icon cuts. `PhraseBook.Clean` additionally
+   tolerates `null` entries, ids and `text` objects in the user file, and an unreadable file
+   (`UnauthorizedAccessException`) now also falls back to the built-ins.
+3. **Baseline re-measurement on the 01 merge commit** found two diagnostics beyond the table: CA1307 in
+   `Text/TextTemplate.cs` (fixed with `StringComparison.Ordinal`) and, for new code, CA1711 on `RestartFlags`, whose
+   name the contract fixes (`[SuppressMessage]` with a justification). `0 Warning(s)` under `CI=true` for Core, its
+   tests and the type-check.
+4. **`OutgoingText.Sanitize`** also removes unpaired surrogates, treats any other Unicode whitespace (NBSP, U+2028,
+   U+2029) as part of a whitespace run, clamps `maxLength` to `HardMaxLength` and throws on a negative `maxLength`.
+   VT, FF and NEL are control characters, so they are removed rather than turned into spaces.
+5. **`SendTargetGuard.Check`** reports `TargetClosed` before checking for an unknown target process id, so a closed
+   game window gives the "has closed" sentence that M-QSC-4 expects rather than `NoTarget` (all listed test cases hold).
+   `KeyboardSender` checks the target before focusing without the foreground comparison (only `NoTarget` and
+   `TargetClosed` can apply then), and also checks once after pressing the open-chat key.
+6. **`LaunchTarget.Classify`** rejects more than listed: any control character, whitespace in a URL, `ms-settings:`
+   URIs with characters outside letters, digits and `-_.?=&`, a colon after the drive (alternate data streams), and an
+   executable extension hidden behind trailing dots or spaces. `ShellLauncher.TryOpen` opens an existing file **or
+   folder** under the data folder ("Open data folder" and "Open logs" open folders).
+7. **`ReleaseUrlPolicy.IsTrusted`** also rejects backslashes, whitespace, control characters and `.`/`..` owner or
+   repo segments, and needs at least one segment after `releases`. `UpdateChecker.CheckAsync` also drops a download
+   URL that belongs to another repository (the page URL check was the requirement).
+8. **Policy check extras.** `pragma` scans every `*.cs` file in the repository (tests included), matching REQ-QSC-4's
+   "anywhere". `build-config` also rejects RS0030 in `WarningsNotAsErrors`, requires the root `.editorconfig` to keep
+   `dotnet_diagnostic.RS0030.severity = error`, and requires `BannedSymbols.txt` as an `AdditionalFiles` item. The
+   script takes `--policy` as well as `--root`. `test_check_policy.py` has extra cases beyond the table (37 tests).
+9. **REQ-QSC-7** is done inside the existing "Publish single-file exe" step (the output is tee'd and the unique
+   `warning XX0000` lines are counted into the job summary), so the workflow layout is unchanged.
+10. **P-QSC-1** ran locally because this step lands without a PR description: `Process.Start("x")` in
+    `Pages/AboutPage.xaml.cs` made `typecheck.sh` fail with RS0030, and a Core `HttpClientHandler` with
+    `ServerCertificateCustomValidationCallback` made `dotnet build src/Envoy.Core` fail with RS0030. Both edits were
+    reverted.
+11. **Docs.** The M-QSC steps went into a new "Manual checks" section of `docs/releasing.md` (08b consolidates them).
+    `docs/phrasebook.md` documents the `phrases.json` limits and `docs/troubleshooting.md` the "Nothing was typed"
+    sentences.
+12. **Tests.** Besides the CA1310 fix at `TranslationTests.cs:300`, existing tests are unchanged. New test files have
+    a few cases beyond the test plan (cap clamping, unpaired surrogates, the cap boundary, own-repository download
+    filtering, the 1 MiB boundary, surrogate-safe truncation, `[Secret]` properties being strings).
+

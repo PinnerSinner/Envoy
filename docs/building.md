@@ -53,6 +53,33 @@ class and a `nameof` for every event handler the XAML names, so a `<UserControl>
 `check_ui_rules.py` (no handlers or `DataContext` in `Pages/`, no `MessageBox` outside `DialogService`, and so on). CI
 runs the real Windows build and smoke test on every push.
 
+## Analyzers and the policy check
+
+The root `Directory.Build.props` applies to every project (including the type-check): `Nullable`, `ImplicitUsings`,
+`LangVersion`, `Deterministic`, `AnalysisLevel=8.0-recommended` and code-style enforcement, plus
+`Microsoft.CodeAnalysis.BannedApiAnalyzers` with the root `BannedSymbols.txt`. The analyzer rules live in
+`.editorconfig` (`tests/.editorconfig` and `src/Envoy.App/.editorconfig` relax a few for tests and WPF).
+
+- **Warnings:** nullable warnings are always errors in `Envoy.Core` and its tests. GitHub Actions sets `CI=true`,
+  which makes every warning an error (except in the real WPF build, where the Linux type-check is the gate). Reproduce
+  CI locally with:
+
+  ```bash
+  CI=true dotnet test tests/Envoy.Core.Tests -c Release
+  CI=true tools/typecheck/typecheck.sh
+  ```
+
+- **Banned APIs** (`RS0030`, always an error): `Process.Start`/`ProcessStartInfo` (only
+  `src/Envoy.App/Security/ShellLauncher.cs` may start processes), TLS-validation bypasses, `WebClient`/`WebRequest`,
+  `BinaryFormatter`, `XamlReader`, `Process.MainModule`/`Modules`.
+- **Policy check:** `python3 tools/ci/check_policy.py` (and its tests,
+  `python3 -m unittest discover -s tools/ci -p "test_*.py"`) checks P/Invokes against `tools/ci/policy.json`, denied
+  native calls, where network code and URL hosts may appear, the `asInvoker` manifest, process launches, `#pragma`s
+  and `[SuppressMessage]` justifications, and the build settings. It prints `path:line: rule: message` per problem.
+  A new P/Invoke or host goes into `policy.json` in the same change.
+- **.NET tools** are pinned in `.config/dotnet-tools.json` and run after `dotnet tool restore`; never
+  `dotnet tool install -g`.
+
 ## Project settings worth knowing
 
 - `Envoy.App.csproj` turns on `PublishSingleFile`, `SelfContained` and compression for Release builds, and embeds
