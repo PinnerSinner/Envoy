@@ -1,0 +1,105 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # Fast cross-platform checks: core unit tests + type-check of the Windows app.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Unit tests
+        run: dotnet test tests/Envoy.Core.Tests/Envoy.Core.Tests.csproj -c Release
+      - name: Type-check Windows app
+        run: tools/typecheck/typecheck.sh
+
+  windows:
+    runs-on: windows-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $tagged = "${{ github.ref }}" -like "refs/tags/v*"
+          $v = if ($tagged) { "${{ github.ref_name }}".TrimStart("v") } else { "dev.${{ github.run_number }}" }
+          "value=$v" >> $env:GITHUB_OUTPUT
+          "tagged=$($tagged.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          # Assembly versions must be numeric; strip any prerelease suffix for them.
+          "numeric=$(($v -split '[-+]')[0])" >> $env:GITHUB_OUTPUT
+          "prerelease=$($v.Contains('-').ToString().ToLower())" >> $env:GITHUB_OUTPUT
+
+      - name: Publish single-file exe
+        shell: pwsh
+        run: |
+          $a = @("publish", "src/Envoy.App/Envoy.App.csproj", "-c", "Release", "-o", "publish")
+          # Untagged builds keep the version from Envoy.App.csproj.
+          if ("${{ steps.version.outputs.tagged }}" -eq "true") {
+            $a += "-p:Version=${{ steps.version.outputs.numeric }}"
+            $a += "-p:InformationalVersion=${{ steps.version.outputs.value }}"
+          }
+          dotnet @a
+
+      # Launches the real exe, builds every window under every theme, runs one capture + OCR pass, then exits.
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $log = Join-Path $PWD "smoke.log"
+          $p = Start-Process -FilePath "publish/Envoy.exe" -ArgumentList "--smoke-test", "`"$log`"", "--screenshots", "`"$PWD/screenshots`"" -PassThru
+          $null = $p.Handle  # needed so ExitCode is available later
+          if (-not $p.WaitForExit(180000)) { $p.Kill(); Write-Error "Smoke test timed out"; exit 1 }
+          if (Test-Path $log) { Get-Content $log }
+          $errors = Join-Path $env:APPDATA "Envoy/error.log"
+          if (Test-Path $errors) { Get-Content $errors }
+          if ($p.ExitCode -ne 0) { Write-Error "Smoke test failed with exit code $($p.ExitCode)"; exit 1 }
+          Get-ChildItem screenshots -ErrorAction SilentlyContinue | Select-Object Name, Length
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: screenshots/
+          if-no-files-found: ignore
+
+      # Code signing would go here (e.g. SignPath or Azure Trusted Signing) once a certificate is available.
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash publish/Envoy.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  Envoy.exe" | Out-File -Encoding ascii publish/Envoy.exe.sha256
+          Get-Content publish/Envoy.exe.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Envoy-${{ steps.version.outputs.value }}-win-x64
+          path: |
+            publish/Envoy.exe
+            publish/Envoy.exe.sha256
+
+      - name: GitHub release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            publish/Envoy.exe
+            publish/Envoy.exe.sha256
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          generate_release_notes: true

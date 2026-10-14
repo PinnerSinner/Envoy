@@ -1,0 +1,30 @@
+<!--
+  Linux/macOS type-check for Envoy.App. The WPF markup compiler only ships with the Windows .NET SDK, so this
+  compiles the app's C# against the Windows reference assemblies using generated XAML stubs (see gen_stubs.py).
+  It mirrors Envoy.App.csproj's compiler settings; keep the two in sync. Run tools/typecheck/typecheck.sh.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Envoy.App</RootNamespace>
+    <NoWarn>CA1416;WFAC010</NoWarn>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- stubs/*.cs are picked up by the default glob. -->
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)obj/</BaseIntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- WPF projects drop these implicit usings; match that. -->
+    <Using Remove="System.IO" />
+    <Using Remove="System.Net.Http" />
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+    <Compile Include="../../src/Envoy.App/**/*.cs" Exclude="../../src/Envoy.App/obj/**;../../src/Envoy.App/bin/**" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <ProjectReference Include="../../src/Envoy.Core/Envoy.Core.csproj" />
+  </ItemGroup>
+</Project>

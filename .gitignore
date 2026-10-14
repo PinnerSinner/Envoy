@@ -1,0 +1,12 @@
+bin/
+obj/
+publish/
+*.user
+.vs/
+.idea/
+*.swp
+smoke*.log
+TestResults/
+tools/typecheck/stubs/
+tools/typecheck/obj/
+screenshots/

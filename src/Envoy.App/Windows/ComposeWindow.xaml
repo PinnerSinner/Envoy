@@ -1,0 +1,82 @@
+<Window x:Class="Envoy.App.Windows.ComposeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Envoy — Reply"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
+        SizeToContent="Height" Width="640"
+        FontFamily="{StaticResource Font.Body}">
+    <Grid Margin="12">
+        <Grid.Effect>
+            <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.6" Color="Black" />
+        </Grid.Effect>
+        <ContentControl Style="{StaticResource OrnateFrame}" Margin="0" Padding="20,14,20,16">
+            <StackPanel>
+                <!-- Header -->
+                <DockPanel Margin="0,0,0,10" MouseLeftButtonDown="OnDrag" Background="Transparent">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Chrome}" Content="&#xE8BB;" ToolTip="Close (Esc)" Click="OnClose" Width="32" Height="28" />
+                    <Image Source="pack://application:,,,/Envoy;component/Assets/envoy.png" Width="24" Height="24" Margin="0,0,10,0" />
+                    <TextBlock Text="Reply in" Style="{StaticResource Text.H2}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                    <ComboBox x:Name="TargetLanguage" Width="250" HorizontalAlignment="Left" DisplayMemberPath="DisplayName" SelectionChanged="OnTargetChanged" />
+                </DockPanel>
+
+                <!-- Last thing they said, for context -->
+                <Border x:Name="ContextBox" Background="{DynamicResource Bg.Input}" Padding="10,6" Margin="0,0,0,10" BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="1,0,0,0">
+                    <TextBlock TextWrapping="Wrap" Style="{StaticResource Text.Caption}">
+                        <Run x:Name="ContextSender" Foreground="{DynamicResource Accent}" FontWeight="SemiBold" />
+                        <Run x:Name="ContextOriginal" Foreground="{DynamicResource Text.Secondary}" />
+                        <Run x:Name="ContextTranslation" FontStyle="Italic" />
+                    </TextBlock>
+                </Border>
+
+                <!-- Input -->
+                <Grid>
+                    <TextBox x:Name="Input" FontSize="16" MinHeight="40" Padding="10,8" TextChanged="OnInputChanged" PreviewKeyDown="OnInputKey" />
+                    <TextBlock x:Name="Placeholder" Text="Type your message…" IsHitTestVisible="False" Margin="13,0,0,0" FontSize="16"
+                               VerticalAlignment="Center" Foreground="{DynamicResource Text.Muted}" />
+                </Grid>
+
+                <!-- Preview -->
+                <Border Margin="0,10,0,0" Padding="12,10" Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Accent.Dim}" BorderThickness="1" MinHeight="58">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" x:Name="PreviewSource" Style="{StaticResource Text.Caption}" FontSize="11" VerticalAlignment="Top" />
+                            <TextBlock Text="WILL SEND" FontFamily="{StaticResource Font.Display}" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource Accent}" Margin="0,0,0,4" />
+                        </DockPanel>
+                        <TextBlock x:Name="Preview" FontSize="17" TextWrapping="Wrap" Foreground="{DynamicResource Text.Primary}" />
+                        <TextBlock x:Name="BackTranslation" Style="{StaticResource Text.Caption}" FontStyle="Italic" Margin="0,4,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Quick phrases -->
+                <TextBlock Text="Quick phrases" Style="{StaticResource Text.Caption}" Margin="0,12,0,6" />
+                <ItemsControl x:Name="Phrases" Focusable="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Style="{StaticResource Button.Chip}" Click="OnPhrase" Tag="{Binding}" ToolTip="{Binding Preview}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Icon}" Margin="0,0,6,0" />
+                                    <TextBlock Text="{Binding Label}" />
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Footer -->
+                <DockPanel Margin="0,8,0,0">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Content="Copy" Click="OnCopy" Margin="0,0,8,0" ToolTip="Copy the translation (Ctrl+Enter)" />
+                        <Button x:Name="SendButton" Content="Send to game" Style="{StaticResource Button.Primary}" Click="OnSend" ToolTip="Enter" />
+                    </StackPanel>
+                    <TextBlock x:Name="Hint" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,10,0" />
+                </DockPanel>
+            </StackPanel>
+        </ContentControl>
+    </Grid>
+</Window>

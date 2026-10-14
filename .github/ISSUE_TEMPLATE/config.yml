@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Troubleshooting guide
+    url: https://github.com/PinnerSinner/envoy/blob/main/docs/troubleshooting.md
+    about: Most setup problems (black capture, no overlay, replies not arriving) are covered here.

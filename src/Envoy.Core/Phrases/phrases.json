@@ -1,0 +1,322 @@
+[
+  {
+    "id": "glhf",
+    "category": "Greetings",
+    "icon": "⚔",
+    "text": {
+      "en": "Good luck, have fun!",
+      "zh-CN": "祝你好运，玩得开心！",
+      "zh-TW": "祝你好運，玩得開心！",
+      "ko": "행운을 빌어요, 즐겜하세요!",
+      "ja": "よろしくお願いします、楽しみましょう！",
+      "ru": "Удачи и приятной игры!",
+      "es": "¡Buena suerte y diviértete!",
+      "pt": "Boa sorte e divirta-se!",
+      "de": "Viel Glück und viel Spaß!",
+      "fr": "Bonne chance et amuse-toi bien !",
+      "tr": "Bol şans, iyi eğlenceler!",
+      "vi": "Chúc may mắn, chơi vui nhé!",
+      "pl": "Powodzenia i dobrej zabawy!"
+    }
+  },
+  {
+    "id": "hello",
+    "category": "Greetings",
+    "icon": "👋",
+    "text": {
+      "en": "Hello!",
+      "zh-CN": "你好！",
+      "zh-TW": "你好！",
+      "ko": "안녕하세요!",
+      "ja": "こんにちは！",
+      "ru": "Привет!",
+      "es": "¡Hola!",
+      "pt": "Olá!",
+      "de": "Hallo!",
+      "fr": "Salut !",
+      "tr": "Merhaba!",
+      "vi": "Xin chào!",
+      "pl": "Cześć!"
+    }
+  },
+  {
+    "id": "translator",
+    "category": "Greetings",
+    "icon": "🌐",
+    "text": {
+      "en": "I don't speak your language — I'm using a translator.",
+      "zh-CN": "我不会说你的语言，我在用翻译器。",
+      "zh-TW": "我不會說你的語言，我在用翻譯器。",
+      "ko": "저는 당신의 언어를 못 해서 번역기를 쓰고 있어요.",
+      "ja": "あなたの言語は話せないので、翻訳ツールを使っています。",
+      "ru": "Я не говорю на вашем языке — пользуюсь переводчиком.",
+      "es": "No hablo tu idioma, estoy usando un traductor.",
+      "pt": "Não falo seu idioma, estou usando um tradutor.",
+      "de": "Ich spreche deine Sprache nicht – ich benutze einen Übersetzer.",
+      "fr": "Je ne parle pas ta langue, j'utilise un traducteur.",
+      "tr": "Senin dilini bilmiyorum, çevirmen kullanıyorum.",
+      "vi": "Mình không biết tiếng của bạn, mình đang dùng trình dịch.",
+      "pl": "Nie znam twojego języka — używam tłumacza."
+    }
+  },
+  {
+    "id": "ggwp",
+    "category": "Endgame",
+    "icon": "🏳",
+    "text": {
+      "en": "Good game, well played!",
+      "zh-CN": "好局，打得漂亮！",
+      "zh-TW": "好局，打得漂亮！",
+      "ko": "좋은 게임이었어요, 잘하셨어요!",
+      "ja": "いい試合でした、お見事！",
+      "ru": "Хорошая игра, хорошо сыграно!",
+      "es": "¡Buena partida, bien jugado!",
+      "pt": "Boa partida, bem jogado!",
+      "de": "Gutes Spiel, gut gespielt!",
+      "fr": "Bonne partie, bien joué !",
+      "tr": "İyi oyundu, iyi oynadın!",
+      "vi": "Trận hay, chơi tốt lắm!",
+      "pl": "Dobra gra, dobrze zagrane!"
+    }
+  },
+  {
+    "id": "surrender",
+    "category": "Endgame",
+    "icon": "🏳",
+    "text": {
+      "en": "I surrender. Good game.",
+      "zh-CN": "我投降，好局。",
+      "zh-TW": "我投降，好局。",
+      "ko": "항복할게요. 좋은 게임이었어요.",
+      "ja": "降参です。いい試合でした。",
+      "ru": "Сдаюсь. Хорошая игра.",
+      "es": "Me rindo. Buena partida.",
+      "pt": "Eu desisto. Boa partida.",
+      "de": "Ich gebe auf. Gutes Spiel.",
+      "fr": "J'abandonne. Bonne partie.",
+      "tr": "Pes ediyorum. İyi oyundu.",
+      "vi": "Mình đầu hàng. Trận hay.",
+      "pl": "Poddaję się. Dobra gra."
+    }
+  },
+  {
+    "id": "rematch",
+    "category": "Endgame",
+    "icon": "🔁",
+    "text": {
+      "en": "Rematch?",
+      "zh-CN": "再来一局？",
+      "zh-TW": "再來一局？",
+      "ko": "한 판 더 할래요?",
+      "ja": "もう一戦どう？",
+      "ru": "Реванш?",
+      "es": "¿Revancha?",
+      "pt": "Revanche?",
+      "de": "Revanche?",
+      "fr": "Revanche ?",
+      "tr": "Rövanş?",
+      "vi": "Đấu lại không?",
+      "pl": "Rewanż?"
+    }
+  },
+  {
+    "id": "bye",
+    "category": "Endgame",
+    "icon": "👋",
+    "text": {
+      "en": "Bye!",
+      "zh-CN": "再见！",
+      "zh-TW": "再見！",
+      "ko": "안녕히 계세요!",
+      "ja": "さようなら！",
+      "ru": "Пока!",
+      "es": "¡Adiós!",
+      "pt": "Tchau!",
+      "de": "Tschüss!",
+      "fr": "Salut !",
+      "tr": "Görüşürüz!",
+      "vi": "Tạm biệt!",
+      "pl": "Na razie!"
+    }
+  },
+  {
+    "id": "thanks",
+    "category": "Courtesy",
+    "icon": "🙏",
+    "text": {
+      "en": "Thanks!",
+      "zh-CN": "谢谢！",
+      "zh-TW": "謝謝！",
+      "ko": "감사합니다!",
+      "ja": "ありがとう！",
+      "ru": "Спасибо!",
+      "es": "¡Gracias!",
+      "pt": "Obrigado!",
+      "de": "Danke!",
+      "fr": "Merci !",
+      "tr": "Teşekkürler!",
+      "vi": "Cảm ơn!",
+      "pl": "Dzięki!"
+    }
+  },
+  {
+    "id": "sorry",
+    "category": "Courtesy",
+    "icon": "🙇",
+    "text": {
+      "en": "Sorry!",
+      "zh-CN": "抱歉！",
+      "zh-TW": "抱歉！",
+      "ko": "죄송해요!",
+      "ja": "ごめんなさい！",
+      "ru": "Извини!",
+      "es": "¡Perdón!",
+      "pt": "Desculpa!",
+      "de": "Entschuldigung!",
+      "fr": "Désolé !",
+      "tr": "Özür dilerim!",
+      "vi": "Xin lỗi!",
+      "pl": "Przepraszam!"
+    }
+  },
+  {
+    "id": "nice",
+    "category": "Courtesy",
+    "icon": "👏",
+    "text": {
+      "en": "Nice move!",
+      "zh-CN": "漂亮！",
+      "zh-TW": "漂亮！",
+      "ko": "나이스!",
+      "ja": "ナイス！",
+      "ru": "Красиво!",
+      "es": "¡Buena jugada!",
+      "pt": "Boa jogada!",
+      "de": "Schöner Zug!",
+      "fr": "Bien joué !",
+      "tr": "Güzel hamle!",
+      "vi": "Hay đấy!",
+      "pl": "Niezły ruch!"
+    }
+  },
+  {
+    "id": "wait",
+    "category": "Match",
+    "icon": "⏳",
+    "text": {
+      "en": "One moment, please.",
+      "zh-CN": "请稍等。",
+      "zh-TW": "請稍等。",
+      "ko": "잠시만요.",
+      "ja": "少々お待ちください。",
+      "ru": "Минутку, пожалуйста.",
+      "es": "Un momento, por favor.",
+      "pt": "Um momento, por favor.",
+      "de": "Einen Moment bitte.",
+      "fr": "Un instant, s'il te plaît.",
+      "tr": "Bir dakika lütfen.",
+      "vi": "Chờ một chút nhé.",
+      "pl": "Chwileczkę, proszę."
+    }
+  },
+  {
+    "id": "pause",
+    "category": "Match",
+    "icon": "⏸",
+    "text": {
+      "en": "Can we pause?",
+      "zh-CN": "可以暂停一下吗？",
+      "zh-TW": "可以暫停一下嗎？",
+      "ko": "잠깐 일시정지해도 될까요?",
+      "ja": "一時停止してもいいですか？",
+      "ru": "Можно поставить паузу?",
+      "es": "¿Podemos pausar?",
+      "pt": "Podemos pausar?",
+      "de": "Können wir pausieren?",
+      "fr": "On peut mettre en pause ?",
+      "tr": "Durdurabilir miyiz?",
+      "vi": "Tạm dừng được không?",
+      "pl": "Możemy zapauzować?"
+    }
+  },
+  {
+    "id": "lag",
+    "category": "Match",
+    "icon": "📶",
+    "text": {
+      "en": "I'm lagging.",
+      "zh-CN": "我卡了。",
+      "zh-TW": "我卡了。",
+      "ko": "렉 걸려요.",
+      "ja": "ラグってます。",
+      "ru": "У меня лагает.",
+      "es": "Tengo lag.",
+      "pt": "Estou com lag.",
+      "de": "Ich habe Lag.",
+      "fr": "Je lag.",
+      "tr": "Lag yaşıyorum.",
+      "vi": "Mình bị lag.",
+      "pl": "Mam lagi."
+    }
+  },
+  {
+    "id": "attack",
+    "category": "Team",
+    "icon": "🗡",
+    "text": {
+      "en": "Where should we attack?",
+      "zh-CN": "我们打哪里？",
+      "zh-TW": "我們打哪裡？",
+      "ko": "어디로 공격할까요?",
+      "ja": "どこを攻めますか？",
+      "ru": "Куда атакуем?",
+      "es": "¿Dónde atacamos?",
+      "pt": "Onde atacamos?",
+      "de": "Wo greifen wir an?",
+      "fr": "On attaque où ?",
+      "tr": "Nereye saldıralım?",
+      "vi": "Đánh vào đâu?",
+      "pl": "Gdzie atakujemy?"
+    }
+  },
+  {
+    "id": "help",
+    "category": "Team",
+    "icon": "🛡",
+    "text": {
+      "en": "Help me, please!",
+      "zh-CN": "请帮帮我！",
+      "zh-TW": "請幫幫我！",
+      "ko": "도와주세요!",
+      "ja": "助けてください！",
+      "ru": "Помоги, пожалуйста!",
+      "es": "¡Ayúdame, por favor!",
+      "pt": "Me ajuda, por favor!",
+      "de": "Hilf mir bitte!",
+      "fr": "Aide-moi, s'il te plaît !",
+      "tr": "Yardım et lütfen!",
+      "vi": "Giúp mình với!",
+      "pl": "Pomóż mi, proszę!"
+    }
+  },
+  {
+    "id": "coming",
+    "category": "Team",
+    "icon": "🐎",
+    "text": {
+      "en": "I'm coming!",
+      "zh-CN": "我来了！",
+      "zh-TW": "我來了！",
+      "ko": "가는 중이에요!",
+      "ja": "今行きます！",
+      "ru": "Иду!",
+      "es": "¡Voy para allá!",
+      "pt": "Estou indo!",
+      "de": "Ich komme!",
+      "fr": "J'arrive !",
+      "tr": "Geliyorum!",
+      "vi": "Mình đến đây!",
+      "pl": "Już idę!"
+    }
+  }
+]

@@ -1,0 +1,51 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: game
+    attributes:
+      label: Game
+      options:
+        - Age of Empires IV
+        - Age of Empires II: DE
+        - Age of Empires III: DE
+        - Age of Mythology: Retold
+        - Age of Empires: DE
+        - Other / not game-specific
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Reading chat (OCR / capture)
+        - Translation
+        - Overlay
+        - Replying / typing into the game
+        - Settings / UI
+        - Other
+  - type: input
+    id: version
+    attributes:
+      label: Envoy version
+      description: Shown in the sidebar and under About.
+      placeholder: v0.1.0
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version, display scaling, number of monitors
+      placeholder: Windows 11 23H2, 150%, 2 monitors
+  - type: textarea
+    id: log
+    attributes:
+      label: error.log / screenshots
+      description: Attach %APPDATA%\Envoy\error.log if it exists, and a screenshot of Reading Chat → Live view for OCR problems. Remove API keys and anything private.
