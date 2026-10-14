@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Anthropic;
 using Anthropic.Models.Beta.Messages;
 using Envoy.Core.Languages;
@@ -8,6 +9,8 @@ namespace Envoy.Core.Translation.Providers;
 /// Translates with Claude using the player's own Anthropic API key. Slower than the machine-translation
 /// providers but far better with RTS slang, abbreviations and banter.
 /// </summary>
+[SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
+    Justification = "Translators live as long as the translator stack; 03-translation-resilience owns disposal.")]
 public sealed class ClaudeTranslator(string apiKey, string model) : ITranslator
 {
     public const string DefaultModel = "claude-opus-5-5";
@@ -74,7 +77,7 @@ public sealed class ClaudeTranslator(string apiKey, string model) : ITranslator
     internal static TranslationResult Parse(string reply, string providerId)
     {
         var line = reply.Trim();
-        var bar = line.IndexOf('|');
+        var bar = line.IndexOf('|', StringComparison.Ordinal);
         if (bar is > 0 and <= 12)
         {
             var code = line[..bar].Trim().Trim('`');

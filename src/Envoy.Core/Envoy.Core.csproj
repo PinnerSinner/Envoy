@@ -1,9 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <LangVersion>latest</LangVersion>
+    <!-- Nullable warnings are errors in every build, local or CI (REQ-QSC-2). -->
+    <WarningsAsErrors>$(WarningsAsErrors);nullable</WarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="12.55.0" />

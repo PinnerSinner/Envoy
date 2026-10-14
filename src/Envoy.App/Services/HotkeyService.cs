@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows.Input;
 using System.Windows.Interop;
 using Envoy.App.Interop;
@@ -40,7 +41,7 @@ public readonly record struct Hotkey(ModifierKeys Modifiers, Key Key)
         if (Modifiers.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
         if (Modifiers.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
         if (Modifiers.HasFlag(ModifierKeys.Windows)) parts.Add("Win");
-        parts.Add(Key is >= Key.D0 and <= Key.D9 ? ((int)(Key - Key.D0)).ToString() : Key.ToString());
+        parts.Add(Key is >= Key.D0 and <= Key.D9 ? ((int)(Key - Key.D0)).ToString(CultureInfo.InvariantCulture) : Key.ToString());
         return string.Join("+", parts);
     }
 }

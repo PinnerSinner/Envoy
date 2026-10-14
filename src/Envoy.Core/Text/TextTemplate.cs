@@ -53,7 +53,7 @@ public static class TextTemplate
             var colon = body.IndexOf(':');
             var name = (colon < 0 ? body : body[..colon]).ToString();
             var format = colon < 0 ? null : body[(colon + 1)..].ToString();
-            if (name.Length == 0 || name.Contains('{'))
+            if (name.Length == 0 || name.Contains('{', StringComparison.Ordinal))
                 throw new FormatException($"Malformed placeholder at {i} in template \"{template}\".");
             if (!lookup.TryGetValue(name, out var value))
                 throw new FormatException($"Template \"{template}\" uses {{{name}}} but no value was given for it.");

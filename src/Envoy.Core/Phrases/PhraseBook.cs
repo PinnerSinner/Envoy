@@ -61,6 +61,8 @@ public sealed class PhraseBook(IReadOnlyList<Phrase> phrases)
         }
     }
 
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
     private static List<Phrase> Deserialize(Stream stream) =>
-        JsonSerializer.Deserialize<List<Phrase>>(stream, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+        JsonSerializer.Deserialize<List<Phrase>>(stream, JsonOptions) ?? [];
 }

@@ -1,15 +1,13 @@
 <!--
   Linux/macOS type-check for Envoy.App. The WPF markup compiler only ships with the Windows .NET SDK, so this
   compiles the app's C# against the Windows reference assemblies using generated XAML stubs (see gen_stubs.py).
-  It mirrors Envoy.App.csproj's compiler settings; keep the two in sync. Run tools/typecheck/typecheck.sh.
+  It mirrors Envoy.App.csproj's compiler settings; keep the two in sync. The shared settings and analyzers come
+  from the root Directory.Build.props, so analyzers and banned APIs are checked for the app's C# here. Run tools/typecheck/typecheck.sh.
 -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <LangVersion>latest</LangVersion>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>Envoy.App</RootNamespace>

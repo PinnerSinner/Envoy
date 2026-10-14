@@ -1,0 +1,3 @@
+# App-only analyzer settings (docs/specs/08a-quality-gates.md). Not root: the repository rules still apply.
+[*.cs]
+dotnet_diagnostic.CA1822.severity = none      # WPF binds to instance members; event handlers must be instance

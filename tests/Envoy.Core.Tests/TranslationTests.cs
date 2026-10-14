@@ -297,7 +297,7 @@ public class SettingsStoreTests
     private sealed class ReverseProtector : ISecretProtector
     {
         public string Protect(string s) => "enc:" + new string(s.Reverse().ToArray());
-        public string Unprotect(string s) => s.StartsWith("enc:") ? new string(s[4..].Reverse().ToArray()) : throw new FormatException();
+        public string Unprotect(string s) => s.StartsWith("enc:", StringComparison.Ordinal) ? new string(s[4..].Reverse().ToArray()) : throw new FormatException();
     }
 
     [Fact]

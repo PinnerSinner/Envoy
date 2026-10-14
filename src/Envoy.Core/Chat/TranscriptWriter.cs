@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Envoy.Core.Pipeline;
 
@@ -20,7 +21,7 @@ public sealed class TranscriptWriter(string folder, TimeProvider? clock = null)
     public static string Format(IncomingMessage m, DateTimeOffset localTime)
     {
         var sb = new StringBuilder();
-        sb.Append('[').Append(localTime.ToString("HH:mm:ss")).Append("] ");
+        sb.Append('[').Append(localTime.ToString("HH:mm:ss", CultureInfo.InvariantCulture)).Append("] ");
         if (m.Chat.Channel is { } channel) sb.Append('[').Append(channel).Append("] ");
         if (m.Chat.Sender is { } sender) sb.Append(sender);
         if (m.SourceLanguage is { } lang) sb.Append(" (").Append(lang).Append(')');

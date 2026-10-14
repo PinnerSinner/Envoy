@@ -62,7 +62,7 @@ public static class LanguageCatalog
             "iw" or "he" => "he",
             "in" => "id",
             _ when ByCode.ContainsKey(c) => ByCode[c].Code,
-            _ when lower.Contains('-') && ByCode.ContainsKey(lower.Split('-')[0]) => ByCode[lower.Split('-')[0]].Code,
+            _ when lower.Contains('-', StringComparison.Ordinal) && ByCode.ContainsKey(lower.Split('-')[0]) => ByCode[lower.Split('-')[0]].Code,
             _ => lower,
         };
     }

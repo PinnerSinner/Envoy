@@ -1,0 +1,31 @@
+<!-- Shared build settings for every project, including tools/typecheck (docs/specs/08a-quality-gates.md). -->
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <!-- Pinned (not "latest") so an SDK update can't add new rules and break CI. Bump deliberately. -->
+    <AnalysisLevel>8.0-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <Authors>Envoy contributors</Authors>
+    <RepositoryUrl>https://github.com/PinnerSinner/Envoy</RepositoryUrl>
+    <IsPackable>false</IsPackable>
+    <!-- A new advisory must not break unrelated builds; 08b's vulnerable-package step is the gate. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
+  </PropertyGroup>
+
+  <!-- GitHub Actions sets CI=true. Locally warnings stay warnings; run `CI=true dotnet test …` to reproduce CI. -->
+  <PropertyGroup Condition="'$(CI)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+</Project>

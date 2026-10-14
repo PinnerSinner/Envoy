@@ -26,7 +26,7 @@ public static class ScreenCapturer
         var old = Native.SelectObject(memDc, bitmap);
         try
         {
-            Native.SetStretchBltMode(memDc, Native.HALFTONE);
+            _ = Native.SetStretchBltMode(memDc, Native.HALFTONE);
             if (!Native.StretchBlt(memDc, 0, 0, w, h, screenDc, region.X, region.Y, region.Width, region.Height, Native.SRCCOPY | Native.CAPTUREBLT))
                 throw new InvalidOperationException("Screen capture failed.");
 
@@ -50,7 +50,7 @@ public static class ScreenCapturer
             if (old != IntPtr.Zero) Native.SelectObject(memDc, old);
             Native.DeleteObject(bitmap);
             Native.DeleteDC(memDc);
-            Native.ReleaseDC(IntPtr.Zero, screenDc);
+            _ = Native.ReleaseDC(IntPtr.Zero, screenDc);
         }
     }
 

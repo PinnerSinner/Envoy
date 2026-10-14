@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,6 +10,8 @@ namespace Envoy.Core.Translation.Providers;
 /// Microsoft Translator via the short-lived token the Edge browser fetches for its built-in page translation.
 /// Free and keyless; unofficial like the Google endpoint, which makes it a good independent fallback.
 /// </summary>
+[SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
+    Justification = "Translators live as long as the translator stack; 03-translation-resilience owns disposal.")]
 public sealed class EdgeFreeTranslator(HttpClient http, TimeProvider? clock = null) : ITranslator
 {
     private const string AuthUrl = "https://edge.microsoft.com/translate/auth";

@@ -1,0 +1,6 @@
+# Test-only analyzer relaxations (docs/specs/08a-quality-gates.md). Not root: the repository rules still apply.
+[*.cs]
+dotnet_diagnostic.CA1707.severity = none      # test names use underscores
+dotnet_diagnostic.CA1307.severity = none      # string assertions on fixed ASCII test data
+dotnet_diagnostic.CA2000.severity = none      # short-lived test objects
+dotnet_diagnostic.CA1861.severity = none      # constant arrays in test data

@@ -20,3 +20,35 @@ trim_trailing_whitespace = false
 [*.cs]
 csharp_style_namespace_declarations = file_scoped:warning
 dotnet_sort_system_directives_first = true
+
+# --- Analyzer policy (docs/specs/08a-quality-gates.md). Raise severities; don't silence them. ---
+# Culture: Envoy is multilingual; every culture-sensitive call must say what it means.
+dotnet_diagnostic.CA1304.severity = warning
+dotnet_diagnostic.CA1305.severity = warning
+dotnet_diagnostic.CA1307.severity = warning
+dotnet_diagnostic.CA1309.severity = warning
+dotnet_diagnostic.CA1310.severity = warning
+# Correctness
+dotnet_diagnostic.CA2016.severity = warning   # forward CancellationToken
+dotnet_diagnostic.CA1806.severity = warning   # ignored return values
+# Security: errors
+dotnet_diagnostic.RS0030.severity = error     # banned API (BannedSymbols.txt)
+dotnet_diagnostic.CA2300.severity = error     # BinaryFormatter family
+dotnet_diagnostic.CA2301.severity = error
+dotnet_diagnostic.CA2302.severity = error
+dotnet_diagnostic.CA3075.severity = error     # insecure DTD processing
+dotnet_diagnostic.CA3077.severity = error
+dotnet_diagnostic.CA5350.severity = error     # weak crypto
+dotnet_diagnostic.CA5351.severity = error
+dotnet_diagnostic.CA5359.severity = error     # disabled certificate validation
+dotnet_diagnostic.CA5364.severity = error     # deprecated TLS
+dotnet_diagnostic.CA5386.severity = error     # hard-coded TLS version
+dotnet_diagnostic.CA5397.severity = error
+# Off or quieter, with reasons
+dotnet_diagnostic.CA1716.severity = none      # VB keyword clashes; C#-only codebase
+dotnet_diagnostic.CA2000.severity = none      # dispose analysis is noisy for HttpClient/WPF ownership
+dotnet_diagnostic.CA2007.severity = none      # ConfigureAwait: app code needs the UI context
+dotnet_diagnostic.CA5394.severity = none      # Random for jitter/backoff is not security-relevant
+dotnet_diagnostic.CA1848.severity = none      # LoggerMessage delegates: not used
+dotnet_diagnostic.CA1859.severity = suggestion
+dotnet_diagnostic.CA1861.severity = suggestion

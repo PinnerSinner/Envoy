@@ -70,10 +70,10 @@ public static class ScriptDetector
     // A handful of very common characters that only appear in Traditional Chinese.
     private const string TraditionalOnly = "們這個來對說時會為過還麼與給讓開關點錯當經嗎見後機發現學問題實體間謝謝輸贏贏戰隊";
 
-    private static bool LooksTraditional(string text) => text.Any(c => TraditionalOnly.Contains(c));
+    private static bool LooksTraditional(string text) => text.Any(c => TraditionalOnly.Contains(c, StringComparison.Ordinal));
 
     private const string VietnameseMarks = "ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ";
 
     private static bool HasVietnameseMarks(string text) =>
-        text.ToLowerInvariant().Count(c => VietnameseMarks.Contains(c)) >= 2;
+        text.ToLowerInvariant().Count(c => VietnameseMarks.Contains(c, StringComparison.Ordinal)) >= 2;
 }

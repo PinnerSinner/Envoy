@@ -7,9 +7,6 @@
     <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <LangVersion>latest</LangVersion>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <!-- Required by the LibraryImport (P/Invoke source generator) declarations in Interop/Native.cs. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -22,6 +19,9 @@
     <Version>0.1.0</Version>
     <!-- WinForms and WPF both define these; we only want the WPF ones by default. -->
     <NoWarn>$(NoWarn);CA1416;WFAC010</NoWarn>
+    <!-- The Linux typecheck (TreatWarningsAsErrors=true) is the warning gate; Windows-only markup-compiler warnings
+         must not block a release. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <!-- One-file, no-install build: `dotnet publish -c Release` produces a single Envoy.exe. -->

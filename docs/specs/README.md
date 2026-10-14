@@ -51,12 +51,12 @@ MUST counts are the requirements whose level is MUST. Folded and removed rows ar
 | 11 | [08b-ci-release.md](08b-ci-release.md) | Workflow restructure and `release` job, coverage gate, CodeQL, SBOM, time budget, OCR end-to-end test, threat model, compatibility matrix, release checklist | Proposed | 10 | 16 | 0 |
 | | **Total** | | | **152** | **111** | **8** |
 
-Superseded pointers, which are deleted when their split step starts:
+Superseded pointers, which are deleted when their split step starts (`08-quality-security-ci.md` went with 08a's
+first commit):
 
 | Spec | Replaced by | Deleted in |
 | --- | --- | --- |
 | [07-onboarding-ux-accessibility.md](07-onboarding-ux-accessibility.md) | 07a, 07b, 07c | 07a's first commit |
-| [08-quality-security-ci.md](08-quality-security-ci.md) | 08a, 08b | 08a's first commit |
 
 The MUST ids for each area are listed in contract §9. When an area changes a requirement's level, it updates its own
 spec, contract §9 and this table in the same change.
