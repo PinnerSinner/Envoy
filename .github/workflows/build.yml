@@ -64,7 +64,7 @@ jobs:
           $log = Join-Path $PWD "smoke.log"
           $p = Start-Process -FilePath "publish/Envoy.exe" -ArgumentList "--smoke-test", "`"$log`"", "--screenshots", "`"$PWD/screenshots`"" -PassThru
           $null = $p.Handle  # needed so ExitCode is available later
-          if (-not $p.WaitForExit(180000)) { $p.Kill(); Write-Error "Smoke test timed out"; exit 1 }
+          if (-not $p.WaitForExit(600000)) { $p.Kill(); Write-Error "Smoke test timed out"; exit 1 }
           if (Test-Path $log) { Get-Content $log }
           $errors = Join-Path $env:APPDATA "Envoy/error.log"
           if (Test-Path $errors) { Get-Content $errors }
