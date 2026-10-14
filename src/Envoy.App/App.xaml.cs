@@ -81,6 +81,12 @@ public partial class App : Application
         _overlay?.Reposition();
     }
 
+    public async void ScanAndTranslate()
+    {
+        _compose?.Hide();
+        await LookupWindow.ScanAsync(Host);
+    }
+
     public void OpenCompose()
     {
         // Remember the game window so we can give focus back to it when sending.
@@ -134,6 +140,7 @@ public partial class App : Application
         Bind(keys.ToggleCapture, "Pause/resume", Host.ToggleCapture);
         Bind(keys.SelectRegion, "Select chat area", SelectRegion);
         Bind(keys.OverlayEditMode, "Move overlay", ToggleOverlayEditMode);
+        Bind(keys.ScanAndTranslate, "Scan & translate", ScanAndTranslate);
         HotkeyErrors = failed;
     }
 
@@ -151,6 +158,7 @@ public partial class App : Application
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("Open Envoy", null, (_, _) => ShowMain());
         menu.Items.Add("Reply…", null, (_, _) => OpenCompose());
+        menu.Items.Add("Scan && translate…", null, (_, _) => ScanAndTranslate());
         menu.Items.Add("Select chat area", null, (_, _) => SelectRegion());
         menu.Items.Add("Pause / resume reading", null, (_, _) => Host.ToggleCapture());
         menu.Items.Add("Show / hide overlay", null, (_, _) => ToggleOverlay());

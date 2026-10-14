@@ -82,6 +82,12 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     public ChatWatcher Watcher { get; }
     public ITranslator Translator => _translator;
     public TranscriptWriter Transcript { get; }
+
+    private SpeechService? _speech;
+    private readonly HashSet<Guid> _spoken = [];
+
+    /// <summary>Created on first use so machines without audio never pay for it.</summary>
+    public SpeechService Speech => _speech ??= new SpeechService();
     public UpdateInfo? Update => _update;
     public bool HasUpdate => _update is not null;
     public string UpdateText => _update is null ? "" : $"Envoy {_update.Tag} is available — you have v{CurrentVersion.ToString(3)}.";
@@ -248,6 +254,9 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         }
         MessageArrived?.Invoke(message, isNew);
 
+        if (message.Status == IncomingStatus.Translated && Settings.Overlay.SpeakMessages && _spoken.Add(message.Id))
+            Say(message);
+
         if (message.Status != IncomingStatus.Pending && message.ProviderId != "preview")
         {
             if (Settings.SaveTranscripts)
@@ -258,6 +267,25 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
             RefreshPlayers();
         }
     }
+
+    private void Say(IncomingMessage message)
+    {
+        try
+        {
+            var o = Settings.Overlay;
+            Speech.VoiceId = o.SpeechVoiceId;
+            Speech.Volume = o.SpeechVolume;
+            Speech.Rate = o.SpeechRate;
+            var text = o.SpeakSenderName && message.Chat.Sender is { } s ? $"{s}: {message.DisplayText}" : message.DisplayText;
+            Speech.Speak(text);
+        }
+        catch (Exception)
+        {
+            // Speech is a nicety; never let it break message handling.
+        }
+    }
+
+    public void TestVoice() => Say(IncomingMessage.Preview("Envoy", "", "Your scouts report: the enemy is advancing to the Castle Age.", "en"));
 
     private void RefreshPlayers()
     {
@@ -325,6 +353,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     {
         _gameTimer.Stop();
         Watcher.Dispose();
+        _speech?.Dispose();
         SaveNow();
         _http.Dispose();
     }

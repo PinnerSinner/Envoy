@@ -73,6 +73,13 @@ internal static class SmokeTest
                 if (shots is not null) Save(compose, Path.Combine(shots, $"{theme.Id}-reply.png"), Backdrop());
                 compose.Close();
 
+                var lookup = new LookupWindow(host);
+                lookup.Show();
+                lookup.ShowResult("[全部] 天下第一：这张地图的金矿在中间\n小心早期快攻", "[All] Number One Under Heaven: the gold on this map is in the middle\nWatch out for an early rush", "zh-CN");
+                await Pump();
+                if (shots is not null) Save(lookup, Path.Combine(shots, $"{theme.Id}-scan.png"), Backdrop());
+                lookup.Close();
+
                 var selector = new RegionSelectorWindow(new System.Drawing.Rectangle(0, 0, 800, 600), null);
                 selector.Show();
                 await Pump();

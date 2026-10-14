@@ -32,8 +32,8 @@
         <Border HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,48,0,0" Padding="22,14" IsHitTestVisible="False"
                 Background="{DynamicResource Bg.Panel}" BorderBrush="{DynamicResource Accent}" BorderThickness="1">
             <StackPanel>
-                <TextBlock Text="Mark the chat area" Style="{StaticResource Text.H2}" HorizontalAlignment="Center" Margin="0,0,0,4" />
-                <TextBlock Style="{StaticResource Text.Body}" TextAlignment="Center" MaxWidth="460">
+                <TextBlock x:Name="BannerTitle" Text="Mark the chat area" Style="{StaticResource Text.H2}" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                <TextBlock x:Name="BannerBody" Style="{StaticResource Text.Body}" TextAlignment="Center" MaxWidth="460">
                     Drag a box around where chat messages appear in the game. Include a little room for long messages.
                     <LineBreak />Press <Bold>Enter</Bold> to keep the current area, <Bold>Esc</Bold> to cancel.
                 </TextBlock>

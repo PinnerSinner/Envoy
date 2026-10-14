@@ -78,6 +78,22 @@ jobs:
           path: screenshots/
           if-no-files-found: ignore
 
+      # Keeps the latest UI renders on an orphan branch so docs (and agents without artifact access) can use them.
+      - name: Publish screenshots branch
+        if: github.ref == 'refs/heads/main' && hashFiles('screenshots/*.png') != ''
+        shell: pwsh
+        run: |
+          $tmp = Join-Path $env:RUNNER_TEMP "shots"
+          Copy-Item screenshots $tmp -Recurse
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q --orphan ci-screenshots
+          git rm -rfq .
+          Copy-Item "$tmp/*.png" .
+          git add *.png
+          git commit -qm "UI screenshots for ${{ github.sha }}"
+          git push -qf origin ci-screenshots
+
       # Code signing would go here (e.g. SignPath or Azure Trusted Signing) once a certificate is available.
 
       - name: Checksum

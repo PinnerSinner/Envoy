@@ -146,9 +146,16 @@ public partial class MainWindow : Window
     private void OnDemo(object sender, RoutedEventArgs e) => _host.ShowDemoMessages();
     private void OnEditOverlay(object sender, RoutedEventArgs e) => App.Current.ToggleOverlayEditMode();
     private void OnCompose(object sender, RoutedEventArgs e) => App.Current.OpenCompose();
+    private void OnScan(object sender, RoutedEventArgs e) => App.Current.ScanAndTranslate();
     private void OnQuit(object sender, RoutedEventArgs e) => App.Current.ExitApp();
 
     private void OnNewMatch(object sender, RoutedEventArgs e) => _host.NewMatch();
+
+    private void OnTestVoice(object sender, RoutedEventArgs e)
+    {
+        ApplyNow();
+        _host.TestVoice();
+    }
 
     private void OnDownloadUpdate(object sender, RoutedEventArgs e)
     {

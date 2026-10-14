@@ -35,12 +35,14 @@ public partial class RegionSelectorWindow : Window
     }
 
     /// <summary>Shows a picker on every monitor and returns the chosen region, or null if cancelled.</summary>
-    public static Task<ScreenRegion?> SelectAsync(ScreenRegion? current)
+    public static Task<ScreenRegion?> SelectAsync(ScreenRegion? current, string? title = null, string? instructions = null)
     {
         var tcs = new TaskCompletionSource<ScreenRegion?>();
         var windows = Forms.Screen.AllScreens.Select(s => new RegionSelectorWindow(s.Bounds, current)).ToList();
         foreach (var w in windows)
         {
+            if (title is not null) w.BannerTitle.Text = title;
+            if (instructions is not null) w.BannerBody.Text = instructions;
             w.Completed += result =>
             {
                 foreach (var other in windows) other.Close();

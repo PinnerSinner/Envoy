@@ -44,6 +44,9 @@ translation into the game for you.
   language is remembered, so in a 2v2 you answer the Korean player in Korean and the Chinese player in Chinese.
 - **Replies that land.** You get a live preview and a back-translation ("Means: …") before sending. There are 16
   hand-translated quick phrases in 13 languages, and replies are typed straight into game chat.
+- **Scan & translate anything.** Press `Ctrl+Shift+Q` and drag over lobby names, map descriptions or menus for an
+  instant translation.
+- **Herald mode.** Have translations read aloud by a Windows voice, so your eyes stay on the battle.
 - **Looks the part.** Five themes, one per game (Imperial, Parchment, Frontier, Olympian and Classic), with an
   option to switch automatically to match the running game.
 - **One file.** A portable, self-contained `Envoy.exe` that lives in the tray, with global hotkeys. It can start with
@@ -68,6 +71,7 @@ To read Chinese, Korean, Japanese or Russian chat, install that language's free 
 | `Ctrl+Shift+P` | Pause / resume reading |
 | `Ctrl+Shift+R` | Select chat area |
 | `Ctrl+Shift+E` | Move / resize overlay |
+| `Ctrl+Shift+Q` | Scan & translate any part of the screen |
 
 ## Is it safe for ranked?
 

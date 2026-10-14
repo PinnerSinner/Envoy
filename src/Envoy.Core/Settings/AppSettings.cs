@@ -124,6 +124,13 @@ public sealed class OverlaySettings
     public bool ShowLanguageBadge { get; set; } = true;
     public bool ShowProvider { get; set; }
     public bool PlaySound { get; set; }
+
+    /// <summary>Read translated messages aloud with a Windows voice.</summary>
+    public bool SpeakMessages { get; set; }
+    public bool SpeakSenderName { get; set; } = true;
+    public string SpeechVoiceId { get; set; } = "";
+    public double SpeechVolume { get; set; } = 0.8;
+    public double SpeechRate { get; set; } = 1.1;
 }
 
 public enum SendMode
@@ -168,4 +175,5 @@ public sealed class HotkeySettings
     public string ToggleCapture { get; set; } = "Ctrl+Shift+P";
     public string SelectRegion { get; set; } = "Ctrl+Shift+R";
     public string OverlayEditMode { get; set; } = "Ctrl+Shift+E";
+    public string ScanAndTranslate { get; set; } = "Ctrl+Shift+Q";
 }

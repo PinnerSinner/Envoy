@@ -104,6 +104,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         new(OverlayAnchor.Free, "Wherever I drag it"),
     ];
 
+    public IReadOnlyList<Option> Voices { get; } =
+        [new Option("", "Windows default voice"), .. SpeechService.Voices.Select(v => new Option(v.Id, v.Name))];
+
     public IReadOnlyList<Option> ChannelOptions { get; } =
     [
         new(Core.Pipeline.ChannelFilter.Everything, "All chat"),

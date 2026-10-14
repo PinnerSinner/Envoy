@@ -5,6 +5,12 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Scan & translate** (`Ctrl+Shift+Q`): drag over any text on screen (lobby names, map descriptions, menus) and get
+  an instant translation popup.
+- **Herald**: optionally reads translated messages aloud with a Windows voice, with voice, volume and speed settings.
+- CI renders screenshots of every window in every theme.
+
 ## [0.1.0] — first release
 
 ### Reading chat
