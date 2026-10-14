@@ -38,6 +38,13 @@ public class SettingsRedactionTests
                     values.Add("4321");
                     values.Add("8765");
                 }
+                else if (p.PropertyType == typeof(Dictionary<string, WindowRelativeRegion>))
+                {
+                    p.SetValue(node, new Dictionary<string, WindowRelativeRegion> { ["game"] = new(4322, 8766, 640, 210, 1920, 1080) });
+                    values.Add("4322");
+                    values.Add("8766");
+                    values.Add("1920");
+                }
                 else if (p.PropertyType == typeof(ScreenRegion))
                 {
                     p.SetValue(node, new ScreenRegion(4321, 8765, 640, 210));
@@ -121,5 +128,17 @@ public class SettingsRedactionTests
         Assert.NotNull(typeof(AppSettings).GetProperty(nameof(AppSettings.MyPlayerName))!.GetCustomAttribute<PersonalAttribute>());
         Assert.NotNull(typeof(AppSettings).GetProperty(nameof(AppSettings.MutedPlayers))!.GetCustomAttribute<PersonalAttribute>());
         Assert.NotNull(typeof(CaptureSettings).GetProperty(nameof(CaptureSettings.Regions))!.GetCustomAttribute<LocationAttribute>());
+        Assert.NotNull(typeof(CaptureSettings).GetProperty(nameof(CaptureSettings.WindowRegions))!.GetCustomAttribute<LocationAttribute>());
+    }
+
+    [Fact]
+    public void Window_relative_location_becomes_size()
+    {
+        var settings = new AppSettings();
+        settings.Capture.WindowRegions["aoe2de"] = new WindowRelativeRegion(20, 850, 600, 150, 1920, 1080);
+        var json = SettingsRedaction.ToRedactedJson(settings);
+        Assert.Contains("\"aoe2de\": \"600×150\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("850", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("1080", json, StringComparison.Ordinal);
     }
 }

@@ -1,5 +1,6 @@
 using Envoy.Core.Chat;
 using Envoy.Core.Languages;
+using Envoy.Core.Ocr;
 using Envoy.Core.Translation;
 
 namespace Envoy.Core.Pipeline;
@@ -68,6 +69,16 @@ public sealed class ChatPipeline(ITranslator translator, ChatPipelineOptions opt
         _dedup.Clear();
         Players.Clear();
         LastOpponentLanguage = null;
+    }
+
+    /// <summary>
+    /// Feeds one capture's merged lines (contract §2.7). In this step it forwards the texts; spec 04 uses the geometry.
+    /// The watcher passes <see cref="CancellationToken.None"/>, so stopping capture never strands a translation.
+    /// </summary>
+    public Task<IReadOnlyList<IncomingMessage>> ProcessAsync(IReadOnlyList<OcrLine> lines, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(lines);
+        return ProcessAsync(lines.Select(l => l.Text), ct);
     }
 
     /// <summary>Feeds one OCR pass. Returns the messages that were new.</summary>

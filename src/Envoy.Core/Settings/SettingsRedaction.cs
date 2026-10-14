@@ -65,8 +65,11 @@ public static class SettingsRedaction
     public static string Size(ScreenRegion region)
     {
         ArgumentNullException.ThrowIfNull(region);
-        return region.Width.ToString(CultureInfo.InvariantCulture) + "×" + region.Height.ToString(CultureInfo.InvariantCulture);
+        return Size(region.Width, region.Height);
     }
+
+    private static string Size(int width, int height) =>
+        width.ToString(CultureInfo.InvariantCulture) + "×" + height.ToString(CultureInfo.InvariantCulture);
 
     private static void Redact(object node, JsonObject json)
     {
@@ -92,6 +95,7 @@ public static class SettingsRedaction
                 {
                     null => null,
                     ScreenRegion r => Size(r),
+                    WindowRelativeRegion r => Size(r.Width, r.Height),
                     IDictionary d => SizesOf(d),
                     ICollection c => "[" + c.Count.ToString(CultureInfo.InvariantCulture) + " entries]",
                     _ => SetMarker,
@@ -110,7 +114,12 @@ public static class SettingsRedaction
         foreach (DictionaryEntry entry in regions)
         {
             var key = Convert.ToString(entry.Key, CultureInfo.InvariantCulture) ?? "";
-            result[key] = entry.Value is ScreenRegion r ? Size(r) : SetMarker;
+            result[key] = entry.Value switch
+            {
+                ScreenRegion r => Size(r),
+                WindowRelativeRegion r => Size(r.Width, r.Height),
+                _ => SetMarker,
+            };
         }
         return result;
     }

@@ -3,8 +3,11 @@ using Envoy.Core.Languages;
 
 namespace Envoy.Core.Ocr;
 
-/// <summary>One line of text as an OCR engine read it, with its vertical position in the captured image.</summary>
-public sealed record OcrLine(string Text, double Top, double Bottom)
+/// <summary>
+/// One line of text as an OCR engine read it, with its position in the captured image (contract §2.7). Left and Right
+/// are reserved: 0 until spec 04 fills them.
+/// </summary>
+public sealed record OcrLine(string Text, double Top, double Bottom, double Left = 0, double Right = 0)
 {
     public double Center => (Top + Bottom) / 2;
     public double Height => Bottom - Top;
@@ -65,8 +68,17 @@ public static class OcrText
 /// </summary>
 public static class OcrMerger
 {
-    public static IReadOnlyList<string> Merge(IReadOnlyList<OcrPass> passes, string preferredLanguage)
+    /// <summary>The picked text of each row, top to bottom: <see cref="MergeLines"/> without the geometry.</summary>
+    public static IReadOnlyList<string> Merge(IReadOnlyList<OcrPass> passes, string preferredLanguage) =>
+        MergeLines(passes, preferredLanguage).Select(l => l.Text).ToList();
+
+    /// <summary>
+    /// One line per physical row, top to bottom (REQ-CAP-42): the picked text, and the median <c>Top</c>/<c>Bottom</c>
+    /// of every engine that read that row. <c>Left</c>/<c>Right</c> stay 0 in this step.
+    /// </summary>
+    public static IReadOnlyList<OcrLine> MergeLines(IReadOnlyList<OcrPass> passes, string preferredLanguage)
     {
+        ArgumentNullException.ThrowIfNull(passes);
         var candidates = passes
             .SelectMany(p => p.Lines.Select(l => (Pass: p, Line: l with { Text = OcrText.Clean(l.Text) })))
             .Where(c => c.Line.Text.Length > 0)
@@ -81,7 +93,15 @@ public static class OcrMerger
             else groups.Add([c]);
         }
 
-        return groups.Select(g => Pick(g, preferredLanguage)).ToList();
+        return groups.Select(g => new OcrLine(Pick(g, preferredLanguage), Median(g.Select(c => c.Line.Top)), Median(g.Select(c => c.Line.Bottom)))).ToList();
+    }
+
+    private static double Median(IEnumerable<double> values)
+    {
+        var sorted = values.Order().ToArray();
+        if (sorted.Length == 0) return 0;
+        var mid = sorted.Length / 2;
+        return sorted.Length % 2 == 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
     }
 
     private static bool SameRow(OcrLine a, OcrLine b)

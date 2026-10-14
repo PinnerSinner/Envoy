@@ -80,12 +80,49 @@ public sealed record ScreenRegion(int X, int Y, int Width, int Height)
     public override string ToString() => $"{Width}×{Height} at ({X}, {Y})";
 }
 
+/// <summary>
+/// The chat region as an offset inside a game window's client area (physical pixels), plus the client size when it was
+/// chosen, so the region follows the window when it moves and scales when it is resized (REQ-CAP-1, 2).
+/// </summary>
+public sealed record WindowRelativeRegion(int OffsetX, int OffsetY, int Width, int Height, int ClientWidth, int ClientHeight)
+{
+    public bool IsEmpty => Width <= 0 || Height <= 0 || ClientWidth <= 0 || ClientHeight <= 0;
+}
+
 public sealed class CaptureSettings
 {
-    /// <summary>Chat region per game id (physical screen pixels). "any" is used when no game-specific one exists.</summary>
+    /// <summary>
+    /// Chat region per game id (physical screen pixels). "any" is used when no game-specific one exists. Since spec 05
+    /// this is the fallback used when no game window is found or no <see cref="WindowRegions"/> entry exists.
+    /// </summary>
     [Location] public Dictionary<string, ScreenRegion> Regions { get; set; } = new();
 
+    /// <summary>Chat region per game id, relative to that game's window (written when you select the area with the game open).</summary>
+    [Location] public Dictionary<string, WindowRelativeRegion> WindowRegions { get; set; } = new();
+
+    /// <summary>Check fast while chat is moving and slow down while it is quiet (REQ-CAP-14). Off = every <see cref="IntervalMs"/>.</summary>
+    public bool AdaptivePolling { get; set; } = true;
+
+    /// <summary>Fastest check with adaptive polling (clamped to 150–2000 ms).</summary>
+    public int MinIntervalMs { get; set; } = 300;
+
+    /// <summary>Slowest check with adaptive polling (clamped to MinIntervalMs–5000 ms).</summary>
+    public int MaxIntervalMs { get; set; } = 1500;
+
+    /// <summary>The fixed check interval when <see cref="AdaptivePolling"/> is off (clamped to 150–5000 ms).</summary>
     public int IntervalMs { get; set; } = 700;
+
+    /// <summary>Give up on one text-recognition pass after this long (clamped to 1000–30000 ms). Settings file only.</summary>
+    public int OcrTimeoutMs { get; set; } = 4000;
+
+    /// <summary>Pause while another window covers the chat area (the screen copy would read that window instead).</summary>
+    public bool PauseWhenCovered { get; set; } = true;
+
+    /// <summary>Pause while neither the game nor Envoy is the active window.</summary>
+    public bool PauseWhenNotForeground { get; set; }
+
+    /// <summary>The capture method (<see cref="Envoy.Core.Capture.CaptureBackendIds"/>); unknown ids fall back to "gdi".</summary>
+    public string Backend { get; set; } = Envoy.Core.Capture.CaptureBackendIds.Gdi;
 
     /// <summary>Chat text is small; scaling it up before OCR noticeably improves accuracy.</summary>
     public double Upscale { get; set; } = 2.0;

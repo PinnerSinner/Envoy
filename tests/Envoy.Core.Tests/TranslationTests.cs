@@ -1,3 +1,4 @@
+using Envoy.Core.Ocr;
 using Envoy.Core.Phrases;
 using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
@@ -153,6 +154,21 @@ public class ChatPipelineTests
 {
     private static ChatPipeline Pipeline(FakeTranslator t, string myName = "Me") =>
         new(t, new ChatPipelineOptions { MyLanguage = "en", MyPlayerName = myName });
+
+    [Fact]
+    public async Task Lines_overload_matches_string_overload()
+    {
+        string[] texts = ["[All] 小明: 你好，再来一局？", "Kim: ㅈㅈ", "Bob: nice wall bro", "", "Me: 你好", "Li: 进攻"];
+        var byText = Pipeline(new FakeTranslator { Respond = r => new("T:" + r.Text, "zh-CN", "fake") });
+        var byLine = Pipeline(new FakeTranslator { Respond = r => new("T:" + r.Text, "zh-CN", "fake") });
+
+        var a = await byText.ProcessAsync(texts);
+        var b = await byLine.ProcessAsync(texts.Select((t, i) => new OcrLine(t, i * 20, i * 20 + 18)).ToList(), CancellationToken.None);
+
+        Assert.Equal(a.Select(m => (m.Chat.Raw, m.Status, m.Translation, m.Chat.Sender)), b.Select(m => (m.Chat.Raw, m.Status, m.Translation, m.Chat.Sender)));
+        Assert.NotEmpty(a);
+        Assert.Equal(byText.LastOpponentLanguage, byLine.LastOpponentLanguage);
+    }
 
     [Fact]
     public async Task Translates_new_foreign_messages_once()
