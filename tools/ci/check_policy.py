@@ -21,6 +21,9 @@ SKIP_DIRS = {"bin", "obj", ".git", ".vs", ".idea", "node_modules", "publish", "T
 SKIP_PREFIXES = ("tools/typecheck/stubs/",)
 PROJECT_SUFFIXES = (".csproj", ".props", ".targets")
 EDITORCONFIG_NAMES = (".editorconfig", ".globalconfig")
+# Properties that, set to false, switch analyzers (RS0030 included) or the root Directory.Build.props off.
+ANALYZER_SWITCHES = ("RunAnalyzers", "RunAnalyzersDuringBuild", "EnableNETAnalyzers", "ImportDirectoryBuildProps")
+ANALYZER_ITEMS = ("Microsoft.CodeAnalysis.BannedApiAnalyzers", "BannedSymbols.txt")
 
 APP_PROJECT = "src/Envoy.App/Envoy.App.csproj"
 NULLABLE_PROJECTS = ("src/Envoy.Core/Envoy.Core.csproj", "tests/Envoy.Core.Tests/Envoy.Core.Tests.csproj")
@@ -33,10 +36,20 @@ REQUIRED_PROPS = {
     "EnforceCodeStyleInBuild": "true",
 }
 
-NATIVE_ATTRIBUTE = re.compile(r'\[\s*(?:DllImport|LibraryImport)(?:Attribute)?\s*\(\s*"([^"]+)"([^\]]*)\]')
+# The start of an import attribute that sits alone in its own [ ] section, with an optional target and a qualified
+# name: [DllImport(, [method: LibraryImportAttribute(, [global::System.Runtime.InteropServices.DllImport(.
+NATIVE_ATTRIBUTE = re.compile(
+    r"\[\s*(?:\w+\s*:(?!:)\s*)?(?:global\s*::\s*)?(?:\w+\s*\.\s*)*(?P<kind>DllImport|LibraryImport)(?:Attribute)?\s*\(")
+# Any mention of the import attributes; each one must be an attribute the parser above resolves.
+NATIVE_WORD = re.compile(r"\b(?:DllImport|LibraryImport)(?:Attribute)?\b")
+NATIVE_LIBRARY = re.compile(r'\(\s*"([^"\\]+)"\s*[,)]')
+# The declaration directly after the attribute: modifiers in any order, a return type, then the method name.
 NATIVE_DECLARATION = re.compile(
-    r"\b(?:static\s+extern|extern\s+static|static\s+partial|partial\s+static)\b[^(;{]*?\b(\w+)\s*\(")
-ENTRY_POINT = re.compile(r'EntryPoint\s*=\s*"([^"]+)"')
+    r"(?:(?:public|internal|private|protected|static|extern|partial|unsafe|new)\s+)+"
+    r"(?:global\s*::\s*)?[\w.]+(?:\s*<[^;{}()]*>)?\??(?:\s*\*)*(?:\s*\[\s*\])*"
+    r"(?:\s+|(?<=[*\]>])\s*)(\w+)\s*\(")
+ENTRY_POINT = re.compile(r'\bEntryPoint\s*=\s*"([^"\\]+)"')
+ENTRY_POINT_ANY = re.compile(r"\bEntryPoint\s*=")
 HOST = re.compile(r"https?://([A-Za-z0-9.-]+)")
 PROCESS_LAUNCH = re.compile(r"\bProcess\s*\.\s*Start\b|\bProcessStartInfo\b|\bUseShellExecute\b")
 PRAGMA_DISABLE = re.compile(r"#\s*pragma\s+warning\s+disable\b(.*)")
@@ -86,24 +99,66 @@ def _whole_word(words: Iterable[str]) -> re.Pattern[str]:
 # ---------------------------------------------------------------------------------------------------------------------
 # Rules over src/**/*.cs (and *.xaml for hosts)
 
+def _skip_trivia(text: str, i: int) -> int:
+    """Skips whitespace, comments and further attribute sections between an import attribute and its method."""
+    while i < len(text):
+        if text[i].isspace():
+            i += 1
+        elif text.startswith("//", i):
+            newline = text.find("\n", i)
+            i = len(text) if newline < 0 else newline + 1
+        elif text.startswith("/*", i):
+            close = text.find("*/", i + 2)
+            i = len(text) if close < 0 else close + 2
+        elif text[i] == "[":
+            i += len(_call_text(text, i, "[", "]"))
+        else:
+            break
+    return i
+
+
+def _resolve_native(text: str, match: re.Match[str]) -> tuple[str | None, str]:
+    """(key, "") for an import attribute that resolves to dll!EntryPoint, otherwise (None, why it doesn't)."""
+    args = _call_text(text, match.end() - 1)
+    library = NATIVE_LIBRARY.match(args)
+    if not library:
+        return None, "its library name must be a string literal"
+    after = match.end() - 1 + len(args)
+    close = re.compile(r"\s*\]").match(text, after)
+    if not close:
+        return None, "it must sit alone in its own [ ] section"
+    entry = ENTRY_POINT.search(args)
+    if ENTRY_POINT_ANY.search(args) and not entry:
+        return None, "its EntryPoint must be a string literal"
+    decl = NATIVE_DECLARATION.match(text, _skip_trivia(text, close.end()))
+    if not decl:
+        return None, "it must be directly followed by its static extern or static partial method"
+    dll = library.group(1).strip().lower()
+    if dll.endswith(".dll"):
+        dll = dll[:-4]
+    return f"{dll}!{entry.group(1) if entry else decl.group(1)}", ""
+
+
 def check_native(root: Path, policy: dict, sources: dict[str, str]) -> list[Violation]:
     """native-unlisted and native-denied (REQ-QSC-8)."""
     out: list[Violation] = []
     allowed = set(policy["native"]["allowed"])
     denied = _whole_word(policy["native"]["denied"])
     for rel, text in sources.items():
+        reasons: dict[int, str] = {}  # where each import attribute's name starts → why it doesn't resolve ("" if it does)
         for match in NATIVE_ATTRIBUTE.finditer(text):
-            dll = match.group(1).strip().lower()
-            if dll.endswith(".dll"):
-                dll = dll[:-4]
-            decl = NATIVE_DECLARATION.search(text, match.end())
-            entry = ENTRY_POINT.search(match.group(2))
-            name = entry.group(1) if entry else (decl.group(1) if decl else "?")
-            key = f"{dll}!{name}"
-            if key not in allowed:
+            key, reasons[match.start("kind")] = _resolve_native(text, match)
+            if key is not None and key not in allowed:
                 out.append(Violation(rel, _line_of(text, match.start()), "native-unlisted",
                                      f"P/Invoke {key} is not in policy.json native.allowed; add it there and to "
                                      "Native.cs in the same change (contract §5)"))
+        for match in NATIVE_WORD.finditer(text):
+            why = reasons.get(match.start(), "write it as [DllImport(\"x.dll\")] or [LibraryImport(\"x.dll\")], "
+                                             "alone in its [ ] section, directly above the method; "
+                                             "comments must not name these attributes")
+            if why:
+                out.append(Violation(rel, _line_of(text, match.start()), "native-unlisted",
+                                     f"'{match.group(0)}' cannot be checked against policy.json native.allowed: {why}"))
         for number, line in enumerate(text.splitlines(), 1):
             for word in denied.findall(line):
                 out.append(Violation(rel, number, "native-denied",
@@ -155,8 +210,8 @@ def check_process_launch(root: Path, policy: dict, sources: dict[str, str]) -> l
     return out
 
 
-def _call_text(text: str, open_paren: int) -> str:
-    """The text of a call from its '(' to the matching ')', skipping parentheses inside string literals."""
+def _call_text(text: str, open_paren: int, opener: str = "(", closer: str = ")") -> str:
+    """The text from an opening bracket to its match (a call's '(' to ')' by default), skipping string literals."""
     depth, i, in_string = 0, open_paren, False
     while i < len(text):
         c = text[i]
@@ -167,9 +222,9 @@ def _call_text(text: str, open_paren: int) -> str:
                 in_string = False
         elif c == '"':
             in_string = True
-        elif c == "(":
+        elif c == opener:
             depth += 1
-        elif c == ")":
+        elif c == closer:
             depth -= 1
             if depth == 0:
                 return text[open_paren:i + 1]
@@ -288,6 +343,10 @@ def check_build_config(root: Path, policy: dict) -> list[Violation]:
         rel = _rel(root, path)
         text = _read(path)
         doc = _xml(path)
+        if path.name.lower() == "directory.build.props" and rel != "Directory.Build.props":
+            out.append(Violation(rel, 1, "build-config",
+                                 "only the root Directory.Build.props may exist: a nested one stops MSBuild importing "
+                                 "the root settings and analyzers for its folder"))
         if doc is None:
             continue
         if rel != APP_PROJECT:
@@ -295,6 +354,16 @@ def check_build_config(root: Path, policy: dict) -> list[Violation]:
                 if (e.text or "").strip().lower() == "false":
                     out.append(Violation(rel, _line_of(text, text.find("TreatWarningsAsErrors")), "build-config",
                                          f"only {APP_PROJECT} may set TreatWarningsAsErrors=false"))
+        for e in doc.iter():
+            name = _local(e.tag)
+            if name.lower() in {n.lower() for n in ANALYZER_SWITCHES} and (e.text or "").strip().lower() == "false":
+                out.append(Violation(rel, _line_of(text, text.find(name)), "build-config",
+                                     f"<{name}> must not be false: it turns off the analyzers or the root build settings"))
+            removed = e.get("Remove") or ""
+            for item in ANALYZER_ITEMS:
+                if item.lower() in removed.lower():
+                    out.append(Violation(rel, _line_of(text, text.find(removed)), "build-config",
+                                         f"{item} must not be removed (REQ-QSC-6)"))
         for name in ("NoWarn", "WarningsNotAsErrors"):
             for e in _elements(doc, name):
                 if "rs0030" in _codes(e.text):

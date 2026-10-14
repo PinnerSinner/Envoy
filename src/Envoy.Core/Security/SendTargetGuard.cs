@@ -39,7 +39,8 @@ public static class SendTargetGuard
     /// <summary>
     /// Checked after focusing and before every keystroke. A target process id of 0 means unknown, which counts as no
     /// target. Compared by process rather than window handle, so a game that recreates its top-level window
-    /// (fullscreen toggle) still matches.
+    /// (fullscreen toggle) while Envoy types still matches; the App reports such a target as existing while its
+    /// process owns the foreground window.
     /// </summary>
     public static SendTargetVerdict Check(bool hasTarget, bool targetExists, uint targetProcessId, uint foregroundProcessId)
     {

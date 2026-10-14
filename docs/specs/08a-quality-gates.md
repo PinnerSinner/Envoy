@@ -260,8 +260,9 @@ M:System.Diagnostics.Process.Start(System.Diagnostics.ProcessStartInfo);Start pr
 
 - The bare `M:System.Diagnostics.Process.Start` line is the instance `Start()` method.
 - Symbols that don't resolve in a project, such as `XamlReader` in Core, are ignored by the analyzer.
-- `Process.GetProcessesByName`, `GetProcessById`, `ProcessName` and `MainWindowHandle` stay allowed. They list
-  processes without opening the game's memory.
+- `Process.GetProcesses`, `GetProcessesByName`, `GetProcessById`, `ProcessName` and `MainWindowHandle` stay allowed.
+  None of them opens the game's memory. `GetProcessById` and the `ProcessName` of a process found that way can open a
+  query handle to it, so Envoy reads process names from the `GetProcesses`/`GetProcessesByName` snapshot instead.
 - The policy check's `process-launch` rule (§4) is a text backstop for the same rule.
 
 ### 3. Security types
@@ -309,7 +310,8 @@ public static class SendTargetGuard
     public static bool IsShellProcess(string? processName);
 
     /// targetProcessId 0 = unknown → NoTarget. Compared by process, not HWND, so a game that recreates its
-    /// top-level window (fullscreen toggle) still matches.
+    /// top-level window (fullscreen toggle) while Envoy types still matches: KeyboardSender passes
+    /// targetExists = true while the target's process owns the foreground window.
     public static SendTargetVerdict Check(bool hasTarget, bool targetExists, uint targetProcessId, uint foregroundProcessId);
 }
 
@@ -340,10 +342,12 @@ public static IntPtr ResolveTarget(IntPtr gameWindow)
 {
     var fg = Native.GetForegroundWindow();
     Native.GetWindowThreadProcessId(fg, out var fgPid);
-    return SendTargetGuard.ChooseTarget(gameWindow, gameWindow != IntPtr.Zero && Native.IsWindow(gameWindow),
-        fg, fgPid, ProcessNameOf(fgPid), (uint)Environment.ProcessId);
+    var gameWindowExists = gameWindow != IntPtr.Zero && Native.IsWindow(gameWindow);
+    var fgName = gameWindowExists ? null : ProcessNameOf(fgPid);   // looked up only when the game isn't chosen
+    return SendTargetGuard.ChooseTarget(gameWindow, gameWindowExists, fg, fgPid, fgName, (uint)Environment.ProcessId);
 }
-// ProcessNameOf: Process.GetProcessById(pid).ProcessName in try/catch → null on failure (reads the process list only).
+// ProcessNameOf: Process.GetProcesses() filtered by Id, then ProcessName, in try/catch → null on failure. The names
+// come from the system process list snapshot, so no process is opened (GetProcessById would open a query handle).
 
 public static async Task SendToWindowAsync(IntPtr target, string text, ComposeSettings settings, CancellationToken ct = default)
 {
@@ -542,7 +546,7 @@ the unit tests:
 
 | Rule id | Backs | What it checks |
 | --- | --- | --- |
-| `native-unlisted` | 8 | Each `[DllImport("x")]`/`[LibraryImport("x", …)]` followed by `static extern\|partial … Name(` gives the key `x!EntryPoint` (the `EntryPoint = "…"` value, otherwise the method name; the DLL name lower-cased without `.dll`). The key must be in `native.allowed`. |
+| `native-unlisted` | 8 | Each `[DllImport("x")]`/`[LibraryImport("x", …)]` (optionally qualified or with the `Attribute` suffix, alone in its `[ ]` section) is parsed together with the declaration directly after it: further attributes and comments, modifiers in any order (`public`, `internal`, `private`, `protected`, `static`, `extern`, `partial`, `unsafe`, `new`), a return type, then `Name(`. That gives the key `x!EntryPoint` (the `EntryPoint = "…"` value, otherwise the method name; the DLL name lower-cased without `.dll`). The key must be in `native.allowed`. Any whole-word `DllImport`/`LibraryImport` the parser cannot resolve this way (a constant library name or `EntryPoint`, a combined attribute list, no method directly after it, or a mention in a comment) is also a violation. |
 | `native-denied` | 8 | Any whole-word `native.denied` identifier in `src/**/*.cs`, comments and strings included, even when allowlisted. Comments describing what Envoy doesn't do must not use these names. |
 | `network-location` | 9 | Whole-word `network.types` in `src/**/*.cs` outside `allowedPaths`. `HttpRequestException` does not match because of the word boundary. |
 | `host` | 10 | `https?://([A-Za-z0-9.-]+)` in `src/**/*.cs` and `src/**/*.xaml`. The host must be in `hosts.allowed` or `hosts.ignored`. |
@@ -550,7 +554,7 @@ the unit tests:
 | `process-launch` | 30 | `Process.Start`, `ProcessStartInfo` or `UseShellExecute` in `src/**/*.cs` outside `launcher`. |
 | `pragma` | 4, 30 | `#pragma warning disable` appears only in `launcher`, at most once, and only for `RS0030`. No `SuppressMessage` names `RS0030`. Every `[SuppressMessage(` has `Justification =`. |
 | `banned-symbols` | 6 | `BannedSymbols.txt` exists and contains every `bannedRequired` id. |
-| `build-config` | 1, 2, 3 | `Directory.Build.props` contains the REQ-QSC-1 properties, the `CI` warnings-as-errors group and the analyzer reference. `Envoy.Core.csproj` and `Envoy.Core.Tests.csproj` contain `nullable` in `WarningsAsErrors`. No project other than `Envoy.App.csproj` sets `TreatWarningsAsErrors` to `false`. No project or `.editorconfig` lowers `RS0030` or puts it in `NoWarn`. |
+| `build-config` | 1, 2, 3 | `Directory.Build.props` contains the REQ-QSC-1 properties, the `CI` warnings-as-errors group and the analyzer reference. `Envoy.Core.csproj` and `Envoy.Core.Tests.csproj` contain `nullable` in `WarningsAsErrors`. No project other than `Envoy.App.csproj` sets `TreatWarningsAsErrors` to `false`. No project or `.editorconfig` lowers `RS0030` or puts it in `NoWarn`. No project, `.props` or `.targets` file sets `RunAnalyzers`, `RunAnalyzersDuringBuild`, `EnableNETAnalyzers` or `ImportDirectoryBuildProps` to `false`, or removes the analyzer package or `BannedSymbols.txt` with `Remove=`. The root `Directory.Build.props` is the only one in the repository. |
 
 **Adding entries.** Contract §5 is the rule. A new P/Invoke is added to `Native.cs` **and** `native.allowed` in the
 same PR (02 and 05 list theirs; 03, 04, 06 and 07a–c add none). A network type may only appear in the three allowed
@@ -812,7 +816,11 @@ differences from this spec and the contract:
 5. **`SendTargetGuard.Check`** reports `TargetClosed` before checking for an unknown target process id, so a closed
    game window gives the "has closed" sentence that M-QSC-4 expects rather than `NoTarget` (all listed test cases hold).
    `KeyboardSender` checks the target before focusing without the foreground comparison (only `NoTarget` and
-   `TargetClosed` can apply then), and also checks once after pressing the open-chat key.
+   `TargetClosed` can apply then), and also checks once after pressing the open-chat key. After focusing, it reports
+   the target as existing while the target's process owns the foreground window, so a game that recreates its window
+   mid-reply keeps receiving the text; before focusing, the original handle must still exist. `ResolveTarget` looks up
+   the foreground process name only when the game window is not chosen, and reads it from the `GetProcesses`
+   snapshot rather than `GetProcessById`, so opening the reply box never opens a handle to the game.
 6. **`LaunchTarget.Classify`** rejects more than listed: any control character, whitespace in a URL, `ms-settings:`
    URIs with characters outside letters, digits and `-_.?=&`, a colon after the drive (alternate data streams), and an
    executable extension hidden behind trailing dots or spaces. `ShellLauncher.TryOpen` opens an existing file **or
@@ -822,8 +830,12 @@ differences from this spec and the contract:
    URL that belongs to another repository (the page URL check was the requirement).
 8. **Policy check extras.** `pragma` scans every `*.cs` file in the repository (tests included), matching REQ-QSC-4's
    "anywhere". `build-config` also rejects RS0030 in `WarningsNotAsErrors`, requires the root `.editorconfig` to keep
-   `dotnet_diagnostic.RS0030.severity = error`, and requires `BannedSymbols.txt` as an `AdditionalFiles` item. The
-   script takes `--policy` as well as `--root`. `test_check_policy.py` has extra cases beyond the table (37 tests).
+   `dotnet_diagnostic.RS0030.severity = error`, requires `BannedSymbols.txt` as an `AdditionalFiles` item, rejects
+   analyzers switched off (`RunAnalyzers`, `RunAnalyzersDuringBuild`, `EnableNETAnalyzers`), `ImportDirectoryBuildProps`
+   set to `false`, `Remove=` of the analyzer or `BannedSymbols.txt`, and any nested `Directory.Build.props`.
+   `native-unlisted` parses each import attribute with the declaration directly after it and flags any `DllImport` or
+   `LibraryImport` it cannot resolve to a literal library name and method (§4). The script takes `--policy` as well as
+   `--root`. `test_check_policy.py` has extra cases beyond the table (50 tests).
 9. **REQ-QSC-7** is done inside the existing "Publish single-file exe" step (the output is tee'd and the unique
    `warning XX0000` lines are counted into the job summary), so the workflow layout is unchanged.
 10. **P-QSC-1** ran locally because this step lands without a PR description: `Process.Start("x")` in

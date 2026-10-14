@@ -110,6 +110,51 @@ class NativeTests(PolicyTreeTest):
         self.assertNoRule("native-unlisted")
 
 
+    def test_unsafe_partial_is_not_keyed_by_a_later_declaration(self) -> None:
+        # The unlisted import must not borrow the name of the allowed one that follows it.
+        self.write("src/Envoy.App/Interop/Extra.cs",
+                   '[LibraryImport("user32.dll")]\n'
+                   "internal static unsafe partial bool PostMessageW(nint h, uint m, nint w, nint l);\n\n"
+                   '[LibraryImport("user32.dll")]\npublic static partial nint GetForegroundWindow();\n')
+        self.assertEqual(["native-unlisted"], [r for _, r in self.rules()])
+
+    def test_modifiers_in_any_order_resolve(self) -> None:
+        self.write("src/Envoy.App/Interop/Ok.cs",
+                   '[DllImport("user32.dll")]\nextern static unsafe internal uint SendInput(uint n, void* p, int cb);\n'
+                   '[LibraryImport("gdi32.dll")]\n// a comment\n[return: MarshalAs(UnmanagedType.Bool)]\n'
+                   "private static unsafe partial bool DeleteDC(nint hdc);\n")
+        self.assertEqual([], self.rules())
+
+    def test_constant_library_name_fails(self) -> None:
+        self.write("src/Envoy.App/Interop/Extra.cs",
+                   'const string Lib = "user32.dll";\n[DllImport(Lib)]\nstatic extern uint SendInput(uint n, INPUT[] p, int cb);\n')
+        self.assertRule("native-unlisted", "src/Envoy.App/Interop/Extra.cs")
+
+    def test_constant_entry_point_fails(self) -> None:
+        self.write("src/Envoy.App/Interop/Extra.cs",
+                   '[LibraryImport("user32.dll", EntryPoint = Name)]\npublic static partial nint GetForegroundWindow();\n')
+        self.assertRule("native-unlisted", "src/Envoy.App/Interop/Extra.cs")
+
+    def test_combined_attribute_list_fails(self) -> None:
+        self.write("src/Envoy.App/Interop/Extra.cs",
+                   '[SupportedOSPlatform("windows"), DllImport("kernel32")]\nstatic extern bool VirtualFree(nint a, nint s, uint t);\n')
+        self.assertRule("native-unlisted", "src/Envoy.App/Interop/Extra.cs")
+
+    def test_qualified_attribute_name_is_checked(self) -> None:
+        self.write("src/Envoy.App/Interop/Extra.cs",
+                   '[System.Runtime.InteropServices.DllImport("kernel32")]\nstatic extern bool VirtualFree(nint a, nint s, uint t);\n')
+        self.assertRule("native-unlisted", "src/Envoy.App/Interop/Extra.cs")
+
+    def test_qualified_allowed_attribute_passes(self) -> None:
+        self.write("src/Envoy.App/Interop/Ok.cs",
+                   '[global::System.Runtime.InteropServices.LibraryImportAttribute("user32")]\n'
+                   "public static partial nint GetForegroundWindow();\n")
+        self.assertNoRule("native-unlisted")
+
+    def test_import_attribute_without_a_method_fails(self) -> None:
+        self.write("src/Envoy.App/Interop/Extra.cs", '[DllImport("user32.dll")]\nstatic int x;\n')
+        self.assertRule("native-unlisted", "src/Envoy.App/Interop/Extra.cs")
+
 class NetworkAndHostTests(PolicyTreeTest):
     def test_network_type_outside_allowed_paths_fails(self) -> None:
         self.write("src/Envoy.Core/Chat/X.cs", "class X { HttpClient _http = new(); }\n")
@@ -245,6 +290,31 @@ class BuildConfigTests(PolicyTreeTest):
         self.edit("Directory.Build.props", "Microsoft.CodeAnalysis.BannedApiAnalyzers", "Something.Else")
         self.assertRule("build-config", "Directory.Build.props")
 
+
+    def test_build_config_rejects_analyzers_switched_off(self) -> None:
+        for name in ("RunAnalyzers", "RunAnalyzersDuringBuild", "EnableNETAnalyzers"):
+            with self.subTest(name=name):
+                rel = f"src/{name}/{name}.csproj"
+                self.write(rel, f"<Project><PropertyGroup><{name}>false</{name}></PropertyGroup></Project>\n")
+                self.assertRule("build-config", rel)
+
+    def test_build_config_rejects_analyzers_off_in_app(self) -> None:
+        self.edit("src/Envoy.App/Envoy.App.csproj", "</PropertyGroup>", "<RunAnalyzers>False</RunAnalyzers></PropertyGroup>")
+        self.assertRule("build-config", "src/Envoy.App/Envoy.App.csproj")
+
+    def test_build_config_rejects_removed_banned_api_analyzer(self) -> None:
+        self.edit("src/Envoy.Core/Envoy.Core.csproj", "</Project>",
+                  '<ItemGroup><PackageReference Remove="Microsoft.CodeAnalysis.BannedApiAnalyzers" /></ItemGroup></Project>')
+        self.assertRule("build-config", "src/Envoy.Core/Envoy.Core.csproj")
+
+    def test_build_config_rejects_removed_banned_symbols(self) -> None:
+        self.edit("src/Envoy.Core/Envoy.Core.csproj", "</Project>",
+                  '<ItemGroup><AdditionalFiles Remove="$(MSBuildThisFileDirectory)../../BannedSymbols.txt" /></ItemGroup></Project>')
+        self.assertRule("build-config", "src/Envoy.Core/Envoy.Core.csproj")
+
+    def test_build_config_rejects_nested_directory_build_props(self) -> None:
+        self.write("src/Directory.Build.props", "<Project></Project>\n")
+        self.assertRule("build-config", "src/Directory.Build.props")
 
 if __name__ == "__main__":
     unittest.main()

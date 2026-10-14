@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows.Input;
@@ -29,8 +30,10 @@ public static class KeyboardSender
     {
         var fg = Native.GetForegroundWindow();
         var fgPid = ProcessOf(fg);
-        return SendTargetGuard.ChooseTarget(gameWindow, gameWindow != IntPtr.Zero && Native.IsWindow(gameWindow),
-            fg, fgPid, ProcessNameOf(fgPid), (uint)Environment.ProcessId);
+        var gameWindowExists = gameWindow != IntPtr.Zero && Native.IsWindow(gameWindow);
+        // The name only matters when the game window isn't chosen; usually the foreground process is the game.
+        var fgName = gameWindowExists ? null : ProcessNameOf(fgPid);
+        return SendTargetGuard.ChooseTarget(gameWindow, gameWindowExists, fg, fgPid, fgName, (uint)Environment.ProcessId);
     }
 
     /// <summary>
@@ -82,7 +85,10 @@ public static class KeyboardSender
     {
         var hasTarget = target != IntPtr.Zero;
         var foregroundPid = requireFocus ? ProcessOf(Native.GetForegroundWindow()) : targetPid;
-        var verdict = SendTargetGuard.Check(hasTarget, hasTarget && Native.IsWindow(target), targetPid, foregroundPid);
+        // A game that recreates its top-level window while Envoy types (fullscreen toggle) still counts as the target
+        // while its process owns the foreground window. Before focusing, the handle itself must still exist.
+        var targetExists = hasTarget && (Native.IsWindow(target) || (requireFocus && targetPid != 0 && foregroundPid == targetPid));
+        var verdict = SendTargetGuard.Check(hasTarget, targetExists, targetPid, foregroundPid);
         if (verdict != SendTargetVerdict.Ok) throw new SendBlockedException(verdict);
     }
 
@@ -94,18 +100,27 @@ public static class KeyboardSender
         return pid;
     }
 
-    /// <summary>The process name from the process list (the process itself is never opened); null on failure.</summary>
+    /// <summary>
+    /// The process name from a snapshot of the process list; null on failure. Process.GetProcessById and its
+    /// ProcessName can open a query handle to the process (which may be a game), so this filters
+    /// Process.GetProcesses() instead, whose names come from the system process list without opening any process.
+    /// </summary>
     private static string? ProcessNameOf(uint pid)
     {
         if (pid == 0) return null;
+        Process[] processes = [];
         try
         {
-            using var process = Process.GetProcessById((int)pid);
-            return process.ProcessName;
+            processes = Process.GetProcesses();
+            return processes.FirstOrDefault(p => p.Id == (int)pid)?.ProcessName;
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException)
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or Win32Exception)
         {
             return null;
+        }
+        finally
+        {
+            foreach (var p in processes) p.Dispose();
         }
     }
 
