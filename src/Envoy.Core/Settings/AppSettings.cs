@@ -7,15 +7,29 @@ namespace Envoy.Core.Settings;
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class SecretAttribute : Attribute;
 
+/// <summary>
+/// Marks a property holding player names or chat text. Diagnostics show only "[set]" or "[N entries]" (contract §7).
+/// </summary>
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class PersonalAttribute : Attribute;
+
+/// <summary>Marks a property holding screen positions. Diagnostics show only the width × height (contract §7).</summary>
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class LocationAttribute : Attribute;
+
 public sealed class AppSettings
 {
-    public int Version { get; set; } = 1;
+    /// <summary>The schema version this build writes. Stays 1 until a real migration ships (contract §7).</summary>
+    public const int CurrentVersion = 1;
+
+    /// <summary>The schema version read from disk. <see cref="SettingsStore.Save"/> always writes <see cref="CurrentVersion"/>.</summary>
+    public int Version { get; set; } = CurrentVersion;
 
     /// <summary>The language you read and type in.</summary>
     public string MyLanguage { get; set; } = "en";
 
     /// <summary>Your in-game name, so your own messages aren't translated back to you.</summary>
-    public string MyPlayerName { get; set; } = "";
+    [Personal] public string MyPlayerName { get; set; } = "";
 
     /// <summary>"match-game" or a theme id.</summary>
     public string Theme { get; set; } = "match-game";
@@ -34,7 +48,7 @@ public sealed class AppSettings
     public bool SaveTranscripts { get; set; }
 
     /// <summary>Players whose messages are hidden.</summary>
-    public List<string> MutedPlayers { get; set; } = [];
+    [Personal] public List<string> MutedPlayers { get; set; } = [];
 
     public Pipeline.ChannelFilter Channels { get; set; } = Pipeline.ChannelFilter.Everything;
 
@@ -43,7 +57,21 @@ public sealed class AppSettings
     public OverlaySettings Overlay { get; set; } = new();
     public ComposeSettings Compose { get; set; } = new();
     public HotkeySettings Hotkeys { get; set; } = new();
+    public DiagnosticsSettings Diagnostics { get; set; } = new();
     public UsageSnapshot? Usage { get; set; }
+}
+
+/// <summary>Logging and problem pop-ups (About › Troubleshooting).</summary>
+public sealed class DiagnosticsSettings
+{
+    /// <summary>Show a non-activating pop-up when something goes wrong. Problems are logged either way.</summary>
+    public bool ShowErrorToasts { get; set; } = true;
+
+    /// <summary>Write Debug entries to the log as well.</summary>
+    public bool VerboseLogging { get; set; }
+
+    /// <summary>Write chat text and player names to the log instead of their length. Off unless a developer asks.</summary>
+    public bool LogChatText { get; set; }
 }
 
 public sealed record ScreenRegion(int X, int Y, int Width, int Height)
@@ -55,7 +83,7 @@ public sealed record ScreenRegion(int X, int Y, int Width, int Height)
 public sealed class CaptureSettings
 {
     /// <summary>Chat region per game id (physical screen pixels). "any" is used when no game-specific one exists.</summary>
-    public Dictionary<string, ScreenRegion> Regions { get; set; } = new();
+    [Location] public Dictionary<string, ScreenRegion> Regions { get; set; } = new();
 
     public int IntervalMs { get; set; } = 700;
 
