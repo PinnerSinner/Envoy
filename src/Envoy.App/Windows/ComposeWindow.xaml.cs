@@ -144,7 +144,7 @@ public partial class ComposeWindow : Window
             // Back-translate so you can sanity-check what you're about to say.
             if (result.ProviderId is not ("phrasebook" or "none"))
             {
-                var back = await _host.Translator.TranslateAsync(new(result.Text, MyLanguage, Target), cts.Token);
+                var back = await _host.ComposeTranslator.TranslateAsync(new(result.Text, MyLanguage, Target), cts.Token);
                 if (!cts.IsCancellationRequested) BackTranslation.Text = "Means: " + back.Text;
             }
             return _translated;

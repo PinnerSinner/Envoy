@@ -34,6 +34,66 @@
                 </StackPanel>
             </ContentControl>
 
+            <!-- Provider health (spec 03, REQ-TRR-18): one row per provider in the active chain. -->
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
+                    <TextBlock Text="Provider health" Style="{StaticResource Text.H2}" />
+                    <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="Envoy tries these in order. A provider that keeps failing is skipped for a while, then tried again with the next message." />
+                    <ItemsControl x:Name="HealthList" ItemsSource="{Binding ProviderHealthRows}" Focusable="False" AutomationProperties.Name="Provider health">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="196" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Decorative: the state is in the row text. -->
+                                    <Ellipse Width="10" Height="10" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource Text.Muted}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding State}" Value="Healthy">
+                                                        <Setter Property="Fill" Value="{DynamicResource Success}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding State}" Value="Degraded">
+                                                        <Setter Property="Fill" Value="{DynamicResource Accent}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding State}" Value="Throttled">
+                                                        <Setter Property="Fill" Value="{DynamicResource Accent}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding State}" Value="CoolingDown">
+                                                        <Setter Property="Fill" Value="{DynamicResource Accent}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding State}" Value="AuthFailed">
+                                                        <Setter Property="Fill" Value="{DynamicResource Danger}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding State}" Value="QuotaExceeded">
+                                                        <Setter Property="Fill" Value="{DynamicResource Danger}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" Style="{StaticResource Text.Label}" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center" AutomationProperties.Name="{Binding AccessibleName}">
+                                        <TextBlock Text="{Binding StateText}" Style="{StaticResource Text.Label}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding LastSuccessText}" Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="3" Content="Retry now" Style="{StaticResource Button.Ghost}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                            Command="{Binding DataContext.RetryProviderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding ProviderId}"
+                                            AutomationProperties.Name="{Binding RetryName}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ContentControl>
+
             <!-- Credentials: only the ones in use are shown -->
             <ContentControl Style="{StaticResource OrnateFrame}" Visibility="{Binding NeedsDeepL, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel>
@@ -122,6 +182,29 @@
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Translation.DailyCharacterLimit, StringFormat='{}{0:N0} chars'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <TextBlock Style="{StaticResource Text.Caption}" Text="A busy match is roughly 2,000–5,000 characters. When the cap is reached Envoy switches to the free provider until tomorrow. 0 = no cap." Margin="220,0,0,0" />
+                    <Grid Style="{StaticResource SettingRow}" Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Give up after" Style="{StaticResource Text.Label}" />
+                        <Slider Grid.Column="1" Minimum="5" Maximum="30" SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                                Value="{Binding Settings.Translation.RequestTimeoutSeconds}" AutomationProperties.Name="Give up on a chat line after this many seconds" />
+                        <TextBlock Grid.Column="2" Text="{Binding Settings.Translation.RequestTimeoutSeconds, StringFormat='{}{0} s'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="220,0,0,0"
+                               Text="How long Envoy keeps trying a chat line, including retries and your fallback provider, before showing it as failed." />
+                </StackPanel>
+            </ContentControl>
+
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
+                    <TextBlock Text="Saved translations" Style="{StaticResource Text.H2}" />
+                    <CheckBox Content="Remember translations between sessions" IsChecked="{Binding Settings.Translation.RememberTranslations}"
+                              AutomationProperties.Name="Remember translations between sessions" />
+                    <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="Repeated lines like &quot;gg wp&quot; are then translated instantly, and for free with a paid provider. The file holds translations of chat lines you received, in your language, plus a one-way fingerprint of each original line. It never leaves this PC." />
+                    <TextBlock Text="{Binding CacheCountText}" Style="{StaticResource Text.Label}" Margin="0,8,0,0" />
+                    <Button Content="Clear saved translations" Command="{Binding ClearTranslationCacheCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                            AutomationProperties.Name="Clear saved translations" />
+                    <TextBlock Text="{Binding CacheStatus}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" />
                 </StackPanel>
             </ContentControl>
 

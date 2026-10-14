@@ -33,6 +33,7 @@ internal static class DiagnosticsCollector
             OcrSelected = [.. settings.Capture.OcrLanguages],
             Providers = Providers(settings),
             ProviderStatus = host.ProviderStatus,
+            TranslationHealth = host.TranslationHealth.Snapshot(host.ActiveProviderIds),
             Hotkeys = [.. host.HotkeyResults.Where(r => r.Status != HotkeyStatus.Registered).Select(r => new HotkeyLine(r.ActionName, r.Combo, r.Status.ToString()))],
             SafeMode = host.SafeMode,
             SettingsLoad = host.SettingsLoad,

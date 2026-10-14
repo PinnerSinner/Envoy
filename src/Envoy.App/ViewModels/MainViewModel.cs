@@ -76,6 +76,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         DeleteAllDataCommand = new RelayCommand(_shell.DeleteAllDataAndRestart);
         DismissCrashCommand = new RelayCommand(DismissCrash);
         RefreshTroubleshooting();
+
+        // Translation page: provider health and saved translations (bodies in MainViewModel.Translation.cs).
+        RetryProviderCommand = new RelayCommand<string>(RetryProvider);
+        ClearTranslationCacheCommand = new RelayCommand(ClearTranslationCache);
+        AttachTranslationHealth();
     }
 
     public AppHost Host { get; }
@@ -182,6 +187,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _disposed = true;
         Host.PropertyChanged -= _hostChanged;
         Host.HotkeyResultsChanged -= OnHotkeyResultsChanged;
+        DetachTranslationHealth();
         CapturePreview.Dispose();
     }
 }

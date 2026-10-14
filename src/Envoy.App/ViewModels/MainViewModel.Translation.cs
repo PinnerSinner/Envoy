@@ -1,6 +1,10 @@
+using System.Collections.ObjectModel;
+using System.Windows.Threading;
 using Envoy.Core.Chat;
+using Envoy.Core.Mvvm;
 using Envoy.Core.Translation;
 using Envoy.Core.Translation.Providers;
+using Envoy.Core.Translation.Resilience;
 
 namespace Envoy.App.ViewModels;
 
@@ -9,6 +13,9 @@ public sealed partial class MainViewModel
 {
     private string _translationTestInput = TranslationTestText.SampleInput;
     private string _translationTestOutput = "";
+    private DispatcherTimer? _healthTimer;
+    private bool _isTranslationPageActive;
+    private string _cacheStatus = "";
 
     public IReadOnlyList<ProviderInfo> Providers { get; } = ProviderCatalog.All;
     public IReadOnlyList<string> ClaudeModels { get; } = ClaudeTranslator.SuggestedModels;
@@ -98,5 +105,101 @@ public sealed partial class MainViewModel
     {
         get => _translationTestOutput;
         private set => SetProperty(ref _translationTestOutput, value);
+    }
+
+    // ---- Provider health card and saved translations (spec 03, REQ-TRR-18, 20, 21, 28) ----
+
+    /// <summary>One row per provider in the active chain, in chain order.</summary>
+    public ObservableCollection<ProviderHealthRow> ProviderHealthRows { get; } = [];
+
+    /// <summary>Parameter: the provider id. Closes its breaker and clears its health ("Retry now").</summary>
+    public RelayCommand<string> RetryProviderCommand { get; }
+
+    /// <summary>Empties the memory cache and deletes translation-cache.json.</summary>
+    public RelayCommand ClearTranslationCacheCommand { get; }
+
+    /// <summary>"{count} translations saved on this PC."</summary>
+    public string CacheCountText =>
+        TranslationCacheText.Status(Host.TranslationRuntime.Options.RememberTranslations, Host.TranslationRuntime.Cache.PersistableCount);
+
+    /// <summary>"" or why clearing failed.</summary>
+    public string CacheStatus
+    {
+        get => _cacheStatus;
+        private set => SetProperty(ref _cacheStatus, value);
+    }
+
+    /// <summary>
+    /// Set by <c>TranslationPage</c> from <c>IsVisibleChanged</c> (01's pattern): the 1 s refresh of the health text runs
+    /// only while the page is visible.
+    /// </summary>
+    public bool IsTranslationPageActive
+    {
+        get => _isTranslationPageActive;
+        set
+        {
+            if (value && _disposed) return;
+            if (!SetProperty(ref _isTranslationPageActive, value)) return;
+            if (value)
+            {
+                RebuildHealthRows();
+                _healthTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => RefreshHealthRows(), Dispatcher.CurrentDispatcher);
+                _healthTimer.Start();
+            }
+            else
+            {
+                _healthTimer?.Stop();
+            }
+        }
+    }
+
+    private void AttachTranslationHealth()
+    {
+        Host.ProviderHealthChanged += OnProviderHealthChanged;
+        Host.SettingsApplied += RebuildHealthRows;
+        RebuildHealthRows();
+    }
+
+    private void DetachTranslationHealth()
+    {
+        Host.ProviderHealthChanged -= OnProviderHealthChanged;
+        Host.SettingsApplied -= RebuildHealthRows;
+        _healthTimer?.Stop();
+        _healthTimer = null;
+    }
+
+    private void OnProviderHealthChanged(ProviderHealthSnapshot snapshot) => RefreshHealthRows();
+
+    /// <summary>Matches the rows to the active chain (keeping existing rows), then refreshes their text.</summary>
+    private void RebuildHealthRows()
+    {
+        var ids = Host.ActiveProviderIds;
+        if (!ProviderHealthRows.Select(r => r.ProviderId).SequenceEqual(ids, StringComparer.Ordinal))
+        {
+            var existing = ProviderHealthRows.ToDictionary(r => r.ProviderId, StringComparer.Ordinal);
+            ProviderHealthRows.Clear();
+            foreach (var id in ids) ProviderHealthRows.Add(existing.TryGetValue(id, out var row) ? row : new ProviderHealthRow(id));
+        }
+        RefreshHealthRows();
+    }
+
+    private void RefreshHealthRows()
+    {
+        var now = Host.Time.GetUtcNow();
+        foreach (var row in ProviderHealthRows) row.Update(Host.TranslationHealth.Get(row.ProviderId), now);
+        Notify(nameof(CacheCountText));
+    }
+
+    private void RetryProvider(string? providerId)
+    {
+        if (string.IsNullOrEmpty(providerId)) return;
+        Host.TranslationRuntime.ResetProvider(providerId);
+        RefreshHealthRows();
+    }
+
+    private void ClearTranslationCache()
+    {
+        CacheStatus = Host.TranslationRuntime.ClearCache() ? "" : TranslationErrorText.CacheClearFailed;
+        Notify(nameof(CacheCountText));
     }
 }

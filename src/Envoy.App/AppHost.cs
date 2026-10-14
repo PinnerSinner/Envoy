@@ -14,6 +14,7 @@ using Envoy.Core.Phrases;
 using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
 using Envoy.Core.Translation;
+using Envoy.Core.Translation.Resilience;
 using Envoy.Core.Updates;
 
 namespace Envoy.App;
@@ -55,9 +56,12 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     private int _saveFailures;
     private readonly HttpClient _http;
     private readonly TranslatorFactory _factory;
+    private readonly IDisposable _translationLogging;
     private readonly DispatcherTimer _gameTimer;
     private readonly DispatcherTimer _saveTimer;
     private ITranslator _translator;
+    private ITranslator _composeTranslator;
+    private IReadOnlyList<string> _activeProviderIds = [];
     private RunningGame? _game;
     private string _providerStatus = "";
     private UpdateInfo? _update;
@@ -85,19 +89,23 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Settings = SettingsLoad.Settings;
         // 2: diagnostics (02).
         ApplyDiagnosticsSettings();
-        // [03 TranslationRuntime] [03 TranslatorFactory]
+        // 3: TranslationRuntime (03): breakers, throttles, provider health and the cache, for the life of the host.
+        TranslationRuntime = new TranslationRuntime(TranslationCachePath, Time, Log.Redactor, _translationLog);
+        TranslationRuntime.Configure(TranslationRuntimeOptions.From(Settings.Translation));
+        _translationLogging = TranslationLogging.Attach(TranslationRuntime, _translationLog);
+        TranslationRuntime.ProviderHealthChanged += OnProviderHealthChanged;
+        // 4: TranslatorFactory (03). Each attempt has its own timeout; HttpClient.Timeout is only a backstop now.
         Usage.Restore(Settings.Usage);
-
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Envoy/0.1");
-        _factory = new TranslatorFactory(_http, Usage);
-        _translator = BuildTranslator();
+        _factory = new TranslatorFactory(_http, Usage, TranslationRuntime);
+        (_translator, _composeTranslator) = BuildTranslator();
 
         Phrases = PhraseBook.LoadWithUserFile(UserPhrasesPath);
         Ocr = new OcrService();
         // [04 ChatFormatCatalog]
         Pipeline = new ChatPipeline(_translator, PipelineOptions());
-        Outgoing = new OutgoingTranslator(() => _translator, Phrases);
+        Outgoing = new OutgoingTranslator(() => _composeTranslator, Phrases);
         // [05 ChatWatcher rewrite]
         Watcher = new ChatWatcher(Ocr, Pipeline, () => Settings, () => CurrentGameId)
         {
@@ -113,7 +121,11 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
 
         ConfigureOcr();
 
-        _gameTimer = new DispatcherTimer(TimeSpan.FromSeconds(3), DispatcherPriority.Background, (_, _) => RefreshGame(), _ui);
+        _gameTimer = new DispatcherTimer(TimeSpan.FromSeconds(3), DispatcherPriority.Background, (_, _) =>
+        {
+            RefreshGame();
+            RefreshProviderStatus(); // a cooling-down period may have ended
+        }, _ui);
         _saveTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(600), DispatcherPriority.Background, (_, _) => SaveNow(), _ui) { IsEnabled = false };
     }
 
@@ -122,6 +134,9 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     public string LogsFolder => Path.Combine(DataFolder, DataInventory.LogsFolderName);
     public string UserPhrasesPath => Path.Combine(DataFolder, "phrases.json");
     public string CrashMarkerPath => Path.Combine(DataFolder, "last-crash.json");
+
+    /// <summary>Saved translations, when "Remember translations" is on (REQ-TRR-20).</summary>
+    public string TranslationCachePath => Path.Combine(DataFolder, TranslationCacheStore.FileName);
 
     public LogHub Log { get; }
     public MemoryLogSink? RecentLog { get; }
@@ -156,6 +171,22 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     public OutgoingTranslator Outgoing { get; }
     public ChatWatcher Watcher { get; }
     public ITranslator Translator => _translator;
+
+    /// <summary>The reply box's stack: its own low-priority lane, sharing breakers, health and cache (REQ-TRR-29).</summary>
+    public ITranslator ComposeTranslator => _composeTranslator;
+
+    /// <summary>Long-lived translation state: breakers, throttles, health and the cache (spec 03).</summary>
+    public TranslationRuntime TranslationRuntime { get; }
+
+    /// <summary>The single provider-health source (contract §2.1).</summary>
+    public ProviderHealthRegistry TranslationHealth => TranslationRuntime.Health;
+
+    /// <summary>The provider ids of the chain as built, in order (primary, fallbacks, Google free last). UI thread.</summary>
+    public IReadOnlyList<string> ActiveProviderIds => _activeProviderIds;
+
+    /// <summary>A provider's health changed state; raised on the UI thread.</summary>
+    public event Action<ProviderHealthSnapshot>? ProviderHealthChanged;
+
     public TranscriptWriter Transcript { get; }
 
     private SpeechService? _speech;
@@ -219,11 +250,22 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         if (!IsSafeMode && Settings.CheckForUpdates) CheckForUpdatesAsync().Forget(_log, "update check");
     }
 
-    /// <summary>Stops every later settings save (reset, "Delete all Envoy data"). Irreversible for this host.</summary>
-    public void SuppressSave() => _store.SuppressSaves();
+    /// <summary>
+    /// Stops every later settings and saved-translations write (reset, "Delete all Envoy data"). Irreversible for this
+    /// host.
+    /// </summary>
+    public void SuppressSave()
+    {
+        _store.SuppressSaves();
+        TranslationRuntime.SuppressPersistence();
+    }
 
     /// <summary>Suppresses saving, keeps a <c>.reset-{time}.bak</c> copy and deletes settings.json (REQ-REL-38).</summary>
-    public string? ResetSettings() => _store.ResetToDefaults();
+    public string? ResetSettings()
+    {
+        TranslationRuntime.SuppressPersistence();
+        return _store.ResetToDefaults();
+    }
 
     /// <summary>Logs <paramref name="report"/> at its severity and raises <see cref="ProblemReported"/> on the UI thread. Any thread.</summary>
     public void ReportProblem(ProblemReport report)
@@ -297,7 +339,9 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     public void ApplySettings()
     {
         ApplyDiagnosticsSettings(); // contract §3 ApplySettings position 1
-        _translator = BuildTranslator();
+        var translationOptions = TranslationRuntimeOptions.From(Settings.Translation); // 2: publish the snapshot
+        TranslationRuntime.Configure(translationOptions); // 3
+        (_translator, _composeTranslator) = BuildTranslator(); // 4
         Pipeline.Translator = _translator;
         var o = PipelineOptions();
         Pipeline.Options.MyLanguage = o.MyLanguage;
@@ -448,26 +492,36 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         foreach (var p in Pipeline.Players.Players) Players.Add(p);
     }
 
-    private ITranslator BuildTranslator()
+    /// <summary>
+    /// Builds the chat stack and the reply box's compose-lane stack (spec 03 §9). Providers that cannot be built show as
+    /// "Not set up" in health; attempts and transitions are logged by <see cref="TranslationLogging"/>.
+    /// </summary>
+    private (ITranslator Chat, ITranslator Compose) BuildTranslator()
     {
-        var failures = new List<string>();
-        var translator = _factory.Build(Settings.Translation, (id, ex) =>
-        {
-            // 03 replaces this with its TranslationRuntime.Diagnostic subscription.
-            _translationLog.Warn("Provider failed", null, LogField.Of("provider", id), LogField.Of("error", ex.GetType().Name + ": " + ex.Message));
-            failures.Add($"{ProviderCatalog.Find(id)?.Name ?? id}: {ex.Message}");
-            _ui.BeginInvoke(() =>
-            {
-                _providerStatus = $"{ProviderCatalog.Find(id)?.Name ?? id} failed — {ex.Message}";
-                Notify(nameof(ProviderStatus));
-            });
-        });
-        _providerStatus = failures.Count == 0
-            ? $"Using {ProviderCatalog.Find(Settings.Translation.Primary)?.Name ?? Settings.Translation.Primary}"
-            : string.Join("\n", failures);
-        Notify(nameof(ProviderStatus));
-        return translator;
+        var chat = _factory.Build(Settings.Translation);
+        var compose = _factory.Build(Settings.Translation, lane: TranslationLane.Compose);
+        _activeProviderIds = TranslatorFactory.ChainIds(Settings.Translation);
+        RefreshProviderStatus();
+        return (chat, compose);
     }
+
+    /// <summary>The War Room status line, derived from the health registry (REQ-TRR-18). UI thread.</summary>
+    private void RefreshProviderStatus()
+    {
+        var names = _activeProviderIds.Select(ProviderCatalog.NameOf).ToList();
+        var status = ProviderHealthText.Summary(TranslationHealth.Snapshot(_activeProviderIds), names, Time.GetUtcNow());
+        if (status == _providerStatus) return;
+        _providerStatus = status;
+        Notify(nameof(ProviderStatus));
+    }
+
+    // Raised on the thread that finished the attempt; marshalled to the UI. Dispose unsubscribes it.
+    private void OnProviderHealthChanged(ProviderHealthSnapshot snapshot) => _ui.BeginInvoke(() =>
+    {
+        if (_disposed) return;
+        RefreshProviderStatus();
+        ProviderHealthChanged?.Invoke(snapshot);
+    });
 
     private ChatPipelineOptions PipelineOptions() => new()
     {
@@ -519,10 +573,13 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Pipeline.MessageReceived -= OnPipelineMessageReceived;
         Pipeline.MessageUpdated -= OnPipelineMessageUpdated;
         Watcher.StateChanged -= OnWatcherStateChanged;
+        TranslationRuntime.ProviderHealthChanged -= OnProviderHealthChanged;
         _gameTimer.Stop();
         Watcher.Dispose();
         _speech?.Dispose();
         SaveNow(); // a no-op once saving is suppressed, so a reset or Delete-all is never undone
+        _translationLogging.Dispose();
+        TranslationRuntime.Dispose(); // saves remembered translations unless persistence is suppressed (contract §4)
         _http.Dispose();
         Log.Flush();
         if (_ownsLog) Log.Dispose();

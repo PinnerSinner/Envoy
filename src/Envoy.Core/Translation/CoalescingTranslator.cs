@@ -40,7 +40,7 @@ public sealed class CoalescingTranslator(ITranslator inner, Func<TranslationRequ
             flight.Waiters++;
         }
 
-        if (owner) _ = RunAsync(k, flight, request); // never throws: the outcome goes to the flight
+        if (owner) flight.Runner = RunAsync(k, flight, request); // never throws: the outcome goes to the flight
 
         try
         {
@@ -96,6 +96,9 @@ public sealed class CoalescingTranslator(ITranslator inner, Func<TranslationRequ
         public TaskCompletionSource<TranslationResult> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public CancellationTokenSource Cts { get; } = new();
         public int Waiters { get; set; }
+
+        /// <summary>The owner's call; kept, not discarded, though it never faults (its outcome is <see cref="Completion"/>).</summary>
+        public Task? Runner { get; set; }
         public bool Done { get; set; }
     }
 }

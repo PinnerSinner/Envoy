@@ -18,6 +18,7 @@ using Envoy.Core.Notifications;
 using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
 using Envoy.Core.Translation;
+using Envoy.Core.Translation.Resilience;
 
 namespace Envoy.App;
 
@@ -28,10 +29,10 @@ namespace Envoy.App;
 /// </summary>
 /// <remarks>
 /// Three phases (contract §6): setup and once-only work; one pass per <see cref="ThemeManager.PaletteIds"/> entry
-/// (pages, MainWindow-dependent checks, close, other windows, binding errors); teardown. Every section logs
-/// <c>[smoke] {section} ok elapsed_ms={n}</c>. New windows and pages are exercised in the per-palette phase. Every host
-/// runs on its own folder under <c>%TEMP%\envoy-smoke-{guid}</c>, which is deleted at the end, so the smoke test never
-/// reads or writes the user's real Envoy data.
+/// (pages, MainWindow-dependent checks incl. 03's translation-health rows, close, other windows, binding errors);
+/// teardown. Every section logs <c>[smoke] {section} ok elapsed_ms={n}</c>. New windows and pages are exercised in the
+/// per-palette phase. Every host runs on its own folder under <c>%TEMP%\envoy-smoke-{guid}</c>, which is deleted at the
+/// end, so the smoke test never reads or writes the user's real Envoy data.
 /// </remarks>
 internal static class SmokeTest
 {
@@ -108,6 +109,10 @@ internal static class SmokeTest
 
             await WarmUpProviderAsync(host);
             Section("provider-warmup", sw);
+
+            // ---- 03: display-only provider health for the per-palette rows check ----
+            SeedTranslationHealth(host);
+            Section("translation-health-seed", sw);
 
             // Capture + OCR once on a small screen area (the runner's desktop).
             var image = ScreenCapturer.Capture(new ScreenRegion(0, 0, 320, 120), 2.0);
@@ -228,6 +233,9 @@ internal static class SmokeTest
             Section($"safe-banner({palette})", sw);
             await CheckToastAsync(main, palette, shots);
             Section($"toast({palette})", sw);
+            var rows = await CheckHealthRowsAsync(host, main);
+            Log($"[smoke] translation-health-rows ok elapsed_ms={sw.ElapsedMilliseconds} rows={rows} palette={palette}");
+            sw.Restart();
 
             // ---- close ----
             if (first)
@@ -325,6 +333,56 @@ internal static class SmokeTest
         {
             Warn($"provider warm-up failed: {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    // ---------------- 03 checks ----------------
+
+    /// <summary>
+    /// Seeds display-only health for the main host's chain (google-free Healthy at 340 ms, edge-free cooling down for
+    /// 60 s). Seed never touches breakers or buckets, so the compose window's real calls are unaffected.
+    /// </summary>
+    private static void SeedTranslationHealth(AppHost host)
+    {
+        var ids = host.ActiveProviderIds;
+        Check(ids.Count > 0, "the host has no active translation providers");
+        Check(ids.Contains(ProviderCatalog.GoogleFree), "Google (free) is not in the active chain");
+        var now = host.Time.GetUtcNow();
+        foreach (var id in ids)
+        {
+            var empty = ProviderHealthSnapshot.Empty(id);
+            host.TranslationHealth.Seed(id switch
+            {
+                ProviderCatalog.GoogleFree => empty with
+                {
+                    State = ProviderState.Healthy, MedianLatency = TimeSpan.FromMilliseconds(340), LastSuccess = now.AddSeconds(-5), Successes = 12,
+                },
+                ProviderCatalog.EdgeFree => empty with
+                {
+                    State = ProviderState.CoolingDown, RetryAt = now.AddSeconds(60), LastFailure = now, Failures = 3, ConsecutiveFailures = 3,
+                    LastErrorKind = TranslationErrorKind.Timeout,
+                },
+                _ => empty,
+            });
+        }
+        Log($"translation health seeded: {string.Join(", ", ids)}");
+    }
+
+    /// <summary>The Translation page shows one generated health row per active provider (REQ-TRR-18, AC-TRR-14).</summary>
+    private static async Task<int> CheckHealthRowsAsync(AppHost host, MainWindow main)
+    {
+        main.Navigate(PageIds.Translation);
+        await Pump();
+        var page = (TranslationPage)main.PageFor(PageIds.Translation);
+        var vm = (MainViewModel)main.DataContext;
+        var expected = host.ActiveProviderIds.Count;
+        Check(vm.IsTranslationPageActive, "the Translation page is visible but its health refresh is off");
+        Check(vm.ProviderHealthRows.Count == expected, $"{vm.ProviderHealthRows.Count} health rows in the view model, expected {expected}");
+        Check(vm.ProviderHealthRows.Select(r => r.ProviderId).SequenceEqual(host.ActiveProviderIds), "the health rows are not in chain order");
+        Check(page.HealthList.Items.Count == expected, $"the health list has {page.HealthList.Items.Count} items, expected {expected}");
+        for (var i = 0; i < expected; i++)
+            Check(page.HealthList.ItemContainerGenerator.ContainerFromIndex(i) is not null, $"health row {i} was not generated");
+        Check(vm.ProviderHealthRows.All(r => r.StateText.Length > 0), "a health row has no state text");
+        return expected;
     }
 
     // ---------------- 02 checks ----------------

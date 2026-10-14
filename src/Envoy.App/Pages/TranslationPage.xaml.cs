@@ -1,9 +1,20 @@
 using System.Windows.Controls;
+using Envoy.App.ViewModels;
 
 namespace Envoy.App.Pages;
 
-/// <summary>A settings page. It binds to the MainViewModel it inherits from MainWindow; buttons run its commands.</summary>
+/// <summary>
+/// The Translation page. Its only logic: the provider-health text refreshes while the page is visible (01's
+/// <c>IsVisibleChanged</c> → view-model flag pattern).
+/// </summary>
 public partial class TranslationPage : UserControl
 {
-    public TranslationPage() => InitializeComponent();
+    public TranslationPage()
+    {
+        InitializeComponent();
+        IsVisibleChanged += (_, _) =>
+        {
+            if (DataContext is MainViewModel vm) vm.IsTranslationPageActive = IsVisible;
+        };
+    }
 }
