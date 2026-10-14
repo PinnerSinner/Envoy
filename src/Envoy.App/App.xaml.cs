@@ -1,7 +1,7 @@
-using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
 using Envoy.App.Interop;
+using Envoy.App.Security;
 using Envoy.App.Services;
 using Envoy.App.Windows;
 using Envoy.Core.Hotkeys;
@@ -189,20 +189,14 @@ public partial class App : Application, IShell
     }
 
     /// <inheritdoc />
-    public void OpenUrl(string urlOrDataPath) => Process.Start(new ProcessStartInfo(urlOrDataPath) { UseShellExecute = true });
+    public void OpenUrl(string urlOrDataPath) => _ = ShellLauncher.TryOpen(urlOrDataPath, AppHost.DataFolder);
 
     /// <inheritdoc />
     public void InstallOcrPack(string languageTag)
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo("powershell.exe", OcrPackInstall.PowerShellArguments(languageTag)) { UseShellExecute = true, Verb = "runas" });
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or ArgumentException)
-        {
-            // User declined the admin prompt (or the language is unknown): point them at Settings instead.
-            OpenUrl(OcrPackInstall.SettingsFallbackUri);
-        }
+        // Declined admin prompt or unknown language: point them at Windows language settings instead.
+        if (!ShellLauncher.InstallOcrPack(languageTag))
+            _ = ShellLauncher.TryOpen(OcrPackInstall.SettingsFallbackUri, AppHost.DataFolder);
     }
 
     /// <inheritdoc />

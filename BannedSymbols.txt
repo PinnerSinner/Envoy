@@ -1,0 +1,19 @@
+T:System.Net.WebClient;Use the shared HttpClient
+T:System.Net.WebRequest;Use the shared HttpClient
+T:System.Net.HttpWebRequest;Use the shared HttpClient
+P:System.Net.Http.HttpClientHandler.ServerCertificateCustomValidationCallback;Never bypass TLS validation
+P:System.Net.Http.HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;Never bypass TLS validation
+P:System.Net.Security.SslClientAuthenticationOptions.RemoteCertificateValidationCallback;Never bypass TLS validation
+P:System.Net.ServicePointManager.ServerCertificateValidationCallback;Never bypass TLS validation
+T:System.Runtime.Serialization.Formatters.Binary.BinaryFormatter;Insecure deserialization
+T:System.Windows.Markup.XamlReader;Never load XAML from data
+P:System.Diagnostics.Process.MainModule;Never open the game process
+P:System.Diagnostics.Process.Modules;Never open the game process
+T:System.Diagnostics.ProcessStartInfo;Start processes only through Security/ShellLauncher.cs
+M:System.Diagnostics.Process.Start;Start processes only through Security/ShellLauncher.cs
+M:System.Diagnostics.Process.Start(System.String);Start processes only through Security/ShellLauncher.cs
+M:System.Diagnostics.Process.Start(System.String,System.String);Start processes only through Security/ShellLauncher.cs
+M:System.Diagnostics.Process.Start(System.String,System.Collections.Generic.IEnumerable{System.String});Start processes only through Security/ShellLauncher.cs
+M:System.Diagnostics.Process.Start(System.String,System.String,System.Security.SecureString,System.String);Start processes only through Security/ShellLauncher.cs
+M:System.Diagnostics.Process.Start(System.String,System.String,System.String,System.Security.SecureString,System.String);Start processes only through Security/ShellLauncher.cs
+M:System.Diagnostics.Process.Start(System.Diagnostics.ProcessStartInfo);Start processes only through Security/ShellLauncher.cs
