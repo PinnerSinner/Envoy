@@ -1,6 +1,7 @@
 # Translation resilience: retries, circuit breakers, throttling, health and a lasting cache
 
-Status: Proposed — revised against `00-integration.md` (binding). Lands as step 4, after 01, 08a and 02.
+Status: Implemented — revised against `00-integration.md` (binding). Landed as step 4, after 01, 08a and 02. See
+[Deviations](#deviations).
 
 Area id: `03-translation-resilience` · Requirement prefix: `TRR` · Code lives in `src/Envoy.Core/Translation/` and
 `tests/Envoy.Core.Tests/Translation/`. The app changes are thin: composition in `AppHost`, one health card plus a
@@ -808,3 +809,66 @@ Changes made when revising this spec against `00-integration.md` and the set cri
   justification updated now that Claude uses the shared `HttpClient`.
 - **Removed resolved open questions** about merge order with 01, 02 and 04, and the onboarding cache suggestion. The
   pending-message lifecycle on caller cancellation is explicitly 04's (contract §2.6).
+
+## Deviations
+
+Everything in the requirements table is built except REQ-TRR-27 (COULD). Differences from this spec and the contract:
+
+1. **REQ-TRR-27 (COULD) not built.** When every provider is skipped locally the call fails at once with each
+   provider's reason; the breaker's own half-open probe (after `OpenUntil`) already brings a provider back with the
+   next line. AC-TRR-21 is therefore not applicable.
+2. **One change set, not two PRs.** PR A and PR B land as consecutive commits on `main` (core, then app wiring and UI,
+   then docs), pushed together by the pipeline's push stage. `RememberTranslations` was added with the other two
+   settings because `TranslationRuntimeOptions` carries it.
+3. **Token bucket before the lane gate** (§3 steps 2–3 swapped). A request that cannot get a token within
+   `MaxQueueWait` falls through at once instead of first queuing for a concurrency slot, and a request waiting for a
+   token holds no slot. Found by `Throttled_request_falls_through_without_network_call`.
+4. **Budget cap marks health only.** `BudgetExceededException` sets the provider to `QuotaExceeded` with `RetryAt` =
+   next local midnight but does not open the breaker: `BudgetedTranslator` already rejects without network I/O, and an
+   open breaker would keep the provider blocked after the user raises the cap.
+5. **Missing key or URL is a build-time "Not set up".** `TranslatorFactory.Create` now throws a `Configuration`
+   `TranslationException` for DeepL/Claude without a key and LibreTranslate without a URL (as AWS already did), so the
+   provider is left out of the chain, recorded through `RecordBuildFailure`, and does not fail every chat line. Adding
+   the key starts it from a fresh health record.
+6. **Memory cache indexed by the key's SHA-256.** Entries loaded from disk carry only `KeyHash`, so live and loaded
+   entries share one index (`TranslationCache.Hash`); the plain key is never stored. `TranslationCache` also exposes
+   `PersistableCount`, `Version` and `MarkSaved` for the save loop, and `TranslationCacheStore.Delete` returns `bool`
+   (so "Clear saved translations" can report failure).
+7. **`ProviderHealthSnapshot` gains an optional trailing `int? LastErrorStatus = null`.** The diagnostics line
+   `… last error kind {kind} ({status})` needs the status; the contract §2.1 fields are unchanged.
+8. **`ProviderHealthText.Sanitize` redacts, then cuts to 160 characters** (spec: cut, then redact), so a secret is
+   never cut in half where the redactor can no longer recognise it. It also flattens line breaks.
+9. **Aggregate message format.** `TranslationErrorText.AllFailed` is `"Translation unavailable. {reasons}"`, where
+   each reason is the provider's own whole-sentence message (contract §8.7: no fragments). Reasons that would push the
+   message past 160 characters are left out rather than cut. Non-`TranslationException`s from foreign translators use
+   the generic "{provider} failed unexpectedly." sentence.
+10. **Log messages carry the provider and state/outcome** (`Provider state google-free CoolingDown`, `Translation
+    attempt deepl failure`), with the specified fields. 02's `RepeatSuppressor` keys on the message, so a constant
+    message would have collapsed different transitions; now only true repeats (a run of successes) collapse.
+    `RecordBuildFailure` also raises a `not-set-up` diagnostic.
+11. **AWS SDK v4 speaks Smithy RPC v2 CBOR.** There is no `X-Amz-Target` header: `Aws_contract` asserts the
+    `/service/AWSShineFrontendService_20170701/operation/TranslateText` path, the `smithy-protocol: rpc-v2-cbor` header
+    and the SigV4 `Authorization`. The fake handler works with `HttpClientFactory` (Risk 3 did not materialise); AWS
+    fixtures are JSON that the fake encodes as CBOR. An unreadable 2xx (`AmazonUnmarshallingException`) maps to
+    `BadResponse`; `TooManyRequestsException` and similar codes map to `RateLimited`.
+12. **Claude `Retry-After` is not available** (Risk 2): `Anthropic` 12.55.0's exceptions expose no response headers,
+    so Claude 429s use backoff and the breaker. A non-JSON 2xx body (`JsonException`) maps to `BadResponse`.
+    `ClaudeTranslator` keeps its CA1001 suppression (the SDK client would dispose the shared `HttpClient`).
+13. **Edge auth endpoint:** any failure is `Transient` except 429 (`RateLimited`). The translate request body is
+    unchanged (`[{"text":…}]`, camel-cased by `JsonContent`), and the contract test pins that.
+14. **`ProviderStatus` also refreshes on the 3 s game timer** (it notifies only when the text changes), so "X is
+    unavailable, so Envoy is using Y" clears when a cooling-down period ends even before the next chat line.
+15. **Smoke line for the rows check:** `[smoke] translation-health-rows ok elapsed_ms=<n> rows=<n> palette=<id>` (the
+    palette is appended so each palette's line is distinguishable while the section name stays greppable).
+16. **Translation page layout:** the saved-translations controls are their own "Saved translations" card below
+    "Behaviour"; the count line reads "Translations are kept in memory until Envoy closes." while the option is off
+    (`TranslationCacheText`). The health row's accessible name is "{provider}: {state text}".
+17. **Small API additions** used by the app and tests: `ProviderCatalog.NameOf`, `TranslatorFactory.ChainIds`/
+    `CacheNamespace`/`Fingerprint`/`Runtime`, `TranslationRuntime.Clock`/`Store`/`PersistenceSuppressed`,
+    `BudgetedTranslator.NeverLeftPc`/`NextLocalMidnight`, `FallbackTranslator`'s optional `LogRedactor`.
+    `ResilientTranslator`'s constructor is internal because `ProviderGuard` is.
+18. **A later pre-send failure never refunds a sent attempt:** when an earlier retry may have reached the provider,
+    `ResilientTranslator` rewraps a final connection failure so `BudgetedTranslator` does not refund it.
+19. **Manual steps** M1–M4 are in `docs/releasing.md` as M-TRR-1…4 (following 02's precedent); 08b orders them.
+20. `TranslationTestText.Failure` is unchanged (an existing test pins its behaviour); the stack now only throws
+    `TranslationErrorText` sentences, so the "Try it" box shows them.

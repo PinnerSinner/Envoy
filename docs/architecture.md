@@ -20,7 +20,9 @@ the screen, the keyboard and the user.
 │   ChatLineParser ─► filters (noise, me, muted, channel) ─► ChatDeduplicator   │
 │        ─► SlangGlossary ─► ScriptDetector ─► ITranslator ─► PlayerDirectory   │
 │                                                                               │
-│  ITranslator stack:  Caching( Fallback[ Budgeted(provider) … , GoogleFree ] ) │
+│  ITranslator stack:  Caching → Coalescing → Fallback(deadline)[               │
+│      Budgeted( Resilient(provider) ) … , Budgeted( Resilient(GoogleFree) ) ]  │
+│  TranslationRuntime: breakers, throttles, provider health, cache (long-lived) │
 │  OutgoingTranslator: PhraseBook first, then the translator stack              │
 └───────────────────────────────┬───────────────────────────────────────────────┘
                                 ▼ events (marshalled to the UI thread by AppHost)
@@ -37,7 +39,8 @@ the screen, the keyboard and the user.
 | `Chat/` | `ChatLineParser` (channel, sender and text from many chat formats), `ChatDeduplicator` (fuzzy, time-windowed "seen it" memory), `TextSimilarity`, `PlayerDirectory` (per-player language memory), `MuteList`, `TranscriptWriter` |
 | `Ocr/` | `OcrMerger` combines several engines' readings line by line; `OcrText.Clean` removes the spaces Windows OCR puts between CJK characters |
 | `Languages/` | `LanguageCatalog` (codes, names, OCR tags, normalising provider codes), `ScriptDetector` (offline language guess from Unicode blocks) |
-| `Translation/` | `ITranslator` and providers (`Providers/`), `FallbackTranslator`, `CachingTranslator`, `BudgetedTranslator` + `UsageTracker`, `TranslatorFactory`, `SlangGlossary` |
+| `Translation/` | `ITranslator` and providers (`Providers/`, all HTTP through `ProviderHttp`), `TranslationException` with a `TranslationErrorKind` and its `TranslationErrorText`; `FallbackTranslator` (overall deadline), `CoalescingTranslator`, `CachingTranslator` + `TranslationCache` (+ the opt-in `TranslationCacheStore`), `BudgetedTranslator` + `UsageTracker`, `TranslatorFactory`, `SlangGlossary`; `TranslationRuntime` (long-lived: per-provider guards, `ProviderHealthRegistry`, the cache; survives rebuilds) and `TranslationLogging` |
+| `Translation/Resilience/` | `ResilienceOptions` (per-provider defaults, chat and compose lanes), `RetryPolicy`, `CircuitBreaker`, `TokenBucket`, `ResilientTranslator`, `ProviderHealthRegistry` (the single provider-health source, contract §2.1) and `ProviderHealthText` |
 | `Pipeline/` | `ChatPipeline` (OCR lines → `IncomingMessage` events), `OutgoingTranslator` (your text → their language) |
 | `Phrases/` | `PhraseBook` + embedded `phrases.json`; `PhrasePreview` (the Phrasebook page's rows and starter file) |
 | `Hotkeys/` | `HotkeyStatus`, `HotkeyRegistrationResult` (one per action, published as `AppHost.HotkeyResults`), `HotkeyText` |
@@ -68,14 +71,14 @@ Everything here is covered by `tests/Envoy.Core.Tests` and runs on any OS.
 
 | Folder / file | What's there |
 | --- | --- |
-| `AppHost.cs` | Composition root, built from `AppHostOptions`: owns settings, services and history; the instance data paths (`DataFolder`, `LogsFolder`, `UserPhrasesPath`, `CrashMarkerPath`); the log hub, the notification throttle and `ReportProblem`; marshals events to the UI thread; applies settings live; holds `HotkeyResults` (written only by `App.RegisterHotkeys`) |
+| `AppHost.cs` | Composition root, built from `AppHostOptions`: owns settings, services and history; the instance data paths (`DataFolder`, `LogsFolder`, `UserPhrasesPath`, `CrashMarkerPath`); the log hub, the notification throttle and `ReportProblem`; marshals events to the UI thread; applies settings live; holds `HotkeyResults` (written only by `App.RegisterHotkeys`); owns the `TranslationRuntime` (`TranslationHealth`, the chat and compose-lane stacks, `ActiveProviderIds`, `TranslationCachePath`) and derives `ProviderStatus` from provider health |
 | `App.xaml.cs` | Start-up and exit in the contract §4 order (see below), single instance, tray icon, hotkey bindings, window management; implements `IShell` |
 | `IShell.cs` | The app-level actions view models may trigger (select region, open compose, open a URL, install an OCR pack, show an info box…). Each area adds its own block |
 | `Security/` | `ShellLauncher`: the only code that starts processes (`TryOpen`, `InstallOcrPack`, `RestartSelf`, `RevealFile`), each validated by Core `LaunchTarget` |
 | `Services/` | `ScreenCapturer` (GDI), `OcrService` (Windows.Media.Ocr), `ChatWatcher` (the loop), `HotkeyService` (RegisterHotKey), `KeyboardSender` (SendInput, guarded by `SendTargetGuard`), `GameDetector`, `ThemeManager`, `DpapiProtector`, `StartupRegistration`, `DialogService` (the only place that shows a `MessageBox`), `SettingsAutoApplier` (the 400 ms debounce), `LogBootstrap`, `GlobalExceptionHandlers` (wires the four exception events to `UnhandledErrorPolicy`), `ToastService` (problem toasts), `DiagnosticsCollector` |
 | `Windows/` | `MainWindow` (title bar, safe-mode banner, sidebar and page hosts), `OverlayWindow`, `ComposeWindow`, `LookupWindow`, `RegionSelectorWindow`, `ToastWindow` (non-activating problem toast) |
 | `Pages/` | One `UserControl` per settings page (`WarRoomPage`, `TranslationPage`, `ReadingChatPage`, `OverlayPage`, `ReplyingPage`, `PhrasebookPage`, `HotkeysPage`, `AppearancePage`, `AboutPage`) and `PageIds` |
-| `ViewModels/` | `MainViewModel` (one instance shared by every page, split into `.Translation`, `.ReadingChat`, `.Phrasebook`, `.Diagnostics` and `.Actions` partials), `CapturePreviewViewModel` (the live view), `Option`, `OcrLanguageItem`, `ThemeOption` |
+| `ViewModels/` | `MainViewModel` (one instance shared by every page, split into `.Translation`, `.ReadingChat`, `.Phrasebook`, `.Diagnostics` and `.Actions` partials), `CapturePreviewViewModel` (the live view), `ProviderHealthRow` (the Translation page's health card), `Option`, `OcrLanguageItem`, `ThemeOption` |
 | `Controls/` | `HotkeyBox`, `SecretBox`, converters, `AutoApply.Ignore` |
 | `Themes/` | `Palette.<theme>.xaml` (colours only) + `Controls.xaml` (all control templates) |
 | `SmokeTest.cs` | `Envoy.exe --smoke-test` builds every window and settings page under every palette and fails on binding errors; CI runs it on Windows |
@@ -143,6 +146,10 @@ true; `ReadingChatPage` sets that from its visibility. Two live views never swit
 - `ChatPipeline` is thread-safe for concurrent `ProcessAsync` calls: de-duplication and the player directory lock
   internally.
 - All UI updates go through `Dispatcher.BeginInvoke` in `AppHost`.
+- Translation state is thread-safe: one lock per breaker and bucket, a `SemaphoreSlim` per lane gate, lock-protected
+  caches; no lock is held across an `await`. `TranslationRuntime.ProviderHealthChanged` and `Diagnostic` fire on the
+  thread that finished the attempt; `AppHost` re-raises health changes on the UI thread. Background code reads only
+  the immutable `TranslationRuntimeOptions` snapshot that `ApplySettings` publishes, never `AppSettings`.
 
 ## Quality gates
 

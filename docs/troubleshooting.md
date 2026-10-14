@@ -45,7 +45,9 @@ happens again, copy diagnostics into a bug report; the report includes the last 
    - **Text visible but nothing read:** install the OCR language (see [OCR languages](ocr-languages.md)), or raise
      *Enlarge before reading*.
 3. **Is translation failing?** Go to **Translation → Try it**. If it shows an error, follow it. Common causes are a
-   wrong key, a used-up quota or no internet.
+   wrong key, a used-up quota or no internet. The **Provider health** card on the same page shows what each provider
+   is doing; after fixing the cause, press **Retry now** on its row (see
+   [When a provider fails](translation-providers.md#when-a-provider-fails)).
 
 ## The overlay doesn't show
 

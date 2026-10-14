@@ -82,3 +82,16 @@ ordered pass). Each uses any supported title in a skirmish against AI.
   "Envoy closed unexpectedly last time", and Troubleshooting shows the last crash with **Dismiss**.
 - **M-REL-9** Make `%APPDATA%\Envoy\logs` read-only and use Envoy for a minute: no errors appear, and the report shows
   `Dropped log writes:` above 0. Make it writable again.
+
+### Translation resilience (03)
+
+- **M-TRR-1** Disconnect the network, type in the Translation "Try it" box and press Translate. Within 15 s you see a
+  failure, not an endless "…". The Provider health card shows Google and Microsoft "Skipping … after repeated
+  failures" (after a few tries). Reconnect and press **Retry now**; the row turns green with the next translation.
+- **M-TRR-2** Put an invalid DeepL key as the main provider. The first message is translated by the fallback; the DeepL
+  row is red ("Your key was rejected"). Fix the key; the row returns to "Not used yet", then "Working".
+- **M-TRR-3** Turn on "Remember translations", translate "gg wp", quit, restart. The result is instant. The file
+  `translation-cache.json` exists in the data folder and does not contain "gg wp". Turn the option off; the file is
+  gone. Turn it on again, translate, then About › **Delete all Envoy data…**: after the restart the file is absent.
+- **M-TRR-4** In a live match, or with the demo feed, send a burst of 8 or more chat lines. All are translated, and the
+  War Room status never shows Google as unavailable from the burst alone.

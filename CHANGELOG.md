@@ -26,8 +26,28 @@ versioning: [SemVer](https://semver.org/).
 - **Reset settings…** and **Delete all Envoy data…** under About › Troubleshooting. Delete all removes exactly the files
   listed in the new [privacy page](docs/privacy.md) and the "Start with Windows" entry, then restarts.
 - Start-up tells you once if Envoy closed unexpectedly last time or the settings file had to be recovered.
+- **Provider health** (Translation page): one row per provider in the order Envoy tries them, with a coloured state,
+  speed, last translation and a **Retry now** button. The War Room line says which provider is translating right now.
+- **Give up after** (Translation → Behaviour, 5–30 s, default 15): the time limit for a chat line, across retries and
+  the fallback provider.
+- **Remember translations between sessions** (off by default): keeps the translation cache in
+  `translation-cache.json` (2,000 entries, 30 days, original lines stored only as a one-way fingerprint), with
+  **Clear saved translations**. See [Remembering translations](docs/translation-providers.md#remembering-translations).
 
 ### Changed
+- **Translation never hangs.** A slow provider used to leave a line on "translating…" forever and the fallback was
+  never tried. Each attempt now has its own time limit and each line an overall one; a timeout moves on to the next
+  provider and a line that still fails says so.
+- **Translation recovers by itself.** Brief server errors and "too many requests" are retried (honouring short
+  Retry-After waits); a provider that keeps failing, rejects your key or is out of quota is skipped for a while
+  instead of slowing every line; requests to the free providers are paced so a burst of chat doesn't get your IP
+  blocked; the reply box uses its own, slower allowance. Identical lines in flight share one request.
+- **Clear error messages.** Translation errors are short sentences such as "Google Translate (free) sent a reply Envoy
+  could not read." instead of raw server or parser text.
+- The translation cache now survives settings changes, and switching provider no longer serves the old provider's
+  cached translations.
+- Characters a paid provider never received (a skipped provider, a connection that failed before sending) no longer
+  count against the daily cap. Claude and Amazon Translate no longer retry on their own behind Envoy's back.
 - **Errors no longer open dialogs.** A problem shows as a small pop-up in the bottom-right corner that never takes
   focus from the game and closes by itself; **Details** opens Troubleshooting, and the pop-ups can be turned off.
   This includes a reply that couldn't be typed into the game (it is still copied to the clipboard). `error.log` is no
@@ -48,6 +68,12 @@ versioning: [SemVer](https://semver.org/).
   Envoy's own repository, so a spoofed update response can't open a local program or a network share.
 
 ### Internal
+- Translation resilience (spec 03): `TranslationErrorKind`/`TranslationErrorText`, `ProviderHttp`, the
+  `Translation/Resilience/` building blocks (`RetryPolicy`, `CircuitBreaker`, `TokenBucket`, `ResilientTranslator`,
+  `ProviderHealthRegistry`), `TranslationRuntime` (long-lived state, owned by `AppHost`, configured from an immutable
+  `TranslationRuntimeOptions` snapshot), `TranslationLogging` (`Translation` log category), provider health in the
+  diagnostics report, contract tests for all six providers over recorded fixtures, and the smoke sections
+  `translation-health-seed` and `translation-health-rows`.
 - Reliability and observability (spec 02): `Envoy.Core.Diagnostics` (`LogHub`, `LogRedactor`, `UnhandledErrorPolicy`,
   safe mode, `DiagnosticsReport`, `DataInventory`) and `Envoy.Core.Notifications.NotificationThrottle`;
   `AppHostOptions` and per-instance data paths; `App.OnStartup`/`ExitApp` in the contract §4 order; settings markers

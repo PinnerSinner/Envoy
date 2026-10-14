@@ -53,6 +53,12 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - New credential settings are `string` properties marked `[Secret]` on a settings class reachable from `AppSettings`
   (not inside a collection); `SettingsSecretTests` enforces it. A new setting holding player names or chat text is
   marked `[Personal]`, one holding screen positions `[Location]` (`SettingsRedactionTests` checks every marker).
+- Translation providers throw only `TranslationException` with a `TranslationErrorKind` (or caller-requested
+  `OperationCanceledException`), with messages from `TranslationErrorText`, never a response body or raw exception
+  text. A new provider sends through `Providers/ProviderHttp` (status classification, Retry-After, `Parse` →
+  `BadResponse`), turns SDK retries off, gets `ResilienceOptions.For` defaults and contract tests with fixtures under
+  `tests/Envoy.Core.Tests/Fixtures/Providers/`. Provider health is read only from `AppHost.TranslationHealth`
+  (`ProviderHealthRegistry`); nothing else is named `ProviderHealth`.
 - Log through `ILog` (`AppHost.Log.For("Category")`), never `Debug`/`Trace`/`Console`. Chat text and player names go
   only through `LogField.Sensitive(...)`. Every `catch` in `AppHost.cs` logs. Fire-and-forget is
   `task.Forget(log, "what")`, never `_ = SomethingAsync()` (typecheck R9).

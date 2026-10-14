@@ -22,13 +22,40 @@ the provider needs one. Two things follow:
 add DeepL's free plan or Claude.
 
 A busy match produces about 2,000–5,000 characters of chat. Repeated messages are cached, so they're only
-translated once.
+translated once. The cache lasts until you close Envoy, and survives settings changes; turn on
+[Remembering translations](#remembering-translations) to keep it between sessions.
 
 ## Fallback chain
 
 **Translation → Providers** has a main provider and an *if it fails, try* provider. Google Translate (free) is always
 added as the last resort. A missing key, a spent budget or an outage therefore never leaves you without
-translations. Failures show under the provider picker and in the overlay.
+translations. The line under the provider picker (and the War Room) says which provider is translating right now, and
+the **Provider health** card shows each one's state.
+
+## When a provider fails
+
+Envoy gives each chat line a time limit, **Give up after** (15 seconds by default, under **Translation → Behaviour**).
+Within it, Envoy:
+
+- **retries** a provider once or twice after a brief hiccup (a server error, a timeout, "too many requests"). If the
+  provider says to wait a second or two, Envoy waits; if it says to wait longer, Envoy moves on at once;
+- **moves on** to the next provider as soon as one fails, times out, or rejects your key, so one slow provider never
+  holds up your chat;
+- **skips** a provider that keeps failing for a while (20 seconds at first, longer if it keeps failing, at most
+  5 minutes), then tries it again with the next message. A rejected key is skipped until you change it or press
+  **Retry now**; a used-up quota until the provider says it resets (or an hour), and your own daily cap until midnight;
+- **paces** requests to the free providers (a short burst, then about two a second), because a flood of requests is
+  the usual way an IP address gets blocked by them. The reply box has its own, slower allowance so typing a reply never
+  slows down chat translation.
+
+If every provider fails, the overlay shows why, for example "Translation unavailable. Google Translate (free) is
+cooling down after repeated failures." Envoy never shows a provider's raw error page.
+
+The **Provider health** card lists the providers in the order Envoy tries them, each with a coloured dot, what it is
+doing ("Working · 340 ms", "Skipping for 18 s after repeated failures.", "Your key was rejected. Check it above.") and
+when it last translated. **Retry now** forgets the failures and tries that provider again with the next message.
+Characters are counted against your daily cap only when a request may have reached a paid provider: a request that
+was skipped, or never left your PC, is given back.
 
 ## Daily spending cap
 
@@ -41,6 +68,19 @@ Set the cap to 0 to remove it.
 The two free providers use the public endpoints that Google's website translator widget and Microsoft Edge's
 built-in page translation use. They need no account, but they are undocumented. They can rate-limit very heavy use
 or change without notice. If one stops working, the other takes over. If both do, add a key-based provider.
+
+## Remembering translations
+
+**Translation → Saved translations → Remember translations between sessions** is off by default. When it is on,
+Envoy saves its translation cache to `translation-cache.json` in its data folder, at most every 30 seconds and when it
+closes, so "gg wp" next match is instant (and free with a paid provider). The file holds translations of chat lines
+you received, in your language, plus a one-way fingerprint of each original line. It never leaves this PC. The
+fingerprint stops casual reading of the original lines, but someone with the file could guess short common ones, so
+treat it like a chat transcript.
+
+It keeps at most 2,000 entries and 1 MiB, forgets entries after 30 days, and never stores lines longer than 200
+characters. **Clear saved translations**, or turning the option off, deletes the file. A damaged file is set aside as
+`translation-cache.json.bad` and Envoy starts with an empty cache. See [Privacy](privacy.md).
 
 ## DeepL
 
