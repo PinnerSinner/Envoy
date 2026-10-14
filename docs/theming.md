@@ -16,6 +16,12 @@ so the change is instant.
 
 **Match the game** (the default) picks the theme of the running game.
 
+| Imperial | Parchment | Classic |
+| --- | --- | --- |
+| ![Imperial overlay](images/imperial-overlay.png) | ![Parchment overlay](images/parchment-overlay.png) | ![Classic overlay](images/classic-overlay.png) |
+
+Fresh renders of every window in every theme are pushed to the `ci-screenshots` branch on each build of `main`.
+
 All the decoration is original: gilded rules, diamond studs at frame corners, a diamond slider thumb, and Cinzel
 (an open-licence font modelled on Roman inscriptions) for headings. No game assets, logos or fonts are used.
 

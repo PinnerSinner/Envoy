@@ -33,6 +33,23 @@ translation into the game for you.
                                                            → 好局，打得漂亮！当然！ → sent to chat
 ```
 
+<p align="center">
+  <img src="docs/images/imperial-overlay.png" width="520" alt="Overlay showing translated Chinese, Korean and Russian chat" />
+</p>
+
+<table>
+  <tr>
+    <td><img src="docs/images/imperial-settings-dashboard.png" alt="War Room dashboard (Imperial theme)" /></td>
+    <td><img src="docs/images/imperial-reply.png" alt="Reply box with live translation and quick phrases" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/parchment-settings-translation.png" alt="Translation settings (Parchment theme)" /></td>
+    <td><img src="docs/images/frontier-settings-appearance.png" alt="Theme picker (Frontier theme)" /></td>
+  </tr>
+</table>
+
+<sub>Screenshots are rendered by CI from the real app on every build.</sub>
+
 ## Highlights
 
 - **Works with every Age game.** It reads pixels, not memory, so any game that shows chat on screen works. AoE IV,
