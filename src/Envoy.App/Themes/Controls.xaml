@@ -282,6 +282,9 @@
         </Setter>
     </Style>
 
+    <!-- HotkeyBox derives from TextBox, so the implicit TextBox style above does not reach it on its own. -->
+    <Style TargetType="c:HotkeyBox" BasedOn="{StaticResource {x:Type TextBox}}" />
+
     <Style TargetType="PasswordBox" BasedOn="{StaticResource Input.Base}">
         <Setter Property="CaretBrush" Value="{DynamicResource Accent.Bright}" />
         <Setter Property="SelectionBrush" Value="{DynamicResource Accent}" />
