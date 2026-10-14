@@ -1,0 +1,46 @@
+<UserControl x:Class="Envoy.App.Pages.HotkeysPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:Envoy.App.Controls">
+    <ScrollViewer Padding="32,24">
+        <StackPanel MaxWidth="900">
+            <TextBlock Text="Hotkeys" Style="{StaticResource Text.H1}" />
+            <TextBlock Text="These work while the game is focused. Click a box and press a new combination; Backspace clears it." Style="{StaticResource Text.Body}" Margin="0,0,0,18" />
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Open the reply box" Style="{StaticResource Text.Label}" />
+                        <c:HotkeyBox Grid.Column="1" Text="{Binding Settings.Hotkeys.Compose}" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Show / hide the overlay" Style="{StaticResource Text.Label}" />
+                        <c:HotkeyBox Grid.Column="1" Text="{Binding Settings.Hotkeys.ToggleOverlay}" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Pause / resume reading chat" Style="{StaticResource Text.Label}" />
+                        <c:HotkeyBox Grid.Column="1" Text="{Binding Settings.Hotkeys.ToggleCapture}" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Select the chat area" Style="{StaticResource Text.Label}" />
+                        <c:HotkeyBox Grid.Column="1" Text="{Binding Settings.Hotkeys.SelectRegion}" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Scan &amp; translate any part of the screen" Style="{StaticResource Text.Label}" />
+                        <c:HotkeyBox Grid.Column="1" Text="{Binding Settings.Hotkeys.ScanAndTranslate}" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Move the overlay" Style="{StaticResource Text.Label}" />
+                        <c:HotkeyBox Grid.Column="1" Text="{Binding Settings.Hotkeys.OverlayEditMode}" />
+                    </Grid>
+                    <TextBlock Text="{Binding HotkeyErrors}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Danger}" Margin="0,8,0,0" />
+                </StackPanel>
+            </ContentControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

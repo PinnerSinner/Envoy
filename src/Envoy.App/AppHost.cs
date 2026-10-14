@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using Envoy.App.Services;
 using Envoy.Core.Chat;
 using Envoy.Core.Games;
+using Envoy.Core.Hotkeys;
 using Envoy.Core.Phrases;
 using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
@@ -97,6 +98,23 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
 
     /// <summary>Most recent messages, newest first (for the dashboard log and the reply box).</summary>
     public ObservableCollection<IncomingMessage> History { get; } = [];
+
+    /// <summary>
+    /// The outcome of the last hotkey registration pass, one entry per action (contract §2.3). UI thread only; written
+    /// only by <c>App.RegisterHotkeys</c>, which replaces the whole list after every pass.
+    /// </summary>
+    public IReadOnlyList<HotkeyRegistrationResult> HotkeyResults
+    {
+        get => _hotkeyResults;
+        set
+        {
+            _hotkeyResults = value;
+            HotkeyResultsChanged?.Invoke();
+        }
+    }
+
+    public event Action? HotkeyResultsChanged;
+    private IReadOnlyList<HotkeyRegistrationResult> _hotkeyResults = [];
 
     public event Action<IncomingMessage, bool>? MessageArrived;
     public event Action? SettingsApplied;

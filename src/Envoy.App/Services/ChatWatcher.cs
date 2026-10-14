@@ -1,6 +1,7 @@
 using Envoy.Core.Ocr;
 using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
+using Envoy.Core.Threading;
 
 namespace Envoy.App.Services;
 
@@ -22,13 +23,25 @@ public sealed class ChatWatcher(OcrService ocr, ChatPipeline pipeline, Func<AppS
     private CancellationTokenSource? _cts;
     private Task? _loop;
     private ulong _lastFingerprint;
+    private readonly LeaseCounter _preview = new();
 
     public WatcherState State { get; private set; } = WatcherState.Stopped;
     public string? LastError { get; private set; }
     public bool IsRunning => _loop is { IsCompleted: false };
 
-    /// <summary>When true each frame is published to <see cref="FrameCaptured"/> (only while the preview is open).</summary>
-    public bool PublishFrames { get; set; }
+    /// <summary>
+    /// Frames are published to <see cref="FrameCaptured"/> while at least one lease is held (a live view is open).
+    /// Each call also forces the next frame through OCR. Dispose the lease to give it back; disposing twice is harmless.
+    /// </summary>
+    public IDisposable BeginPreview()
+    {
+        var lease = _preview.Acquire();
+        Invalidate();
+        return lease;
+    }
+
+    /// <summary>True while any preview lease is held.</summary>
+    public bool IsPreviewing => _preview.IsHeld;
 
     /// <summary>When this returns false the loop idles (e.g. no game running).</summary>
     public Func<bool> ShouldRead { get; init; } = () => true;
@@ -96,7 +109,7 @@ public sealed class ChatWatcher(OcrService ocr, ChatPipeline pipeline, Func<AppS
 
     private async Task TickAsync(CaptureSettings cfg, CancellationToken ct)
     {
-        if (!ShouldRead() && !PublishFrames)
+        if (!ShouldRead() && !IsPreviewing)
         {
             SetState(WatcherState.Idle);
             return;
@@ -116,7 +129,7 @@ public sealed class ChatWatcher(OcrService ocr, ChatPipeline pipeline, Func<AppS
         ScreenCapturer.Preprocess(image, cfg.Grayscale, cfg.Contrast, cfg.Invert);
 
         var fingerprint = ScreenCapturer.Fingerprint(image);
-        if (fingerprint == _lastFingerprint && !PublishFrames)
+        if (fingerprint == _lastFingerprint && !IsPreviewing)
         {
             SetState(WatcherState.Running);
             return;
@@ -129,7 +142,7 @@ public sealed class ChatWatcher(OcrService ocr, ChatPipeline pipeline, Func<AppS
         sw.Stop();
 
         SetState(WatcherState.Running);
-        if (PublishFrames) FrameCaptured?.Invoke(new CaptureFrame(image, lines, sw.Elapsed));
+        if (IsPreviewing) FrameCaptured?.Invoke(new CaptureFrame(image, lines, sw.Elapsed));
 
         // Don't await: translation latency shouldn't delay reading the next lines.
         _ = pipeline.ProcessAsync(lines, ct).ContinueWith(

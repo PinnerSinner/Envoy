@@ -1,0 +1,103 @@
+<UserControl x:Class="Envoy.App.Pages.ReadingChatPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:Envoy.App.Controls">
+    <ScrollViewer Padding="32,24">
+        <StackPanel MaxWidth="900">
+            <TextBlock Text="Reading Chat" Style="{StaticResource Text.H1}" />
+            <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,18">
+                Envoy looks at the chat area of your screen with the text recognition built into Windows. Nothing touches the game itself.
+            </TextBlock>
+
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
+                    <TextBlock Text="Chat area" Style="{StaticResource Text.H2}" />
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Region" Style="{StaticResource Text.Label}" />
+                        <TextBlock Grid.Column="1" Text="{Binding RegionText}" Style="{StaticResource Text.Label}" />
+                        <Button Grid.Column="2" Content="Select chat area" Command="{Binding SelectRegionCommand}" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Game" Style="{StaticResource Text.Label}" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding Games}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Game}" />
+                    </Grid>
+                    <TextBlock Text="Each game remembers its own chat area, so switching between AoE II and AoE IV just works." Style="{StaticResource Text.Caption}" Margin="220,0,0,0" />
+                </StackPanel>
+            </ContentControl>
+
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
+                    <TextBlock Text="Languages to recognise" Style="{StaticResource Text.H2}" />
+                    <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,10">
+                        Windows needs the OCR pack for each script. Tick the ones your opponents use; your own language is always on.
+                        Latin-script languages (Spanish, German, French…) are read by any Latin pack such as English.
+                        Missing ones can be installed from Windows Settings → Time &amp; language → Language &amp; region, or with the Install button (asks for admin).
+                    </TextBlock>
+                    <ItemsControl ItemsSource="{Binding OcrLanguages}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,2,16,2">
+                                    <Button DockPanel.Dock="Right" Content="Install" Padding="10,2" FontSize="11" Command="{Binding DataContext.InstallOcrCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Code}"
+                                            Visibility="{Binding Installed, Converter={StaticResource InverseBoolToVisibility}}" />
+                                    <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanToggle}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource Text.Muted}" FontSize="11" />
+                                        </StackPanel>
+                                    </CheckBox>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ContentControl>
+
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
+                    <TextBlock Text="Fine tuning" Style="{StaticResource Text.H2}" />
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Check for new messages every" Style="{StaticResource Text.Label}" />
+                        <Slider Grid.Column="1" Minimum="250" Maximum="3000" TickFrequency="50" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.IntervalMs}" />
+                        <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.IntervalMs, StringFormat='{}{0} ms'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Enlarge before reading" Style="{StaticResource Text.Label}" />
+                        <Slider Grid.Column="1" Minimum="1" Maximum="4" TickFrequency="0.25" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.Upscale}" />
+                        <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.Upscale, StringFormat='{}{0:0.##}×'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Contrast" Style="{StaticResource Text.Label}" />
+                        <Slider Grid.Column="1" Minimum="0.5" Maximum="3" TickFrequency="0.1" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.Contrast}" />
+                        <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.Contrast, StringFormat='{}{0:0.0}'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
+                    </Grid>
+                    <CheckBox Content="Greyscale" IsChecked="{Binding Settings.Capture.Grayscale}" />
+                    <CheckBox Content="Invert colours (try this if light-on-dark text reads poorly)" IsChecked="{Binding Settings.Capture.Invert}" />
+                    <CheckBox Content="Start reading chat when Envoy starts" IsChecked="{Binding Settings.StartCapturingAutomatically}" />
+                    <CheckBox Content="Only read chat while an Age game is running (saves CPU)" IsChecked="{Binding Settings.Capture.OnlyWhileGameRuns}" />
+                </StackPanel>
+            </ContentControl>
+
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
+                    <DockPanel>
+                        <TextBlock x:Name="PreviewStats" Text="{Binding CapturePreview.Stats}" DockPanel.Dock="Right" Style="{StaticResource Text.Caption}" />
+                        <TextBlock Text="Live view" Style="{StaticResource Text.H2}" />
+                    </DockPanel>
+                    <TextBlock Text="What Envoy sees (after enhancement) and what it read. Open a game with chat on screen to tune the settings above." Style="{StaticResource Text.Caption}" Margin="0,0,0,8" />
+                    <Border BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="1" Background="{DynamicResource Bg.Input}" MinHeight="80">
+                        <Image x:Name="PreviewImage" Source="{Binding CapturePreview.Image}" Stretch="Uniform" MaxHeight="240" HorizontalAlignment="Left" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Border>
+                    <TextBox x:Name="PreviewText" c:AutoApply.Ignore="True" Text="{Binding CapturePreview.Text, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" Margin="0,8,0,0" VerticalContentAlignment="Top" />
+                </StackPanel>
+            </ContentControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

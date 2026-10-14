@@ -209,7 +209,7 @@ public partial class ComposeWindow : Window
         catch (Exception ex)
         {
             SetClipboard(text);
-            MessageBox.Show($"{ex.Message}\n\nThe translation was copied to your clipboard instead.", "Envoy", MessageBoxButton.OK, MessageBoxImage.Information);
+            DialogService.ShowInfo(null, "Envoy", $"{ex.Message}\n\nThe translation was copied to your clipboard instead.");
         }
     }
 

@@ -1,0 +1,32 @@
+<UserControl x:Class="Envoy.App.Pages.AboutPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer Padding="32,24">
+        <StackPanel MaxWidth="760">
+            <Image Source="pack://application:,,,/Envoy;component/Assets/envoy.png" Width="96" Height="96" HorizontalAlignment="Left" Margin="0,0,0,12" />
+            <TextBlock Text="Envoy" Style="{StaticResource Text.H1}" FontFamily="{StaticResource Font.Decorative}" FontSize="30" />
+            <TextBlock Text="{Binding Version, StringFormat='Version {0}'}" Style="{StaticResource Text.Caption}" Margin="0,0,0,14" />
+            <Control Style="{StaticResource Flourish}" />
+            <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Envoy is an unofficial fan tool. It is not affiliated with or endorsed by Microsoft, Xbox Game Studios, World's Edge,
+                Relic Entertainment or Forgotten Empires. Age of Empires and Age of Mythology are trademarks of Microsoft.
+            </TextBlock>
+            <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap" Margin="0,0,0,12">
+                <Bold>How it stays safe:</Bold> Envoy never reads or writes game memory, injects code, or modifies game files. It reads
+                pixels from your screen (like streaming software) and sends keystrokes (like an on-screen keyboard). Chat text is sent only
+                to the translation provider you choose.
+            </TextBlock>
+            <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Settings and API keys live in <Run Text="{Binding DataFolder, Mode=OneWay}" />. Keys are encrypted with Windows DPAPI and
+                can only be read by your Windows account.
+            </TextBlock>
+            <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap">
+                Cinzel and Cinzel Decorative fonts © The Cinzel Project Authors, SIL Open Font License 1.1.
+            </TextBlock>
+            <WrapPanel Margin="0,16,0,0">
+                <Button Content="Open settings folder" Command="{Binding OpenDataFolderCommand}" Margin="0,0,8,0" />
+                <Button Content="Quit Envoy" Command="{Binding QuitCommand}" />
+            </WrapPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

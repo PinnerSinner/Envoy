@@ -4,12 +4,14 @@ using System.Windows.Threading;
 using Envoy.App.Interop;
 using Envoy.App.Services;
 using Envoy.App.Windows;
+using Envoy.Core.Hotkeys;
+using Envoy.Core.Languages;
 using Envoy.Core.Settings;
 using Forms = System.Windows.Forms;
 
 namespace Envoy.App;
 
-public partial class App : Application
+public partial class App : Application, IShell
 {
     private const string InstanceName = "Envoy.SingleInstance.v1";
     private Mutex? _instanceMutex;
@@ -125,26 +127,29 @@ public partial class App : Application
         Shutdown();
     }
 
+    /// <summary>Registers every hotkey and publishes one result per action to <see cref="AppHost.HotkeyResults"/>.</summary>
     private void RegisterHotkeys()
     {
         _hotkeys ??= new HotkeyService();
         _hotkeys.UnregisterAll();
         var keys = Host.Settings.Hotkeys;
-        var failed = new List<string>();
-        void Bind(string combo, string name, Action action)
+        var results = new List<HotkeyRegistrationResult>();
+        void Bind(string id, string? combo, Action action)
         {
-            if (!string.IsNullOrWhiteSpace(combo) && !_hotkeys.Register(combo, action)) failed.Add($"{name} ({combo})");
+            var status = string.IsNullOrWhiteSpace(combo) ? HotkeyStatus.NotSet
+                : !Hotkey.TryParse(combo, out _) ? HotkeyStatus.Invalid
+                : !_hotkeys.Register(combo, action) ? HotkeyStatus.Taken
+                : HotkeyStatus.Registered;
+            results.Add(new HotkeyRegistrationResult(id, HotkeyText.ActionName(id), combo ?? "", status));
         }
-        Bind(keys.Compose, "Reply", OpenCompose);
-        Bind(keys.ToggleOverlay, "Show/hide overlay", ToggleOverlay);
-        Bind(keys.ToggleCapture, "Pause/resume", Host.ToggleCapture);
-        Bind(keys.SelectRegion, "Select chat area", SelectRegion);
-        Bind(keys.OverlayEditMode, "Move overlay", ToggleOverlayEditMode);
-        Bind(keys.ScanAndTranslate, "Scan & translate", ScanAndTranslate);
-        HotkeyErrors = failed;
+        Bind(nameof(HotkeySettings.Compose), keys.Compose, OpenCompose);
+        Bind(nameof(HotkeySettings.ToggleOverlay), keys.ToggleOverlay, ToggleOverlay);
+        Bind(nameof(HotkeySettings.ToggleCapture), keys.ToggleCapture, Host.ToggleCapture);
+        Bind(nameof(HotkeySettings.SelectRegion), keys.SelectRegion, SelectRegion);
+        Bind(nameof(HotkeySettings.OverlayEditMode), keys.OverlayEditMode, ToggleOverlayEditMode);
+        Bind(nameof(HotkeySettings.ScanAndTranslate), keys.ScanAndTranslate, ScanAndTranslate);
+        Host.HotkeyResults = results;
     }
-
-    public IReadOnlyList<string> HotkeyErrors { get; private set; } = [];
 
     private void CreateTray()
     {
@@ -179,9 +184,27 @@ public partial class App : Application
         catch (IOException) { }
 
         if (SmokeTest.IsRunning) return; // the smoke test reports its own failures
-        MessageBox.Show($"Something went wrong:\n\n{e.Exception.Message}\n\nDetails were written to {log}", "Envoy", MessageBoxButton.OK, MessageBoxImage.Warning);
+        DialogService.ShowWarning(null, "Envoy", $"Something went wrong:\n\n{e.Exception.Message}\n\nDetails were written to {log}");
         e.Handled = true;
     }
 
-    public static void OpenUrl(string url) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+    /// <inheritdoc />
+    public void OpenUrl(string urlOrDataPath) => Process.Start(new ProcessStartInfo(urlOrDataPath) { UseShellExecute = true });
+
+    /// <inheritdoc />
+    public void InstallOcrPack(string languageTag)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("powershell.exe", OcrPackInstall.PowerShellArguments(languageTag)) { UseShellExecute = true, Verb = "runas" });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or ArgumentException)
+        {
+            // User declined the admin prompt (or the language is unknown): point them at Settings instead.
+            OpenUrl(OcrPackInstall.SettingsFallbackUri);
+        }
+    }
+
+    /// <inheritdoc />
+    public void ShowInfo(string title, string message) => DialogService.ShowInfo(_main, title, message);
 }

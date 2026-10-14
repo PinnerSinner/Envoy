@@ -1,69 +1,36 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using Envoy.App.Services;
 using Envoy.Core.Games;
+using Envoy.Core.Hotkeys;
 using Envoy.Core.Languages;
+using Envoy.Core.Mvvm;
 using Envoy.Core.Settings;
-using Envoy.Core.Translation;
-using Envoy.Core.Translation.Providers;
 
 namespace Envoy.App.ViewModels;
 
-public sealed record Option(object Value, string Label);
-
-public sealed class OcrLanguageItem(OcrLanguageStatus status, bool selected, bool isMine, Action changed) : INotifyPropertyChanged
+/// <summary>
+/// The single view model behind MainWindow and every page in <c>Pages/</c>. Split into partial files by page:
+/// <c>.Translation</c>, <c>.ReadingChat</c>, <c>.Phrasebook</c> and <c>.Actions</c> (the commands). App-level actions go
+/// through <see cref="IShell"/>.
+/// </summary>
+public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
-    private bool _selected = selected;
-    public string Code => status.Code;
-    public string Name => status.Name;
-    public bool Installed => status.Installed;
-    public bool IsMine => isMine;
+    private readonly IShell _shell;
+    private readonly SettingsAutoApplier _applier;
+    private readonly PropertyChangedEventHandler _hostChanged;
+    private bool _disposed;
 
-    /// <summary>Only installed languages can be toggled; your own language is always read.</summary>
-    public bool CanToggle => Installed && !isMine;
-
-    public string StatusText => isMine ? "your language · always on" : Installed ? "" : "not installed";
-
-    public bool IsSelected
-    {
-        get => isMine || (_selected && Installed);
-        set
-        {
-            if (!CanToggle) return;
-            _selected = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
-            changed();
-        }
-    }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-}
-
-public sealed class ThemeOption(string id, string name, string inspiration, Brush[] swatches, Func<string> current, Action<string> select) : INotifyPropertyChanged
-{
-    public string Id => id;
-    public string Name => name;
-    public string Inspiration => inspiration;
-    public Brush[] Swatches => swatches;
-
-    public bool IsSelected
-    {
-        get => current() == id;
-        set { if (value) select(id); }
-    }
-
-    public void Refresh() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
-    public event PropertyChangedEventHandler? PropertyChanged;
-}
-
-public sealed class MainViewModel : INotifyPropertyChanged
-{
-    public MainViewModel(AppHost host)
+    internal MainViewModel(AppHost host, IShell shell, SettingsAutoApplier applier)
     {
         Host = host;
-        host.PropertyChanged += (_, e) => Notify(nameof(Host));
+        _shell = shell;
+        _applier = applier;
+        _hostChanged = (_, _) => Notify(nameof(Host));
+        host.PropertyChanged += _hostChanged;
+        host.HotkeyResultsChanged += OnHotkeyResultsChanged;
 
         ReplyLanguages = [new Option(LanguageCatalog.Auto, "Auto — whatever they last wrote in"), .. Languages.Select(l => new Option(l.Code, l.DisplayName))];
         Games = [new Option(GameCatalog.Any, "Detect automatically"), .. GameCatalog.All.Select(g => new Option(g.Id, g.Name))];
@@ -75,19 +42,38 @@ public sealed class MainViewModel : INotifyPropertyChanged
             .. ThemeManager.Themes.Select(t => new ThemeOption(t.Id, t.Name, t.Inspiration, SwatchesFor(t.Id), () => Settings.Theme, SetTheme)),
         ];
 
-        OcrLanguages = new ObservableCollection<OcrLanguageItem>(LoadOcrLanguages());
+        OcrLanguages = new(LoadOcrLanguages());
+        CapturePreview = new CapturePreviewViewModel(host, System.Windows.Threading.Dispatcher.CurrentDispatcher);
+
+        _phrasePreviewLanguage = LanguageCatalog.Find(host.Pipeline.LastOpponentLanguage) ?? LanguageCatalog.Find("zh-CN");
+        RefreshPhrasePreview();
+
+        // Commands (bodies in MainViewModel.Actions.cs).
+        SelectRegionCommand = new RelayCommand(_shell.SelectRegion);
+        ToggleCaptureCommand = new RelayCommand(Host.ToggleCapture);
+        ShowSampleMessagesCommand = new RelayCommand(Host.ShowDemoMessages);
+        MoveOverlayCommand = new RelayCommand(_shell.ToggleOverlayEditMode);
+        OpenReplyBoxCommand = new RelayCommand(_shell.OpenCompose);
+        ScanAndTranslateCommand = new RelayCommand(_shell.ScanAndTranslate);
+        NewMatchCommand = new RelayCommand(Host.NewMatch);
+        DownloadUpdateCommand = new RelayCommand(DownloadUpdate);
+        TestTranslateCommand = new AsyncRelayCommand(TestTranslateAsync, ReportCommandError);
+        InstallOcrCommand = new RelayCommand<string>(InstallOcr);
+        TestVoiceCommand = new RelayCommand(TestVoice);
+        EditPhrasesCommand = new RelayCommand(EditPhrases);
+        OpenLogsCommand = new RelayCommand(OpenLogs);
+        OpenDataFolderCommand = new RelayCommand(OpenDataFolder);
+        OpenLinkCommand = new RelayCommand<string>(OpenLink);
+        QuitCommand = new RelayCommand(_shell.ExitApp);
     }
 
     public AppHost Host { get; }
     public AppSettings Settings => Host.Settings;
 
     public IReadOnlyList<Language> Languages { get; } = LanguageCatalog.All;
+
+    // ---- Replying page ----
     public IReadOnlyList<Option> ReplyLanguages { get; }
-    public IReadOnlyList<Option> Games { get; }
-    public IReadOnlyList<ProviderInfo> Providers { get; } = ProviderCatalog.All;
-    public IReadOnlyList<string> ClaudeModels { get; } = ClaudeTranslator.SuggestedModels;
-    public IReadOnlyList<ThemeOption> Themes { get; }
-    public ObservableCollection<OcrLanguageItem> OcrLanguages { get; }
 
     public IReadOnlyList<Option> SendModes { get; } =
     [
@@ -102,6 +88,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         new(TypingMethod.Paste, "Paste with Ctrl+V"),
     ];
 
+    // ---- Overlay page ----
     public IReadOnlyList<Option> Anchors { get; } =
     [
         new(OverlayAnchor.AboveChat, "Above the chat area"),
@@ -113,96 +100,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public IReadOnlyList<Option> Voices { get; } =
         [new Option("", "Windows default voice"), .. SpeechService.Voices.Select(v => new Option(v.Id, v.Name))];
 
-    public IReadOnlyList<Option> ChannelOptions { get; } =
-    [
-        new(Core.Pipeline.ChannelFilter.Everything, "All chat"),
-        new(Core.Pipeline.ChannelFilter.TeamOnly, "Team chat only"),
-        new(Core.Pipeline.ChannelFilter.ExceptTeam, "Everything except team chat"),
-    ];
+    // ---- Hotkeys page ----
+    /// <summary>"" when every hotkey registered; otherwise which ones another app took (or that couldn't be parsed).</summary>
+    public string HotkeyErrors => HotkeyText.TakenSummary(Host.HotkeyResults);
 
-    /// <summary>Muted players as a comma/newline separated list for a simple text box.</summary>
-    public string MutedPlayersText
-    {
-        get => string.Join(", ", Settings.MutedPlayers);
-        set => Settings.MutedPlayers = value
-            .Split(new[] { ',', '\n', '\r', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
+    // ---- Appearance page ----
+    public IReadOnlyList<ThemeOption> Themes { get; }
 
-    public IReadOnlyList<Option> FallbackOptions =>
-        [new Option("", "None (Google free is always the last resort)"), .. Providers.Select(p => new Option(p.Id, p.Name))];
-
-    public string FallbackProvider
-    {
-        get => Settings.Translation.Fallbacks.FirstOrDefault() ?? "";
-        set
-        {
-            Settings.Translation.Fallbacks = string.IsNullOrEmpty(value) ? [] : [value];
-            Notify();
-            RefreshProviderSections();
-        }
-    }
-
-    public string PrimaryProvider
-    {
-        get => Settings.Translation.Primary;
-        set
-        {
-            Settings.Translation.Primary = value;
-            Notify();
-            Notify(nameof(PrimaryInfo));
-            Notify(nameof(NeedsDeepL));
-            Notify(nameof(NeedsClaude));
-            Notify(nameof(NeedsAws));
-            Notify(nameof(NeedsLibre));
-        }
-    }
-
-    public ProviderInfo? PrimaryInfo => ProviderCatalog.Find(PrimaryProvider);
-
-    // Credential sections are shown when the provider is primary or fallback.
-    private bool Uses(string id) => PrimaryProvider == id || FallbackProvider == id;
-    public bool NeedsDeepL => Uses(ProviderCatalog.DeepL);
-    public bool NeedsClaude => Uses(ProviderCatalog.Claude);
-    public bool NeedsAws => Uses(ProviderCatalog.Aws);
-    public bool NeedsLibre => Uses(ProviderCatalog.LibreTranslate);
-
-    public void RefreshProviderSections()
-    {
-        Notify(nameof(NeedsDeepL));
-        Notify(nameof(NeedsClaude));
-        Notify(nameof(NeedsAws));
-        Notify(nameof(NeedsLibre));
-    }
-
-    public string RegionText => Host.Watcher.CurrentRegion is { IsEmpty: false } r
-        ? $"{r.Width} × {r.Height} px at ({r.X}, {r.Y})"
-        : "Not set yet — click “Select chat area”";
-
-    public bool HasRegion => Host.Watcher.CurrentRegion is { IsEmpty: false };
-
-    public string UsageText
-    {
-        get
-        {
-            var snapshot = Host.Usage.Snapshot();
-            var metered = snapshot.Characters.Where(kv => ProviderCatalog.Find(kv.Key)?.IsMetered == true).ToList();
-            if (metered.Count == 0) return "No paid translation used today.";
-            var limit = Settings.Translation.DailyCharacterLimit;
-            return string.Join("  ·  ", metered.Select(kv =>
-                $"{ProviderCatalog.Find(kv.Key)?.Name}: {kv.Value:N0}{(limit > 0 ? $" / {limit:N0}" : "")} characters today"));
-        }
-    }
-
-    public string OcrSummary => Host.Ocr.ActiveLanguages.Count == 0
-        ? "No OCR languages available"
-        : "Reading: " + string.Join(", ", Host.Ocr.ActiveLanguages.Select(LanguageCatalog.NameOf));
-
-    public string HotkeyErrors => App.Current is { } app && app.HotkeyErrors.Count > 0
-        ? "These hotkeys are taken by another app: " + string.Join(", ", app.HotkeyErrors)
-        : "";
-
+    // ---- About page ----
     public string DataFolder => AppHost.DataFolder;
 
     public string Version => typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "dev";
@@ -216,36 +121,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Notify(nameof(HotkeyErrors));
     }
 
+    /// <summary>
+    /// The one error sink for every <see cref="AsyncRelayCommand"/> (contract §8.8). Every async command body in 01
+    /// catches its own exceptions, so this is a last resort; 02 replaces it with a log entry and a problem toast.
+    /// </summary>
+    public void ReportCommandError(Exception ex) => Trace.TraceError("command failed: {0}", ex);
+
+    public void Notify([CallerMemberName] string? name = null) => OnPropertyChanged(name);
+
+    private void OnHotkeyResultsChanged() => Notify(nameof(HotkeyErrors));
+
     private void SetTheme(string id)
     {
         Settings.Theme = id;
         foreach (var t in Themes) t.Refresh();
         Host.ApplySettings();
-    }
-
-    private IEnumerable<OcrLanguageItem> LoadOcrLanguages()
-    {
-        IReadOnlyList<OcrLanguageStatus> statuses;
-        try { statuses = OcrService.AllLanguageStatuses(); }
-        catch (Exception) { statuses = []; }
-
-        var selected = new HashSet<string>(Settings.Capture.OcrLanguages, StringComparer.OrdinalIgnoreCase);
-        // Latin-script languages are all read by any Latin OCR pack (e.g. English), so only list them if installed.
-        return statuses
-            .Where(s => s.Installed || LanguageCatalog.Find(s.Code) is not { Script: Script.Latin } || s.Code == "vi")
-            .OrderByDescending(s => s.Code == Settings.MyLanguage)
-            .ThenByDescending(s => s.Installed)
-            .Select(s => new OcrLanguageItem(s, selected.Contains(s.Code), s.Code == Settings.MyLanguage, OnOcrSelectionChanged));
-    }
-
-    private void OnOcrSelectionChanged()
-    {
-        // Keep wanted-but-not-installed languages in the list so they activate as soon as they're installed.
-        var notInstalled = Settings.Capture.OcrLanguages.Where(c => OcrLanguages.Any(l => l.Code == c && !l.Installed));
-        Settings.Capture.OcrLanguages = OcrLanguages.Where(l => l.Installed && !l.IsMine && l.IsSelected).Select(l => l.Code)
-            .Concat(notInstalled).Distinct().ToList();
-        Host.ApplySettings();
-        Notify(nameof(OcrSummary));
     }
 
     private static Brush Swatch(string hex)
@@ -265,6 +155,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _ => [],
     };
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-    public void Notify([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    /// <summary>Unsubscribes from the host and releases the live-view lease. Called by MainWindow on close.</summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Host.PropertyChanged -= _hostChanged;
+        Host.HotkeyResultsChanged -= OnHotkeyResultsChanged;
+        CapturePreview.Dispose();
+    }
 }

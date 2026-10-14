@@ -1,0 +1,41 @@
+<UserControl x:Class="Envoy.App.Pages.PhrasebookPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:Envoy.App.Controls">
+    <ScrollViewer Padding="32,24">
+        <StackPanel MaxWidth="900">
+            <TextBlock Text="Phrasebook" Style="{StaticResource Text.H1}" />
+            <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,18">
+                Hand-translated phrases for common moments. They appear as one-click chips in the reply box and are used instead of machine translation whenever you type one exactly.
+            </TextBlock>
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <Button DockPanel.Dock="Right" Content="Edit my phrases" Command="{Binding EditPhrasesCommand}" />
+                        <TextBlock Text="Preview in" Style="{StaticResource Text.Label}" Margin="0,0,10,0" />
+                        <ComboBox x:Name="PhrasePreviewLanguage" Width="240" HorizontalAlignment="Left" ItemsSource="{Binding Languages}" DisplayMemberPath="DisplayName"
+                                  SelectedItem="{Binding PhrasePreviewLanguage}" c:AutoApply.Ignore="True" />
+                    </DockPanel>
+                    <ItemsControl x:Name="PhraseList" ItemsSource="{Binding PhraseRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="30" />
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Icon}" Style="{StaticResource Text.Label}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Category}" Style="{StaticResource Text.Caption}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Mine}" Style="{StaticResource Text.Label}" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Theirs}" Style="{StaticResource Text.Label}" Foreground="{DynamicResource Accent.Bright}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ContentControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

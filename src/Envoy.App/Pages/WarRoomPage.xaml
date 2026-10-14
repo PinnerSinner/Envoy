@@ -1,0 +1,152 @@
+<UserControl x:Class="Envoy.App.Pages.WarRoomPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer Padding="32,24">
+        <StackPanel MaxWidth="900">
+            <TextBlock Text="War Room" Style="{StaticResource Text.H1}" />
+            <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,18">
+                Envoy reads the game's chat from your screen, translates it, and shows it in an overlay. Press
+                <Run Text="{Binding Settings.Hotkeys.Compose, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Accent}" />
+                in game to reply in your opponent's language.
+            </TextBlock>
+
+            <Border Visibility="{Binding Host.HasUpdate, Converter={StaticResource BoolToVisibility}}" Background="{DynamicResource Accent.Gradient}"
+                    Padding="16,10" Margin="0,0,0,16">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Download" Command="{Binding DownloadUpdateCommand}" />
+                    <TextBlock Text="{Binding Host.UpdateText}" Foreground="{DynamicResource Text.OnAccent}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+
+            <UniformGrid Columns="3" Margin="-6,0,-6,8">
+                <ContentControl Style="{StaticResource OrnateFrame}" Margin="6,0,6,12">
+                    <StackPanel>
+                        <TextBlock Text="BATTLEFIELD" Style="{StaticResource Text.Caption}" FontFamily="{StaticResource Font.Display}" FontWeight="Bold" />
+                        <TextBlock Text="{Binding Host.GameStatus}" Style="{StaticResource Text.Label}" FontSize="15" Margin="0,6,0,0" />
+                    </StackPanel>
+                </ContentControl>
+                <ContentControl Style="{StaticResource OrnateFrame}" Margin="6,0,6,12">
+                    <StackPanel>
+                        <TextBlock Text="SCOUTS" Style="{StaticResource Text.Caption}" FontFamily="{StaticResource Font.Display}" FontWeight="Bold" />
+                        <TextBlock Text="{Binding Host.CaptureStatus}" Style="{StaticResource Text.Label}" FontSize="15" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding OcrSummary}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
+                    </StackPanel>
+                </ContentControl>
+                <ContentControl Style="{StaticResource OrnateFrame}" Margin="6,0,6,12">
+                    <StackPanel>
+                        <TextBlock Text="INTERPRETER" Style="{StaticResource Text.Caption}" FontFamily="{StaticResource Font.Display}" FontWeight="Bold" />
+                        <TextBlock Text="{Binding PrimaryInfo.Name}" Style="{StaticResource Text.Label}" FontSize="15" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding UsageText}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
+                    </StackPanel>
+                </ContentControl>
+            </UniformGrid>
+
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
+                    <TextBlock Text="Get ready" Style="{StaticResource Text.H2}" />
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="1 · Mark where chat appears" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding RegionText}" Style="{StaticResource Text.Caption}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Select chat area" Style="{StaticResource Button.Primary}" Command="{Binding SelectRegionCommand}" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="2 · Choose your language" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                            <TextBlock Text="Incoming chat is translated into this; your replies are written in it." Style="{StaticResource Text.Caption}" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" Width="260" ItemsSource="{Binding Languages}" DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Code" SelectedValue="{Binding Settings.MyLanguage}" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="3 · Your in-game name (optional)" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                            <TextBlock Text="So your own messages aren't translated back to you." Style="{StaticResource Text.Caption}" />
+                        </StackPanel>
+                        <TextBox Grid.Column="1" Width="260" Text="{Binding Settings.MyPlayerName, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="4 · Play in windowed or borderless mode" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                            <TextBlock Text="Exclusive fullscreen hides overlays and captures as black. Borderless looks identical." Style="{StaticResource Text.Caption}" />
+                        </StackPanel>
+                    </Grid>
+                    <WrapPanel Margin="0,12,0,0">
+                        <Button Content="Pause / resume reading" Command="{Binding ToggleCaptureCommand}" Margin="0,0,8,8" />
+                        <Button Content="Show sample messages" Command="{Binding ShowSampleMessagesCommand}" Margin="0,0,8,8" />
+                        <Button Content="Move the overlay" Command="{Binding MoveOverlayCommand}" Margin="0,0,8,8" />
+                        <Button Content="Open reply box" Command="{Binding OpenReplyBoxCommand}" Margin="0,0,8,8" />
+                        <Button Content="Scan &amp; translate…" Command="{Binding ScanAndTranslateCommand}" Margin="0,0,8,8" ToolTip="Translate any text on screen (Ctrl+Shift+Q)" />
+                    </WrapPanel>
+                </StackPanel>
+            </ContentControl>
+
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="New match" Command="{Binding NewMatchCommand}" ToolTip="Forget this match's players and messages (happens automatically when a game starts)" />
+                        <TextBlock Text="Players this match" Style="{StaticResource Text.H2}" />
+                    </DockPanel>
+                    <TextBlock Text="Envoy remembers who writes in which language, so replies go out in the right one." Style="{StaticResource Text.Caption}" Margin="0,0,0,8" />
+                    <ItemsControl ItemsSource="{Binding Host.Players}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Accent.Dim}" BorderThickness="1" Padding="10,5" Margin="0,0,8,8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Accent.Bright}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Language, StringFormat=' · {0}', TargetNullValue=' · ?'}" Style="{StaticResource Text.Caption}" Margin="4,0,0,0" />
+                                        <TextBlock Text="{Binding MessageCount, StringFormat=' · {0} msgs'}" Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ContentControl>
+
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
+                    <TextBlock Text="Dispatches" Style="{StaticResource Text.H2}" />
+                    <TextBlock Text="Messages Envoy has read this session, newest first." Style="{StaticResource Text.Caption}" Margin="0,0,0,8" />
+                    <ItemsControl ItemsSource="{Binding Host.History}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="0,6" BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="0,0,0,1">
+                                    <StackPanel>
+                                        <TextBlock TextWrapping="Wrap" Style="{StaticResource Text.Label}">
+                                            <Run Text="{Binding SourceLanguage, Mode=OneWay, StringFormat='[{0}] '}" Foreground="{DynamicResource Text.Muted}" />
+                                            <Run Text="{Binding Chat.Sender, Mode=OneWay}" Foreground="{DynamicResource Accent}" FontWeight="SemiBold" />
+                                            <Run Text="  " />
+                                            <Run Text="{Binding DisplayText, Mode=OneWay}" />
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Chat.Text}" Style="{StaticResource Text.Caption}" FontStyle="Italic" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ContentControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

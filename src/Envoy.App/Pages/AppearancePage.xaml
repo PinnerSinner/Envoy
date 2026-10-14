@@ -1,0 +1,47 @@
+<UserControl x:Class="Envoy.App.Pages.AppearancePage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer Padding="32,24">
+        <StackPanel MaxWidth="900">
+            <TextBlock Text="Appearance" Style="{StaticResource Text.H1}" />
+            <TextBlock Text="Each theme takes its cue from one of the games. Settings, the overlay and the reply box all follow it." Style="{StaticResource Text.Body}" Margin="0,0,0,18" />
+            <ItemsControl ItemsSource="{Binding Themes}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <RadioButton Style="{StaticResource ThemeCard}" IsChecked="{Binding IsSelected, Mode=TwoWay}" Width="250">
+                            <StackPanel>
+                                <ItemsControl ItemsSource="{Binding Swatches}" Margin="0,0,0,8">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Rectangle Width="40" Height="26" Fill="{Binding}" Margin="0,0,4,0" Stroke="#40000000" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding Name}" FontFamily="{StaticResource Font.Display}" FontWeight="Bold" FontSize="15" Foreground="{DynamicResource Accent.Bright}" />
+                                <TextBlock Text="{Binding Inspiration}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <ContentControl Style="{StaticResource OrnateFrame}" Margin="0,10,0,14">
+                <StackPanel>
+                    <TextBlock Text="General" Style="{StaticResource Text.H2}" />
+                    <CheckBox Content="Start Envoy when I sign in to Windows" IsChecked="{Binding Settings.StartWithWindows}" />
+                    <CheckBox Content="Tell me when a new version is released" IsChecked="{Binding Settings.CheckForUpdates}" />
+                    <DockPanel Margin="0,4,0,0">
+                        <Button DockPanel.Dock="Right" Content="Open logs" Command="{Binding OpenLogsCommand}" Padding="10,3" />
+                        <CheckBox Content="Save chat transcripts on this PC (one file per match)" IsChecked="{Binding Settings.SaveTranscripts}" />
+                    </DockPanel>
+                </StackPanel>
+            </ContentControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

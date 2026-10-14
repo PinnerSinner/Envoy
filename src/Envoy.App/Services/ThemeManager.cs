@@ -21,6 +21,9 @@ public static class ThemeManager
         new("classic", "Classic", "Age of Empires — sandstone and bronze-age earth"),
     ];
 
+    /// <summary>Every palette the smoke test renders, in order. 07b appends high contrast.</summary>
+    public static IReadOnlyList<string> PaletteIds { get; } = [.. Themes.Select(t => t.Id)];
+
     public static string CurrentId { get; private set; } = "";
 
     public static void Apply(string themeId)
