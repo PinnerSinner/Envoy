@@ -31,6 +31,9 @@ public static class DataInventory
         new("last-crash.json", "Details of the last crash."),
         new("last-crash.json.tmp", "Left over if Envoy closed while recording a crash."),
         new("session.json", "Start-up marker used to detect crashes."),
+        new("translation-cache.json", "Saved translations, if you turned on \"Remember translations\"."),
+        new("translation-cache.json.tmp", "Left over if Envoy closed while saving translations."),
+        new("translation-cache.json.bad", "A damaged saved-translations file set aside."),
         new("error.log", "Error log from Envoy 0.1."),
     ];
 

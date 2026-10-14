@@ -1,0 +1,6 @@
+{
+  "status": 200,
+  "headers": {},
+  "contentType": "application/json; charset=utf-8",
+  "body": "[[[\"Hello, rematch?\",\"你好，再来一局？\",null,null,10]],null,\"zh-CN\",null,null,null,1,[],[[\"zh-CN\"],null,[1],[\"zh-CN\"]]]"
+}

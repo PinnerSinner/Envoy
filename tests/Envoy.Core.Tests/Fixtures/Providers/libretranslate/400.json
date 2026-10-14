@@ -1,0 +1,6 @@
+{
+  "status": 400,
+  "headers": {},
+  "contentType": "application/json",
+  "body": "{\"error\":\"zz is not supported\"}"
+}

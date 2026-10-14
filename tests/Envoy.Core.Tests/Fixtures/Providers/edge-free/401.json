@@ -1,0 +1,6 @@
+{
+  "status": 401,
+  "headers": {},
+  "contentType": "application/json",
+  "body": "{\"error\":{\"code\":401000,\"message\":\"The request is not authorized because credentials are missing or invalid.\"}}"
+}

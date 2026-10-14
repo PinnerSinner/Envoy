@@ -1,0 +1,6 @@
+{
+  "status": 500,
+  "headers": {},
+  "contentType": "application/json",
+  "body": "{\"error\":{\"code\":500000,\"message\":\"An unexpected error occurred.\"}}"
+}

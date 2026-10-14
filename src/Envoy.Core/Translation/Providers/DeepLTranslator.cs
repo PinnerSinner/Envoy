@@ -5,7 +5,7 @@ using Envoy.Core.Languages;
 
 namespace Envoy.Core.Translation.Providers;
 
-public sealed class DeepLTranslator(HttpClient http, string apiKey) : ITranslator
+public sealed class DeepLTranslator(HttpClient http, string apiKey, TimeProvider? clock = null) : ITranslator
 {
     public string Id => ProviderCatalog.DeepL;
     public bool IsMetered => true;
@@ -17,7 +17,8 @@ public sealed class DeepLTranslator(HttpClient http, string apiKey) : ITranslato
 
     public async Task<TranslationResult> TranslateAsync(TranslationRequest request, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(apiKey)) throw new TranslationException("DeepL needs an API key (Settings → Translation).");
+        ArgumentNullException.ThrowIfNull(request);
+        if (string.IsNullOrWhiteSpace(apiKey)) throw TranslationErrorText.NotConfigured(TranslationErrorText.MissingKey, Id);
 
         var body = new Dictionary<string, object> { ["text"] = new[] { request.Text }, ["target_lang"] = ToDeepLTarget(request.TargetLanguage) };
         if (request.SourceLanguage is not null) body["source_lang"] = ToDeepLSource(request.SourceLanguage);
@@ -25,19 +26,10 @@ public sealed class DeepLTranslator(HttpClient http, string apiKey) : ITranslato
         using var message = new HttpRequestMessage(HttpMethod.Post, Endpoint) { Content = JsonContent.Create(body) };
         message.Headers.Authorization = new AuthenticationHeaderValue("DeepL-Auth-Key", apiKey);
 
-        using var response = await http.SendAsync(message, cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new TranslationException((int)response.StatusCode switch
-            {
-                403 => "DeepL rejected the API key.",
-                456 => "DeepL monthly quota used up.",
-                var code => $"DeepL returned {code}.",
-            });
-        }
-
-        var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        return Parse(json, Id);
+        using var response = await ProviderHttp.SendAsync(http, message, Id, cancellationToken).ConfigureAwait(false);
+        // 403 = key rejected, 456 = monthly quota used up (both in the REQ-TRR-2 table).
+        var json = await ProviderHttp.ReadBodyAsync(response, Id, clock ?? TimeProvider.System, null, cancellationToken).ConfigureAwait(false);
+        return ProviderHttp.Parse(Id, json, b => Parse(b, Id));
     }
 
     internal static TranslationResult Parse(string json, string providerId)

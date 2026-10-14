@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -11,7 +12,7 @@ namespace Envoy.Core.Translation.Providers;
 /// Free and keyless; unofficial like the Google endpoint, which makes it a good independent fallback.
 /// </summary>
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
-    Justification = "Translators live as long as the translator stack; 03-translation-resilience owns disposal.")]
+    Justification = "Translators are rebuilt on settings edits and own no handle that needs disposal: the HttpClient is AppHost's, and SemaphoreSlim allocates no wait handle unless AvailableWaitHandle is read.")]
 public sealed class EdgeFreeTranslator(HttpClient http, TimeProvider? clock = null) : ITranslator
 {
     private const string AuthUrl = "https://edge.microsoft.com/translate/auth";
@@ -27,23 +28,31 @@ public sealed class EdgeFreeTranslator(HttpClient http, TimeProvider? clock = nu
 
     public async Task<TranslationResult> TranslateAsync(TranslationRequest request, CancellationToken cancellationToken = default)
     {
-        var token = await GetTokenAsync(cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(request);
         var url = $"{TranslateUrl}?api-version=3.0&to={ToMicrosoft(request.TargetLanguage)}";
         if (request.SourceLanguage is not null) url += $"&from={ToMicrosoft(request.SourceLanguage)}";
 
-        using var message = new HttpRequestMessage(HttpMethod.Post, url)
+        // REQ-TRR-25: a 401 means the token went stale; fetch a fresh one and resend once, inside this attempt.
+        for (var pass = 1; ; pass++)
         {
-            Content = JsonContent.Create(new[] { new { Text = request.Text } }),
-        };
-        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            var token = await GetTokenAsync(cancellationToken).ConfigureAwait(false);
+            using var message = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = JsonContent.Create(new[] { new { Text = request.Text } }),
+            };
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        using var response = await http.SendAsync(message, cancellationToken).ConfigureAwait(false);
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized) _token = null;
-        if (!response.IsSuccessStatusCode)
-            throw new TranslationException($"Microsoft Translator returned {(int)response.StatusCode}.");
-
-        var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        return Parse(json, Id);
+            using var response = await ProviderHttp.SendAsync(http, message, Id, cancellationToken).ConfigureAwait(false);
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                ForgetToken(token);
+                if (pass == 1) continue;
+            }
+            // A second 401 is the keyless endpoint refusing us, not a bad key.
+            var json = await ProviderHttp.ReadBodyAsync(response, Id, _clock,
+                status => status is 401 or 403 ? TranslationErrorKind.RateLimited : null, cancellationToken).ConfigureAwait(false);
+            return ProviderHttp.Parse(Id, json, body => Parse(body, Id));
+        }
     }
 
     /// <summary>Response shape: [{"detectedLanguage":{"language":"zh-Hans"},"translations":[{"text":"..."}]}]</summary>
@@ -58,17 +67,32 @@ public sealed class EdgeFreeTranslator(HttpClient http, TimeProvider? clock = nu
         return new TranslationResult(text, detected, providerId);
     }
 
+    private void ForgetToken(string token)
+    {
+        if (ReferenceEquals(Volatile.Read(ref _token), token)) Volatile.Write(ref _token, null);
+    }
+
     private async Task<string> GetTokenAsync(CancellationToken ct)
     {
-        if (_token is not null && _clock.GetUtcNow() < _tokenExpires) return _token;
+        if (Volatile.Read(ref _token) is { } cached && _clock.GetUtcNow() < _tokenExpires) return cached;
         await _tokenLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (_token is not null && _clock.GetUtcNow() < _tokenExpires) return _token;
-            var token = (await http.GetStringAsync(AuthUrl, ct).ConfigureAwait(false)).Trim();
-            if (token.Length == 0) throw new TranslationException("Microsoft Translator did not issue a token.");
-            _token = token;
+            if (_token is { } again && _clock.GetUtcNow() < _tokenExpires) return again;
+            using var message = new HttpRequestMessage(HttpMethod.Get, AuthUrl);
+            using var response = await ProviderHttp.SendAsync(http, message, Id, ct).ConfigureAwait(false);
+            // Whatever the auth endpoint says, it is a hiccup on Microsoft's side, not the user's fault.
+            var body = await ProviderHttp.ReadBodyAsync(response, Id, _clock,
+                status => status == 429 ? TranslationErrorKind.RateLimited : TranslationErrorKind.Transient, ct).ConfigureAwait(false);
+            var token = body.Trim();
+            if (token.Length == 0)
+            {
+                throw new TranslationException(
+                    TranslationErrorText.Format(TranslationErrorText.NoToken, ("provider", ProviderCatalog.NameOf(Id))),
+                    kind: TranslationErrorKind.Transient);
+            }
             _tokenExpires = _clock.GetUtcNow().AddMinutes(8); // tokens last 10 minutes
+            Volatile.Write(ref _token, token);
             return token;
         }
         finally

@@ -22,10 +22,23 @@ is changed, apart from the optional "Start with Windows" entry in your user's Ru
 | `last-crash.json` | Details of the last crash. |
 | `last-crash.json.tmp` | Left over if Envoy closed while recording a crash. |
 | `session.json` | Start-up marker used to detect crashes. |
+| `translation-cache.json` | Saved translations, if you turned on "Remember translations". |
+| `translation-cache.json.tmp` | Left over if Envoy closed while saving translations. |
+| `translation-cache.json.bad` | A damaged saved-translations file set aside. |
 | `error.log` | Error log from Envoy 0.1. |
 
 The `.bak` copies hold your API keys encrypted the same way as `settings.json`, so only your Windows account can read
 them.
+
+### Saved translations
+
+**Remember translations between sessions** (Translation page) is off unless you turn it on. When it is on,
+`translation-cache.json` keeps recent translations so a repeated line like "gg wp" is translated instantly and, with a
+paid provider, for free. The file holds translations of chat lines you received, in your language, plus a one-way
+fingerprint of each original line. It never leaves this PC. The fingerprint stops casual reading of the original
+lines, but someone with the file could still guess short, common ones, so treat the file like your chat transcripts.
+It holds at most 2,000 entries (and 1 MiB), forgets entries after 30 days, and never stores messages longer than 200
+characters. Turning the option off, or **Clear saved translations**, deletes the file.
 
 ### The diagnostic log
 

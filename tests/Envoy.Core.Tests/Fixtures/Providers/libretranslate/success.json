@@ -1,0 +1,6 @@
+{
+  "status": 200,
+  "headers": {},
+  "contentType": "application/json",
+  "body": "{\"detectedLanguage\":{\"confidence\":90,\"language\":\"zh\"},\"translatedText\":\"Hello, rematch?\"}"
+}

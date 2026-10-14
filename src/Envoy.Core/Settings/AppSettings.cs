@@ -123,6 +123,15 @@ public sealed class TranslationSettings
     [Secret] public string AwsAccessKeyId { get; set; } = "";
     [Secret] public string AwsSecretAccessKey { get; set; } = "";
     public string AwsRegion { get; set; } = "us-east-1";
+
+    /// <summary>Give up on a chat line after this many seconds, across retries and fallbacks (clamped to 3–60).</summary>
+    public int RequestTimeoutSeconds { get; set; } = 15;
+
+    /// <summary>Remembered translations kept in memory (and on disk when <see cref="RememberTranslations"/> is on); clamped to 100–20000.</summary>
+    public int CacheMaxEntries { get; set; } = 2000;
+
+    /// <summary>Save translations between sessions in translation-cache.json (off by default, like transcripts).</summary>
+    public bool RememberTranslations { get; set; }
 }
 
 public enum OverlayAnchor

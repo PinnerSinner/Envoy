@@ -1,0 +1,8 @@
+{
+  "status": 429,
+  "headers": {
+    "Retry-After": "2"
+  },
+  "contentType": "application/json",
+  "body": "{\"error\":{\"code\":429000,\"message\":\"The server rejected the request because the client has exceeded request limits.\"}}"
+}

@@ -1,0 +1,8 @@
+{
+  "status": 400,
+  "headers": {
+    "smithy-protocol": "rpc-v2-cbor"
+  },
+  "contentType": "application/cbor",
+  "body": "{\"__type\":\"com.amazonaws.translate#LimitExceededException\",\"message\":\"Limit exceeded\"}"
+}

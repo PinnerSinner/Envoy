@@ -1,0 +1,8 @@
+{
+  "status": 429,
+  "headers": {
+    "Retry-After": "2"
+  },
+  "contentType": "application/json",
+  "body": "{\"message\":\"Too many requests\"}"
+}

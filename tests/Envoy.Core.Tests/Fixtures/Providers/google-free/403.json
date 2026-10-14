@@ -1,0 +1,6 @@
+{
+  "status": 403,
+  "headers": {},
+  "contentType": "text/html; charset=utf-8",
+  "body": "<!DOCTYPE html><html><head><title>Sorry...</title></head><body>Our systems have detected unusual traffic from your computer network.</body></html>"
+}

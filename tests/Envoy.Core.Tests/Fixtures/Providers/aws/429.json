@@ -1,0 +1,9 @@
+{
+  "status": 429,
+  "headers": {
+    "smithy-protocol": "rpc-v2-cbor",
+    "Retry-After": "2"
+  },
+  "contentType": "application/cbor",
+  "body": "{\"__type\":\"com.amazonaws.translate#TooManyRequestsException\",\"message\":\"Rate exceeded\"}"
+}

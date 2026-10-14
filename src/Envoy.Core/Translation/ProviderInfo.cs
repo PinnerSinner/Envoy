@@ -49,4 +49,7 @@ public static class ProviderCatalog
     ];
 
     public static ProviderInfo? Find(string id) => All.FirstOrDefault(p => p.Id == id);
+
+    /// <summary>The catalog name of <paramref name="id"/>, or the id itself for an unknown provider.</summary>
+    public static string NameOf(string id) => Find(id)?.Name ?? id;
 }

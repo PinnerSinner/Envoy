@@ -1,42 +1,31 @@
 namespace Envoy.Core.Translation;
 
-/// <summary>Remembers recent translations: "gg", "gl hf" and spam repeat a lot, and every repeat is free.</summary>
-public sealed class CachingTranslator(ITranslator inner, int capacity = 500) : ITranslator
+/// <summary>
+/// Serves repeats from the runtime's <see cref="TranslationCache"/>: "gg", "gl hf" and spam repeat a lot, and every
+/// repeat is free. Entries are keyed by <paramref name="cacheNamespace"/> (the primary provider) so switching provider
+/// never serves the old provider's output (REQ-TRR-19).
+/// </summary>
+public sealed class CachingTranslator(ITranslator inner, TranslationCache cache, string cacheNamespace) : ITranslator
 {
-    private readonly Dictionary<string, LinkedListNode<(string Key, TranslationResult Value)>> _map = new();
-    private readonly LinkedList<(string Key, TranslationResult Value)> _lru = new();
-    private readonly object _gate = new();
+    /// <summary>A private cache with namespace "" (tests and back-compat).</summary>
+    public CachingTranslator(ITranslator inner, int capacity = 500) : this(inner, new TranslationCache(capacity), "")
+    {
+    }
 
     public string Id => inner.Id;
     public bool IsMetered => inner.IsMetered;
+    public TranslationCache Cache => cache;
+    public string Namespace => cacheNamespace;
 
     public async Task<TranslationResult> TranslateAsync(TranslationRequest request, CancellationToken cancellationToken = default)
     {
-        var key = $"{request.SourceLanguage}\u001f{request.TargetLanguage}\u001f{request.Text.Trim()}";
-        lock (_gate)
-        {
-            if (_map.TryGetValue(key, out var hit))
-            {
-                _lru.Remove(hit);
-                _lru.AddFirst(hit);
-                return hit.Value.Value with { FromCache = true };
-            }
-        }
+        ArgumentNullException.ThrowIfNull(request);
+        var key = TranslationCache.Key(cacheNamespace, request);
+        if (cache.TryGet(key, out var hit)) return hit with { FromCache = true };
 
         var result = await inner.TranslateAsync(request, cancellationToken).ConfigureAwait(false);
-
-        lock (_gate)
-        {
-            if (!_map.ContainsKey(key))
-            {
-                _map[key] = _lru.AddFirst((key, result));
-                while (_lru.Count > capacity)
-                {
-                    _map.Remove(_lru.Last!.Value.Key);
-                    _lru.RemoveLast();
-                }
-            }
-        }
+        var persistable = !result.FromGlossary && request.Text.Trim().Length <= TranslationCache.MaxPersistableLength;
+        cache.Set(key, result, persistable);
         return result;
     }
 }

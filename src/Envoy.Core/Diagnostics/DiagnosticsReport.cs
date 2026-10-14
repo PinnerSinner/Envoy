@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Text;
 using Envoy.Core.Settings;
 using Envoy.Core.Translation;
+using Envoy.Core.Translation.Resilience;
 
 namespace Envoy.Core.Diagnostics;
 
@@ -37,6 +38,9 @@ public sealed record DiagnosticsSnapshot
 
     /// <summary>Today's <c>AppHost.ProviderStatus</c> (redacted again when rendered).</summary>
     public string? ProviderStatus { get; init; }
+
+    /// <summary>Provider health for the active chain (03, contract §2.1). Rendered as state, counts, kind and status only.</summary>
+    public IReadOnlyList<ProviderHealthSnapshot> TranslationHealth { get; init; } = [];
 
     /// <summary>Only the non-Registered <c>HotkeyResults</c>.</summary>
     public IReadOnlyList<HotkeyLine> Hotkeys { get; init; } = [];
@@ -113,6 +117,7 @@ public static class DiagnosticsReport
             Line("- " + (info?.Name ?? p.Id) + " [" + p.Id + "]: " + key);
         }
         Line("Status: " + (string.IsNullOrWhiteSpace(snapshot.ProviderStatus) ? "(none)" : snapshot.ProviderStatus.Replace('\n', ' ')));
+        foreach (var h in snapshot.TranslationHealth) Line(HealthLine(h));
 
         Section("Hotkeys");
         if (snapshot.Hotkeys.Count == 0) Line("Every configured hotkey is registered.");
@@ -167,6 +172,19 @@ public static class DiagnosticsReport
         body.Append(Close);
         var text = body.ToString();
         return text.Length <= maxChars ? text : text[..maxChars];
+    }
+
+    /// <summary>
+    /// <c>{id}: {state}, median {ms} ms, ok {n}, failed {n}, last error kind {kind} ({status})</c>: kind and status only,
+    /// never <see cref="ProviderHealthSnapshot.LastError"/> text.
+    /// </summary>
+    internal static string HealthLine(ProviderHealthSnapshot h)
+    {
+        var inv = CultureInfo.InvariantCulture;
+        var median = h.MedianLatency is { } m ? ((long)m.TotalMilliseconds).ToString(inv) : "-";
+        var kind = h.LastErrorKind?.ToString() ?? "none";
+        var status = h.LastErrorStatus is { } code ? code.ToString(inv) : "-";
+        return string.Create(inv, $"- {h.ProviderId}: {h.State}, median {median} ms, ok {h.Successes}, failed {h.Failures}, last error kind {kind} ({status})");
     }
 
     private static string OmittedNote(int count) =>
