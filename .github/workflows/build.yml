@@ -62,7 +62,8 @@ jobs:
           dotnet @a | Tee-Object -FilePath publish.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           # Envoy.App keeps warnings non-fatal on Windows (08a); report them so they can be driven to zero.
-          $warnings = @(Select-String -Path publish.log -Pattern ': warning [A-Z]+[0-9]+' | ForEach-Object { $_.Line.Trim() } | Sort-Object -Unique)
+          # The trailing [project] is dropped first: WPF compiles twice (*_wpftmp.csproj), so one warning appears twice.
+          $warnings = @(Select-String -Path publish.log -Pattern ': warning [A-Z]+[0-9]+' | ForEach-Object { ($_.Line -replace '\s*\[[^\]]+\]\s*$', '').Trim() } | Sort-Object -Unique)
           "### Envoy.App publish: $($warnings.Count) warning(s)" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
           $warnings | Select-Object -First 50 | ForEach-Object { "- $_" } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
 

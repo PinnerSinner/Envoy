@@ -43,6 +43,15 @@ public class SendTargetGuardTests
     }
 
     [Fact]
+    public void Reopening_the_open_reply_box_keeps_its_target()
+    {
+        Assert.Equal(0x20, SendTargetGuard.TargetOnOpen(0x20, 0, replyBoxOpen: true));
+        Assert.Equal(0x30, SendTargetGuard.TargetOnOpen(0x20, 0x30, replyBoxOpen: true));
+        Assert.Equal(0, SendTargetGuard.TargetOnOpen(0x20, 0, replyBoxOpen: false));
+        Assert.Equal(0x30, SendTargetGuard.TargetOnOpen(0x20, 0x30, replyBoxOpen: false));
+    }
+
+    [Fact]
     public void Unknown_process_name_still_targets_foreground() =>
         Assert.Equal(0x20, SendTargetGuard.ChooseTarget(0, false, 0x20, 7, null, 1));
 

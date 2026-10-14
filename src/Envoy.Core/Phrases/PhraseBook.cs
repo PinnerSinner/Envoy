@@ -54,8 +54,9 @@ public sealed class PhraseBook(IReadOnlyList<Phrase> phrases)
         if (!File.Exists(userFile)) return new PhraseBook(builtIn);
         try
         {
-            if (new FileInfo(userFile).Length > PhraseLimits.MaxFileBytes) return new PhraseBook(builtIn);
-            using var stream = File.OpenRead(userFile);
+            // The limit is enforced on the bytes actually read, so a file that grows after a size check still can't pass.
+            using var stream = ReadAtMost(userFile, PhraseLimits.MaxFileBytes);
+            if (stream is null) return new PhraseBook(builtIn);
             var user = Clean(Deserialize(stream));
             var ids = user.Select(p => p.Id).ToHashSet();
             return new PhraseBook([.. user, .. builtIn.Where(p => !ids.Contains(p.Id))]);
@@ -90,6 +91,27 @@ public sealed class PhraseBook(IReadOnlyList<Phrase> phrases)
             .ToList();
 
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    /// <summary>The file's bytes, or null when it holds more than <paramref name="maxBytes"/>.</summary>
+    private static MemoryStream? ReadAtMost(string path, long maxBytes)
+    {
+        using var file = File.OpenRead(path);
+        if (file.CanSeek && file.Length > maxBytes) return null;
+        var buffer = new MemoryStream();
+        var chunk = new byte[81_920];
+        int read;
+        while ((read = file.Read(chunk, 0, chunk.Length)) > 0)
+        {
+            if (buffer.Length + read > maxBytes)
+            {
+                buffer.Dispose();
+                return null;
+            }
+            buffer.Write(chunk, 0, read);
+        }
+        buffer.Position = 0;
+        return buffer;
+    }
 
     private static List<Phrase> Deserialize(Stream stream) =>
         JsonSerializer.Deserialize<List<Phrase>>(stream, JsonOptions) ?? [];

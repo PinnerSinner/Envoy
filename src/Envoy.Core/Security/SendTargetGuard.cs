@@ -31,6 +31,14 @@ public static class SendTargetGuard
         return IsShellProcess(foregroundProcessName) ? 0 : foregroundWindow;
     }
 
+    /// <summary>
+    /// The target to keep when the reply box is opened again. While the box is already open it is in front, so
+    /// <see cref="ChooseTarget"/> sees Envoy and gives no target; the target chosen when the box first opened is kept
+    /// then. Any other time the new choice wins.
+    /// </summary>
+    public static nint TargetOnOpen(nint currentTarget, nint chosenTarget, bool replyBoxOpen) =>
+        replyBoxOpen && chosenTarget == 0 ? currentTarget : chosenTarget;
+
     /// <summary>"explorer" or "explorer.exe", ignoring case. explorer.exe owns Shell_TrayWnd and the desktop.</summary>
     public static bool IsShellProcess(string? processName) =>
         string.Equals(processName, "explorer", StringComparison.OrdinalIgnoreCase)

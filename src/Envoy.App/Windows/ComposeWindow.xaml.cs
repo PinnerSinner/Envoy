@@ -37,8 +37,9 @@ public partial class ComposeWindow : Window
 
     public void Open(IntPtr targetWindow)
     {
+        // Opened again while open: the box itself is in front, so keep the target chosen the first time.
+        _target = SendTargetGuard.TargetOnOpen(_target, targetWindow, IsVisible);
         _opening = true;
-        _target = targetWindow;
 
         var languages = LanguageCatalog.All.Where(l => l.Code != MyLanguage).ToList();
         TargetLanguage.ItemsSource = languages;

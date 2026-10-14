@@ -92,6 +92,12 @@ class NativeTests(PolicyTreeTest):
         self.write("src/Envoy.Core/X.cs", "// We never call OpenProcess.\n")
         self.assertRule("native-denied", "src/Envoy.Core/X.cs")
 
+    def test_managed_dynamic_loading_is_denied(self) -> None:
+        self.write("src/Envoy.App/A.cs", 'var h = NativeLibrary.Load("kernel32.dll");\n')
+        self.write("src/Envoy.App/B.cs", "var f = Marshal.GetDelegateForFunctionPointer<Fn>(p);\n")
+        self.assertRule("native-denied", "src/Envoy.App/A.cs")
+        self.assertRule("native-denied", "src/Envoy.App/B.cs")
+
     def test_unlisted_pinvoke_fails(self) -> None:
         self.write("src/Envoy.App/Interop/Extra.cs",
                    '[LibraryImport("user32.dll")]\n[return: MarshalAs(UnmanagedType.Bool)]\n'
@@ -189,6 +195,29 @@ class ManifestTests(PolicyTreeTest):
         self.edit("src/Envoy.App/app.manifest", 'uiAccess="false"', 'uiAccess="true"')
         self.assertRule("manifest")
 
+    def test_manifest_rejects_single_quoted_uiaccess(self) -> None:
+        self.edit("src/Envoy.App/app.manifest", 'uiAccess="false"', "uiAccess='true'")
+        self.assertRule("manifest")
+
+    def test_manifest_ignores_asinvoker_in_a_comment(self) -> None:
+        self.edit("src/Envoy.App/app.manifest", '<requestedExecutionLevel level="asInvoker"',
+                  '<!-- level="asInvoker" --><requestedExecutionLevel level="requireAdministrator"')
+        self.assertRule("manifest")
+
+    def test_manifest_rejects_two_execution_levels(self) -> None:
+        self.edit("src/Envoy.App/app.manifest", '<requestedExecutionLevel level="asInvoker" uiAccess="false" />',
+                  '<requestedExecutionLevel level="asInvoker" uiAccess="false" />\n'
+                  '        <requestedExecutionLevel level="requireAdministrator" />')
+        self.assertRule("manifest")
+
+    def test_manifest_without_uiaccess_passes(self) -> None:
+        self.edit("src/Envoy.App/app.manifest", ' uiAccess="false"', "")
+        self.assertNoRule("manifest")
+
+    def test_invalid_manifest_xml_fails(self) -> None:
+        self.edit("src/Envoy.App/app.manifest", "</assembly>", "")
+        self.assertRule("manifest")
+
     def test_missing_manifest_fails(self) -> None:
         (self.root / "src/Envoy.App/app.manifest").unlink()
         self.assertRule("manifest")
@@ -234,6 +263,12 @@ class LauncherAndPragmaTests(PolicyTreeTest):
     def test_suppress_message_needs_justification(self) -> None:
         self.write("src/Envoy.Core/X.cs", '[SuppressMessage("x","y")]\nclass X { }\n')
         self.assertRule("pragma", "src/Envoy.Core/X.cs")
+
+    def test_suppress_message_needs_non_empty_justification(self) -> None:
+        self.write("src/Envoy.Core/X.cs", '[SuppressMessage("x","y", Justification = "")]\nclass X { }\n')
+        self.write("src/Envoy.Core/Y.cs", '[SuppressMessage("x","y", Justification = "  ")]\nclass Y { }\n')
+        self.assertRule("pragma", "src/Envoy.Core/X.cs")
+        self.assertRule("pragma", "src/Envoy.Core/Y.cs")
 
     def test_multiline_suppress_message_with_justification_passes(self) -> None:
         self.write("src/Envoy.Core/X.cs",

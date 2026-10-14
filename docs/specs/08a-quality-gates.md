@@ -834,10 +834,16 @@ differences from this spec and the contract:
    analyzers switched off (`RunAnalyzers`, `RunAnalyzersDuringBuild`, `EnableNETAnalyzers`), `ImportDirectoryBuildProps`
    set to `false`, `Remove=` of the analyzer or `BannedSymbols.txt`, and any nested `Directory.Build.props`.
    `native-unlisted` parses each import attribute with the declaration directly after it and flags any `DllImport` or
-   `LibraryImport` it cannot resolve to a literal library name and method (§4). The script takes `--policy` as well as
-   `--root`. `test_check_policy.py` has extra cases beyond the table (50 tests).
+   `LibraryImport` it cannot resolve to a literal library name and method (§4). `manifest` parses the XML rather than
+   matching text: invalid XML fails, there must be exactly one `requestedExecutionLevel` element, its `level` must be
+   `asInvoker`, and `uiAccess` must be absent or `false` (any quoting, case or whitespace), so a comment or
+   single-quoted attribute cannot hide the real value. `pragma` requires a `Justification` that is a non-blank string
+   literal. The script takes `--policy` as well as `--root`. `test_check_policy.py` has extra cases beyond the table
+   (57 tests).
 9. **REQ-QSC-7** is done inside the existing "Publish single-file exe" step (the output is tee'd and the unique
-   `warning XX0000` lines are counted into the job summary), so the workflow layout is unchanged.
+   `warning XX0000` lines are counted into the job summary), so the workflow layout is unchanged. The trailing
+   `[…csproj]` is stripped before counting, because WPF compiles the code twice (`*_wpftmp.csproj` and
+   `Envoy.App.csproj`) and the same warning would otherwise count twice.
 10. **P-QSC-1** ran locally because this step lands without a PR description: `Process.Start("x")` in
     `Pages/AboutPage.xaml.cs` made `typecheck.sh` fail with RS0030, and a Core `HttpClientHandler` with
     `ServerCertificateCustomValidationCallback` made `dotnet build src/Envoy.Core` fail with RS0030. Both edits were
@@ -848,4 +854,15 @@ differences from this spec and the contract:
 12. **Tests.** Besides the CA1310 fix at `TranslationTests.cs:300`, existing tests are unchanged. New test files have
     a few cases beyond the test plan (cap clamping, unpaired surrogates, the cap boundary, own-repository download
     filtering, the 1 MiB boundary, surrogate-safe truncation, `[Secret]` properties being strings).
-
+13. **Managed dynamic loading is banned too** (REQ-QSC-6/8). The denied list only named the Win32 loaders, but
+    `NativeLibrary.Load`/`GetExport` and `Marshal.GetDelegateForFunctionPointer` reach any export with no import
+    attribute. `native.denied` adds `NativeLibrary` and `GetDelegateForFunctionPointer`, `BannedSymbols.txt` bans the
+    `NativeLibrary` type and both `GetDelegateForFunctionPointer` overloads, and `bannedRequired` includes
+    `T:System.Runtime.InteropServices.NativeLibrary`.
+14. **`phrases.json` size limit** (REQ-QSC-32) is enforced on the bytes read, not with `FileInfo.Length` before opening
+    (§3.5 step 1): the file is opened once and read into memory up to `MaxFileBytes`, and anything longer falls back
+    to the built-ins, so a file that grows between a size check and the read cannot get past the limit.
+15. **Reopening the reply box keeps its target** (REQ-QSC-29). Pressing the reply hotkey while the box is open puts
+    Envoy in front, so `ChooseTarget` gives no target and would overwrite the window chosen when the box first opened.
+    `SendTargetGuard.TargetOnOpen` keeps the existing target while the box is open and the new choice is none; any
+    other time the new choice wins. `ComposeWindow.Open` uses it.

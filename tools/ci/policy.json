@@ -13,7 +13,7 @@
       "VirtualQueryEx", "CreateRemoteThread", "CreateRemoteThreadEx", "NtReadVirtualMemory", "NtWriteVirtualMemory",
       "SetWindowsHookEx", "SetWindowsHookExA", "SetWindowsHookExW", "QueueUserAPC", "DebugActiveProcess",
       "SetThreadContext", "GetThreadContext", "LoadLibrary", "LoadLibraryA", "LoadLibraryW", "LoadLibraryExW",
-      "GetProcAddress", "DuplicateHandle", "MiniDumpWriteDump"
+      "GetProcAddress", "DuplicateHandle", "MiniDumpWriteDump", "NativeLibrary", "GetDelegateForFunctionPointer"
     ]
   },
   "network": {
@@ -30,6 +30,7 @@
   "launcher": "src/Envoy.App/Security/ShellLauncher.cs",
   "bannedRequired": ["T:System.Diagnostics.ProcessStartInfo", "M:System.Diagnostics.Process.Start(System.String)",
                      "P:System.Diagnostics.Process.MainModule", "T:System.Net.WebClient",
-                     "P:System.Net.Http.HttpClientHandler.ServerCertificateCustomValidationCallback"],
+                     "P:System.Net.Http.HttpClientHandler.ServerCertificateCustomValidationCallback",
+                     "T:System.Runtime.InteropServices.NativeLibrary"],
   "manifest": "src/Envoy.App/app.manifest"
 }

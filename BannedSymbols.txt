@@ -7,6 +7,9 @@ P:System.Net.Security.SslClientAuthenticationOptions.RemoteCertificateValidation
 P:System.Net.ServicePointManager.ServerCertificateValidationCallback;Never bypass TLS validation
 T:System.Runtime.Serialization.Formatters.Binary.BinaryFormatter;Insecure deserialization
 T:System.Windows.Markup.XamlReader;Never load XAML from data
+T:System.Runtime.InteropServices.NativeLibrary;Never load native code dynamically: list P/Invokes in Native.cs
+M:System.Runtime.InteropServices.Marshal.GetDelegateForFunctionPointer(System.IntPtr,System.Type);Never load native code dynamically: list P/Invokes in Native.cs
+M:System.Runtime.InteropServices.Marshal.GetDelegateForFunctionPointer``1(System.IntPtr);Never load native code dynamically: list P/Invokes in Native.cs
 P:System.Diagnostics.Process.MainModule;Never open the game process
 P:System.Diagnostics.Process.Modules;Never open the game process
 T:System.Diagnostics.ProcessStartInfo;Start processes only through Security/ShellLauncher.cs

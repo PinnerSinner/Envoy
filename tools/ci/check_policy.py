@@ -54,6 +54,8 @@ HOST = re.compile(r"https?://([A-Za-z0-9.-]+)")
 PROCESS_LAUNCH = re.compile(r"\bProcess\s*\.\s*Start\b|\bProcessStartInfo\b|\bUseShellExecute\b")
 PRAGMA_DISABLE = re.compile(r"#\s*pragma\s+warning\s+disable\b(.*)")
 SUPPRESS_MESSAGE = re.compile(r"\bSuppressMessage(?:Attribute)?\s*\(")
+# A Justification that is a string literal with some non-blank text in it.
+JUSTIFICATION = re.compile(r'\bJustification\s*=\s*"[^"]*\S[^"]*"')
 RS0030_SEVERITY = re.compile(r"^\s*dotnet_diagnostic\.RS0030\.severity\s*=\s*(\w+)", re.IGNORECASE | re.MULTILINE)
 
 
@@ -256,7 +258,7 @@ def check_pragmas(root: Path, policy: dict, all_cs: dict[str, str]) -> list[Viol
             number = _line_of(text, match.start())
             if "RS0030" in call:
                 out.append(Violation(rel, number, "pragma", "RS0030 (banned API) must never be suppressed"))
-            if not re.search(r"\bJustification\s*=", call):
+            if not JUSTIFICATION.search(call):
                 out.append(Violation(rel, number, "pragma", "[SuppressMessage] needs a Justification = \"...\""))
     return out
 
@@ -271,13 +273,25 @@ def check_manifest(root: Path, policy: dict) -> list[Violation]:
     if not path.is_file():
         return [Violation(rel, 1, "manifest", "application manifest is missing")]
     text = _read(path)
+    # Parse the XML rather than match text, so quoting style and comments cannot hide the real attributes.
+    doc = _xml(path)
+    if doc is None:
+        return [Violation(rel, 1, "manifest", "application manifest is not valid XML")]
+    line = _line_of(text, max(text.find("<requestedExecutionLevel"), 0))
+    levels = _elements(doc, "requestedExecutionLevel")
+    if len(levels) != 1:
+        return [Violation(rel, line, "manifest",
+                          f"the manifest must have exactly one requestedExecutionLevel element, found {len(levels)}")]
     out: list[Violation] = []
-    level = re.search(r"\blevel\s*=\s*\"([^\"]*)\"", text)
-    if not level or level.group(1) != "asInvoker":
-        out.append(Violation(rel, _line_of(text, level.start()) if level else 1, "manifest",
+    # Attributes by local name, so a namespace prefix cannot hide one either.
+    attributes: dict[str, list[str]] = {}
+    for key, value in levels[0].attrib.items():
+        attributes.setdefault(_local(key), []).append(value.strip())
+    if attributes.get("level") != ["asInvoker"]:
+        out.append(Violation(rel, line, "manifest",
                              'requestedExecutionLevel must be level="asInvoker": Envoy never elevates'))
-    for match in re.finditer(r"\buiAccess\s*=\s*\"\s*true\s*\"", text, re.IGNORECASE):
-        out.append(Violation(rel, _line_of(text, match.start()), "manifest", 'uiAccess="true" is not allowed'))
+    if any(value.lower() != "false" for value in attributes.get("uiAccess", [])):
+        out.append(Violation(rel, line, "manifest", 'uiAccess must be absent or "false"'))
     return out
 
 
