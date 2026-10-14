@@ -1,0 +1,35 @@
+{
+  "native": {
+    "allowed": [
+      "user32!GetWindowLongPtrW", "user32!SetWindowLongPtrW", "user32!SetWindowPos", "user32!GetForegroundWindow",
+      "user32!SetForegroundWindow", "user32!IsWindow", "user32!IsIconic", "user32!GetWindowThreadProcessId",
+      "user32!GetWindowRect", "user32!RegisterHotKey", "user32!UnregisterHotKey", "user32!SendInput",
+      "user32!MapVirtualKeyW", "user32!GetDC", "user32!ReleaseDC",
+      "gdi32!CreateCompatibleDC", "gdi32!CreateCompatibleBitmap", "gdi32!SelectObject", "gdi32!DeleteObject",
+      "gdi32!DeleteDC", "gdi32!SetStretchBltMode", "gdi32!StretchBlt", "gdi32!GetDIBits"
+    ],
+    "denied": [
+      "ReadProcessMemory", "WriteProcessMemory", "OpenProcess", "OpenThread", "VirtualAllocEx", "VirtualProtectEx",
+      "VirtualQueryEx", "CreateRemoteThread", "CreateRemoteThreadEx", "NtReadVirtualMemory", "NtWriteVirtualMemory",
+      "SetWindowsHookEx", "SetWindowsHookExA", "SetWindowsHookExW", "QueueUserAPC", "DebugActiveProcess",
+      "SetThreadContext", "GetThreadContext", "LoadLibrary", "LoadLibraryA", "LoadLibraryW", "LoadLibraryExW",
+      "GetProcAddress", "DuplicateHandle", "MiniDumpWriteDump"
+    ]
+  },
+  "network": {
+    "types": ["HttpClient", "HttpRequestMessage", "HttpMessageHandler", "SocketsHttpHandler", "WebRequest",
+              "WebClient", "TcpClient", "UdpClient", "Socket", "ClientWebSocket"],
+    "allowedPaths": ["src/Envoy.Core/Translation/", "src/Envoy.Core/Updates/", "src/Envoy.App/AppHost.cs"]
+  },
+  "hosts": {
+    "allowed": ["localhost", "api.github.com", "github.com", "api.deepl.com", "api-free.deepl.com", "www.deepl.com",
+                "translate.googleapis.com", "edge.microsoft.com", "api-edge.cognitive.microsofttranslator.com",
+                "console.anthropic.com", "aws.amazon.com"],
+    "ignored": ["schemas.microsoft.com", "schemas.openxmlformats.org"]
+  },
+  "launcher": "src/Envoy.App/Security/ShellLauncher.cs",
+  "bannedRequired": ["T:System.Diagnostics.ProcessStartInfo", "M:System.Diagnostics.Process.Start(System.String)",
+                     "P:System.Diagnostics.Process.MainModule", "T:System.Net.WebClient",
+                     "P:System.Net.Http.HttpClientHandler.ServerCertificateCustomValidationCallback"],
+  "manifest": "src/Envoy.App/app.manifest"
+}

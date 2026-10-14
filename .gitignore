@@ -10,3 +10,4 @@ TestResults/
 tools/typecheck/stubs/
 tools/typecheck/obj/
 screenshots/
+__pycache__/

@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  # Fast cross-platform checks: core unit tests + type-check of the Windows app.
+  # Fast cross-platform checks: policy check, core unit tests + type-check of the Windows app.
   check:
     runs-on: ubuntu-latest
     steps:
@@ -19,6 +19,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+      - name: Policy check
+        run: |
+          python3 tools/ci/check_policy.py
+          python3 -m unittest discover -s tools/ci -p "test_*.py"
       - name: Unit tests
         run: dotnet test tests/Envoy.Core.Tests/Envoy.Core.Tests.csproj -c Release
       - name: Type-check Windows app
@@ -55,7 +59,12 @@ jobs:
             $a += "-p:Version=${{ steps.version.outputs.numeric }}"
             $a += "-p:InformationalVersion=${{ steps.version.outputs.value }}"
           }
-          dotnet @a
+          dotnet @a | Tee-Object -FilePath publish.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Envoy.App keeps warnings non-fatal on Windows (08a); report them so they can be driven to zero.
+          $warnings = @(Select-String -Path publish.log -Pattern ': warning [A-Z]+[0-9]+' | ForEach-Object { $_.Line.Trim() } | Sort-Object -Unique)
+          "### Envoy.App publish: $($warnings.Count) warning(s)" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          $warnings | Select-Object -First 50 | ForEach-Object { "- $_" } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
 
       # Launches the real exe, builds every window under every theme, runs one capture + OCR pass, then exits.
       - name: Smoke test
