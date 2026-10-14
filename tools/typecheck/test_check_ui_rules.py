@@ -1,4 +1,4 @@
-"""Tests for check_ui_rules.py (REQ-UIF-17): a clean tree passes and each rule R1-R7 reports its own violation.
+"""Tests for check_ui_rules.py (REQ-UIF-17, spec 02): a clean tree passes and each rule R1-R10 reports its own violation.
 The mini trees are built in a temp directory from check_ui_rules.REQUIRED_FILES, so they track the real file list."""
 import os
 import shutil
@@ -53,7 +53,8 @@ MAIN_WINDOW = """<Window x:Class="Envoy.App.Windows.MainWindow"
 
 class CheckUiRulesTests(unittest.TestCase):
     def setUp(self):
-        self.root = tempfile.mkdtemp(prefix="envoy-ui-rules-")
+        self.base = tempfile.mkdtemp(prefix="envoy-ui-rules-")
+        self.root = os.path.join(self.base, "src", "Envoy.App")
         for rel in check_ui_rules.REQUIRED_FILES:
             name = os.path.basename(rel).split(".")[0]
             if rel.endswith(".xaml"):
@@ -68,7 +69,7 @@ class CheckUiRulesTests(unittest.TestCase):
         self.write("ViewModels/MainViewModel.cs", "class MainViewModel { IShell? _shell; }\n")
 
     def tearDown(self):
-        shutil.rmtree(self.root, ignore_errors=True)
+        shutil.rmtree(self.base, ignore_errors=True)
 
     def write(self, rel, content):
         path = os.path.join(self.root, *rel.split("/"))
@@ -86,7 +87,7 @@ class CheckUiRulesTests(unittest.TestCase):
         for p in problems:
             self.assertIn(f": UIF-{rule} ", p)
             self.assertIn(path_fragment, p)
-            self.assertRegex(p, r"^[^:]+:\d+: UIF-R\d ")
+            self.assertRegex(p, r"^[^:]+:\d+: UIF-R\d+ ")
 
     def test_clean_tree_passes(self):
         self.assertEqual([], check_ui_rules.check(self.root))
@@ -145,6 +146,44 @@ class CheckUiRulesTests(unittest.TestCase):
     def test_r7_missing_dialog_service(self):
         os.remove(os.path.join(self.root, "Services", "DialogService.cs"))
         self.assertOnly("R7", "Services/DialogService.cs")
+
+    def write_core(self, rel, content):
+        path = os.path.join(self.base, "src", "Envoy.Core", *rel.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def test_r8_appdata_outside_settings_store(self):
+        self.write_core("Settings/SettingsStore.cs", "class S { string P => Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData); }\n")
+        self.write_core("Chat/Other.cs", "// %APPDATA% in a comment is fine.\nclass O { }\n")
+        self.assertEqual([], check_ui_rules.check(self.root))
+        self.write("AppHost.cs", "class H { string D => Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData); }\n")
+        self.assertOnly("R8", "AppHost.cs:1")
+
+    def test_r8_appdata_in_core(self):
+        self.write_core("Chat/TranscriptWriter.cs", "class T { string D => Environment.ExpandEnvironmentVariables(\"%APPDATA%\"); }\n")
+        self.assertOnly("R8", "Envoy.Core/Chat/TranscriptWriter.cs:1")
+
+    def test_r9_async_discard(self):
+        self.write("Services/SpeechService.cs", "class S { void X() { _ = SpeakNextAsync(); } }\n")
+        self.assertOnly("R9", "Services/SpeechService.cs:1")
+        self.write("Services/SpeechService.cs", "class S { void X() { _ = pipeline.ProcessAsync(lines, ct).ContinueWith(t => 1); } }\n")
+        self.assertOnly("R9", "Services/SpeechService.cs:1")
+
+    def test_r9_forget_and_sync_discards_are_fine(self):
+        self.write("Services/SpeechService.cs",
+                   "class S { void X() { SpeakNextAsync().Forget(log, \"speech\"); _ = ShellLauncher.TryOpen(u, d); if (a == _ ) { } } }\n")
+        self.assertEqual([], check_ui_rules.check(self.root))
+
+    def test_r10_dialog_in_compose_window(self):
+        self.write("Windows/ComposeWindow.xaml.cs", "class C { void X() => DialogService.ShowInfo(null, \"a\", \"b\"); }\n")
+        self.assertOnly("R10", "Windows/ComposeWindow.xaml.cs:1")
+
+    def test_r10_second_show_warning_in_app(self):
+        self.write("App.xaml.cs", "class A {\n void X() => DialogService.ShowWarning(null, \"a\", \"b\");\n}\n")
+        self.assertEqual([], check_ui_rules.check(self.root))
+        self.append("App.xaml.cs", "class B { void Y() => DialogService.ShowWarning(null, \"c\", \"d\"); }\n")
+        self.assertOnly("R10", "App.xaml.cs:4")
 
 
 if __name__ == "__main__":

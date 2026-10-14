@@ -1,4 +1,4 @@
-"""Mechanical checks for the UI-structure rules of spec 01 (stdlib only).
+"""Mechanical checks for the UI-structure rules of specs 01 and 02 (stdlib only).
 
 Usage: check_ui_rules.py <src/Envoy.App dir>. Prints `path:line: UIF-Rn message` per violation and exits 1 if any.
 
@@ -9,6 +9,12 @@ R4  ViewModels/*.cs contain no App.Current, Process.Start, ProcessStartInfo, Mes
 R5  MessageBox.Show appears only in Services/DialogService.cs                         REQ-UIF-9
 R6  Windows/MainWindow.xaml contains no ScrollViewer                                  REQ-UIF-1
 R7  The page, view-model and service files of spec 01 exist                           REQ-UIF-1, REQ-UIF-21
+R8  SpecialFolder.ApplicationData / APPDATA only in Envoy.Core/Settings/SettingsStore.cs  REQ-REL-44
+R9  no `_ = <expr>Async(` discard in Envoy.App (use `.Forget(log, what)`)               REQ-REL-16
+R10 Windows/ComposeWindow.xaml.cs uses no DialogService; App.xaml.cs calls
+    DialogService.ShowWarning at most once (the crash-loop message)                     REQ-REL-19
+
+R8 also scans the sibling Envoy.Core folder (`<app dir>/../Envoy.Core`) when it exists.
 """
 import glob
 import os
@@ -36,6 +42,9 @@ REQUIRED_FILES = (
     ]
 )
 
+APPDATA = re.compile(r"\bSpecialFolder\.ApplicationData\b|APPDATA")
+APPDATA_ALLOWED = "Envoy.Core/Settings/SettingsStore.cs"
+ASYNC_DISCARD = re.compile(r"(?<![\w.])_\s*=\s*(?!=)[^;]*?\w+Async\s*\(")
 VIEWMODEL_BANNED = re.compile(r"\bApp\.Current\b|\bProcess\.Start\b|\bProcessStartInfo\b|\bMessageBox\b")
 DATACONTEXT_ASSIGN = re.compile(r"\bDataContext\s*=(?!=)")
 
@@ -129,7 +138,45 @@ def check(root):
         if not os.path.isfile(path):
             report(path, 0, "R7", "required file is missing")
 
+    src = os.path.dirname(os.path.abspath(root))
+    trees = [os.path.abspath(root)]
+    core = os.path.join(src, "Envoy.Core")
+    if os.path.isdir(core):
+        trees.append(core)
+    for tree in trees:
+        for path in sorted(glob.glob(os.path.join(tree, "**", "*.cs"), recursive=True)):
+            rel_src = os.path.relpath(path, src).replace(os.sep, "/")
+            parts = rel_src.split("/")
+            if "obj" in parts or "bin" in parts or rel_src == APPDATA_ALLOWED:
+                continue
+            for n, line in _code_lines(_read(path)):
+                if APPDATA.search(line):
+                    report(path, n, "R8", "only SettingsStore.DefaultPath names the application-data folder; use AppHost.DataFolder")
+
+    for path in _app_sources(root):
+        for n, line in _code_lines(_read(path)):
+            if ASYNC_DISCARD.search(line):
+                report(path, n, "R9", "fire-and-forget with `.Forget(log, what)`, not a `_ =` discard")
+
+    compose = os.path.join(root, "Windows", "ComposeWindow.xaml.cs")
+    if os.path.exists(compose):
+        for n, line in _code_lines(_read(compose)):
+            if "DialogService." in line:
+                report(compose, n, "R10", "the reply box must not open a modal box; report a problem toast instead")
+    app = os.path.join(root, "App.xaml.cs")
+    if os.path.exists(app):
+        warnings = [n for n, line in _code_lines(_read(app)) if "DialogService.ShowWarning" in line]
+        for n in warnings[1:]:
+            report(app, n, "R10", "DialogService.ShowWarning is only for the one crash-loop message")
+
     return problems
+
+
+def _app_sources(root):
+    for path in sorted(glob.glob(os.path.join(root, "**", "*.cs"), recursive=True)):
+        parts = os.path.normpath(os.path.relpath(path, root)).split(os.sep)
+        if parts[0] not in ("obj", "bin"):
+            yield path
 
 
 def main(argv):
