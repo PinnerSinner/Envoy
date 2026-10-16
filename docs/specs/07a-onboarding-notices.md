@@ -1,6 +1,6 @@
 # Onboarding and notices: setup guide, privacy disclosure, advisory notices, War Room layout
 
-Status: Proposed — revised against `00-integration.md` (binding). Lands as step 8, after 01, 08a, 02, 03, 05, 04 and
+Status: In progress — revised against `00-integration.md` (binding). Lands as step 8, after 01, 08a, 02, 03, 05, 04 and
 06.
 
 Area id: `07a-onboarding-notices` · Requirement prefix: `OUXA` · Split from `07-onboarding-ux-accessibility.md`.
