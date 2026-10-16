@@ -1,0 +1,9 @@
+# A message that wraps onto three lines, followed by a new sender.
+@frame
+ 10  28 | [All] Bob: we should all go to the gold in the middle
+ 32  50 | of the map before they build towers there
+ 54  72 | and wall it off completely
+ 76  94 | [All] Kim: ok
+@expect
+chat | All | Bob | we should all go to the gold in the middle of the map before they build towers there and wall it off completely
+chat | All | Kim | ok

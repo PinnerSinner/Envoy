@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Envoy.Core.Tests;
 
-public class PlayerDirectoryTests
+public partial class PlayerDirectoryTests
 {
     [Fact]
     public void Remembers_each_players_language()

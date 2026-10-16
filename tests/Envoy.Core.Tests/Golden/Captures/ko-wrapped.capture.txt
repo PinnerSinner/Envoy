@@ -1,0 +1,9 @@
+# A Hangul wrap joined with a space, and a single-line laugh in compatibility jamo.
+@frame
+@pass ko
+ 10  28 | [전체] 김철수: 우리 팀이 지금 바로 오른쪽으로
+ 32  50 | 공격해야 이길 수 있어
+ 54  72 | 박영희: ㅋㅋㅋ
+@expect
+chat | All | 김철수 | 우리 팀이 지금 바로 오른쪽으로 공격해야 이길 수 있어
+chat | - | 박영희 | ㅋㅋㅋ

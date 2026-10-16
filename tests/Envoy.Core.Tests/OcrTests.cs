@@ -85,12 +85,17 @@ public class OcrMergerTests
     }
 
     [Fact]
-    public void MergeLines_left_right_reserved_zero()
+    public void MergeLines_carries_left_right_medians()
     {
+        // Spec 04 (REQ-CHAT-4) replaced 05's "reserved zero" check: Left/Right are the medians of the readings that have them.
         var en = new OcrPass("en", [new("hello there", 0, 20, 15, 220)]);
-        var line = Assert.Single(OcrMerger.MergeLines([en], "en"));
-        Assert.Equal(0, line.Left);
-        Assert.Equal(0, line.Right);
+        var zh = new OcrPass("zh-CN", [new("hello there", 1, 21, 17, 230)]);
+        var ko = new OcrPass("ko", [new("hello there", 0, 20, 16, 226), new("no words", 40, 60)]);
+        var lines = OcrMerger.MergeLines([en, zh, ko], "en");
+        Assert.Equal(16, lines[0].Left);
+        Assert.Equal(226, lines[0].Right);
+        Assert.Equal(0, lines[1].Left);   // rows without word boxes keep 0
+        Assert.Equal(0, lines[1].Right);
         Assert.Equal(0, new OcrLine("x", 1, 2).Left);
     }
 }

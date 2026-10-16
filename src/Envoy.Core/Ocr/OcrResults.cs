@@ -5,12 +5,26 @@ namespace Envoy.Core.Ocr;
 
 /// <summary>
 /// One line of text as an OCR engine read it, with its position in the captured image (contract §2.7). Left and Right
-/// are reserved: 0 until spec 04 fills them.
+/// are the leftmost and rightmost word edges (REQ-CHAT-4), or 0 when unknown.
 /// </summary>
 public sealed record OcrLine(string Text, double Top, double Bottom, double Left = 0, double Right = 0)
 {
     public double Center => (Top + Bottom) / 2;
     public double Height => Bottom - Top;
+
+    /// <summary>True when the line has a real vertical extent (spec 04 stitching uses it).</summary>
+    public bool HasGeometry => Bottom > Top;
+
+    /// <summary>
+    /// Uniform synthetic geometry for callers and tests that only have strings: line i spans
+    /// <c>[i·(lineHeight+gap), i·(lineHeight+gap)+lineHeight]</c>. A <paramref name="lineHeight"/> of 0 means unknown.
+    /// </summary>
+    public static IReadOnlyList<OcrLine> FromTexts(IEnumerable<string> texts, double lineHeight = 0, double gap = 0)
+    {
+        ArgumentNullException.ThrowIfNull(texts);
+        var step = lineHeight + gap;
+        return texts.Select((t, i) => lineHeight > 0 ? new OcrLine(t, i * step, i * step + lineHeight) : new OcrLine(t, 0, 0)).ToList();
+    }
 }
 
 /// <summary>Everything one OCR engine (one language) read from a capture.</summary>
@@ -74,7 +88,8 @@ public static class OcrMerger
 
     /// <summary>
     /// One line per physical row, top to bottom (REQ-CAP-42): the picked text, and the median <c>Top</c>/<c>Bottom</c>
-    /// of every engine that read that row. <c>Left</c>/<c>Right</c> stay 0 in this step.
+    /// of every engine that read that row. <c>Left</c>/<c>Right</c> are the medians of the readings that have them
+    /// (REQ-CHAT-4), else 0.
     /// </summary>
     public static IReadOnlyList<OcrLine> MergeLines(IReadOnlyList<OcrPass> passes, string preferredLanguage)
     {
@@ -93,7 +108,9 @@ public static class OcrMerger
             else groups.Add([c]);
         }
 
-        return groups.Select(g => new OcrLine(Pick(g, preferredLanguage), Median(g.Select(c => c.Line.Top)), Median(g.Select(c => c.Line.Bottom)))).ToList();
+        return groups.Select(g => new OcrLine(Pick(g, preferredLanguage), Median(g.Select(c => c.Line.Top)), Median(g.Select(c => c.Line.Bottom)),
+            Median(g.Where(c => c.Line.Right > c.Line.Left).Select(c => c.Line.Left)),
+            Median(g.Where(c => c.Line.Right > c.Line.Left).Select(c => c.Line.Right)))).ToList();
     }
 
     private static double Median(IEnumerable<double> values)

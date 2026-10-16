@@ -1,0 +1,23 @@
+# Three engines read the same capture; each row keeps the reading in its own script, else the English one.
+@language en
+@frame
+@pass en
+ 10  28 | Bob: are you rushing me?
+ 32  50 | Li: f* i?
+ 54  72 | Kim: OXO
+ 76  94 | Ivan: rnaybe later
+@pass zh-CN
+ 11  29 | Bob: are you rushlng me?
+ 32  50 | Li: 你 好 ， 一 起 打 吗
+ 55  73 | Kim: 0
+ 76  94 | Ivan: rnaybe later
+@pass ko
+ 10  28 | Bob : are you rushing me ?
+ 31  49 | Li: 01
+ 54  72 | Kim: 안녕 하세요
+ 77  95 | Ivan: maybe later
+@expect
+chat | - | Bob | are you rushing me?
+chat | - | Li | 你好，一起打吗
+chat | - | Kim | 안녕 하세요
+chat | - | Ivan | rnaybe later

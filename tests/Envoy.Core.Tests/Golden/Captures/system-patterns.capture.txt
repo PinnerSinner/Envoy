@@ -1,0 +1,19 @@
+# Notice patterns (illustrative text, not real game strings). A wrapped notice is hidden; with hideSystem=false a
+# new notice is emitted as "system" and the one already seen stays hidden.
+@pattern {player} has resigned*
+@pattern re:^\S+ advanced to the (Feudal|Castle|Imperial) Age\.$
+@pattern # comments in the pattern list are ignored
+@frame
+ 10  28 | Bob has resigned from the match and left
+ 32  50 | the game
+ 54  72 | Kim: gg wp
+@expect
+chat | - | Kim | gg wp
+@frame
+@set hideSystem=false
+ 10  28 | Bob has resigned from the match and left
+ 32  50 | the game
+ 54  72 | Kim: gg wp
+ 76  94 | 12:06 Lena advanced to the Castle Age.
+@expect
+system | - | - | Lena advanced to the Castle Age.

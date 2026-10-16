@@ -1,0 +1,21 @@
+# Chat scrolls up one line per frame; only the new bottom message is emitted.
+@frame
+ 10  28 | Bob: first we scout their base
+ 32  50 | Kim: then we raid the woodline
+ 54  72 | Ivan: and I bring the rams
+@expect
+chat | - | Bob | first we scout their base
+chat | - | Kim | then we raid the woodline
+chat | - | Ivan | and I bring the rams
+@frame
+ 10  28 | Kim: then we raid the woodline
+ 32  50 | Ivan: and I bring the rams
+ 54  72 | Lena: monks are ready too
+@expect
+chat | - | Lena | monks are ready too
+@frame
+ 10  28 | Ivan: and I bring the rams
+ 32  50 | Lena: monks are ready too
+ 54  72 | Bob: go go go
+@expect
+chat | - | Bob | go go go

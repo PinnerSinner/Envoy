@@ -1,0 +1,13 @@
+# Rank, civilisation and platform icons read as stray glyphs, plus invisible characters, around names.
+@frame
+ 10  28 | ■ [All] Bob: rank icons everywhere
+ 32  50 | © Kim: civ icon before my name
+ 54  72 | Ivan​: zero width space after the name
+ 76  94 | � Lena: replacement glyph first
+ 98 116 | [All] • Sam ■: trailing junk on the sender
+@expect
+chat | All | Bob | rank icons everywhere
+chat | - | Kim | civ icon before my name
+chat | - | Ivan | zero width space after the name
+chat | - | Lena | replacement glyph first
+chat | All | Sam | trailing junk on the sender

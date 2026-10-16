@@ -1,0 +1,14 @@
+# Frame 2: the head of Bob's wrapped message scrolled out; its tail alone is not a new message.
+@frame
+ 10  28 | Bob: we need to defend the eastern
+ 32  50 | gate before their rams arrive
+ 54  72 | Kim: on my way
+@expect
+chat | - | Bob | we need to defend the eastern gate before their rams arrive
+chat | - | Kim | on my way
+@frame
+ 10  28 | gate before their rams arrive
+ 32  50 | Kim: on my way
+ 54  72 | Ivan: building towers
+@expect
+chat | - | Ivan | building towers

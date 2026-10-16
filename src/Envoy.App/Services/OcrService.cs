@@ -150,7 +150,10 @@ public sealed class OcrService(TimeProvider? time = null)
                 {
                     var top = l.Words.Min(w => w.BoundingRect.Top);
                     var bottom = l.Words.Max(w => w.BoundingRect.Bottom);
-                    return new Core.Ocr.OcrLine(l.Text, top, bottom);
+                    // Left/Right feed spec 04's stitching heuristics (REQ-CHAT-4).
+                    var left = l.Words.Min(w => w.BoundingRect.Left);
+                    var right = l.Words.Max(w => w.BoundingRect.Right);
+                    return new Core.Ocr.OcrLine(l.Text, top, bottom, left, right);
                 })
                 .ToList();
             passes.Add(new OcrPass(code, lines));

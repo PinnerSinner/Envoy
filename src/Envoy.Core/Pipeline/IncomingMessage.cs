@@ -26,6 +26,13 @@ public sealed class IncomingMessage(ChatMessage chat, DateTimeOffset receivedAt)
     public bool FromGlossary { get; internal set; }
     public string? Error { get; internal set; }
 
+    /// <summary>
+    /// True when the translation was cancelled by a new match, a region change or exit (contract §2.6). The message is
+    /// then <see cref="IncomingStatus.Failed"/> with <see cref="PipelineText.Cancelled"/>, and the overlay shows the
+    /// original line with no error row.
+    /// </summary>
+    public bool WasCancelled { get; internal set; }
+
     /// <summary>English meaning of a slang message, waiting to be translated into a non-English reader's language.</summary>
     internal string? GlossaryMeaning { get; set; }
 

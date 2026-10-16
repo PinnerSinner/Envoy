@@ -47,6 +47,31 @@ public sealed class PlayerDirectory(TimeProvider? clock = null)
         }
     }
 
+    /// <summary>The display names of every player seen this match.</summary>
+    public IReadOnlyList<string> KnownNames
+    {
+        get { lock (_gate) return _players.Values.Select(p => p.Name).ToList(); }
+    }
+
+    /// <summary>
+    /// The display name of a known player whose <see cref="TextSimilarity.OcrKey"/> equals <paramref name="sender"/>'s
+    /// (so "Zhanq Wei" becomes "Zhang Wei"), otherwise <paramref name="sender"/> unchanged (REQ-CHAT-21).
+    /// </summary>
+    public string? Canonicalize(string? sender)
+    {
+        if (string.IsNullOrWhiteSpace(sender)) return sender;
+        var key = TextSimilarity.OcrKey(sender);
+        if (key.Length == 0) return sender;
+        lock (_gate)
+        {
+            foreach (var player in _players.Values)
+            {
+                if (TextSimilarity.OcrKey(player.Name) == key) return player.Name;
+            }
+        }
+        return sender;
+    }
+
     public string? LanguageOf(string? sender)
     {
         if (string.IsNullOrWhiteSpace(sender)) return null;

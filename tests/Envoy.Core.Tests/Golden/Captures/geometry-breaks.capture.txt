@@ -1,0 +1,11 @@
+# A sender-less line 2.5 line heights below the message, and a taller sender-less line: neither is joined.
+@frame
+ 10  28 | Bob: towers are up on the hill
+ 73  91 | press F to pay respects
+ 95 131 | VICTORY
+140 158 | Kim: nice
+@expect
+chat | - | Bob | towers are up on the hill
+fragment | - | - | press F to pay respects
+fragment | - | - | VICTORY
+chat | - | Kim | nice

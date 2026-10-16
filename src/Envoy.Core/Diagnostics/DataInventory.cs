@@ -34,6 +34,7 @@ public static class DataInventory
         new("translation-cache.json", "Saved translations, if you turned on \"Remember translations\"."),
         new("translation-cache.json.tmp", "Left over if Envoy closed while saving translations."),
         new("translation-cache.json.bad", "A damaged saved-translations file set aside."),
+        new("chat-formats.json", "Your own chat format profiles (you create this file)."),
         new("error.log", "Error log from Envoy 0.1."),
     ];
 

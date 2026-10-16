@@ -5,63 +5,51 @@ namespace Envoy.Core.Chat;
 /// <summary>
 /// Splits OCR'd chat lines into channel / sender / text. Every AoE game formats chat slightly differently
 /// ("[All] Name: msg", "Name (Team): msg", "12:04 Name: msg", "Name：消息" ...), so this is deliberately forgiving:
-/// anything it can't recognise is kept as plain text rather than dropped.
+/// anything it can't recognise is kept as plain text rather than dropped. The channel words, brackets, separators and
+/// timestamp format come from a <see cref="ChatFormatProfile"/> (REQ-CHAT-30); <see cref="Parse(string)"/> uses the
+/// built-in <c>generic</c> profile, which reproduces the original hard-coded rules.
 /// </summary>
 public static partial class ChatLineParser
 {
-    private const int MaxSenderLength = 32;
-
-    [GeneratedRegex(@"^\s*[\[(]?\d{1,2}:\d{2}(?::\d{2})?[\])]?\s+")]
-    private static partial Regex TimestampPrefix();
-
-    [GeneratedRegex(@"^\s*[\[(<](?<ch>[^\])>]{1,16})[\])>]\s*:?\s*")]
-    private static partial Regex BracketPrefix();
-
-    [GeneratedRegex(@"\s*[\[(<](?<ch>[^\])>]{1,16})[\])>]\s*$")]
-    private static partial Regex BracketSuffix();
-
     [GeneratedRegex(@"^(https?|www)\b", RegexOptions.IgnoreCase)]
     private static partial Regex LooksLikeUrl();
 
-    private static readonly HashSet<string> KnownChannels = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "all", "everyone", "team", "allies", "ally", "observers", "observer", "spectators", "private", "whisper",
-        "全部", "所有人", "所有", "队伍", "隊伍", "团队", "團隊", "盟友", "观察者", "觀察者", "私聊",
-        "전체", "팀", "아군", "관전자", "все", "команда", "союзники", "todos", "equipo", "aliados", "equipe",
-        "alle", "verbündete", "tous", "équipe", "alliés", "全員", "チーム", "味方",
-    };
+    /// <summary>Parses with the built-in <c>generic</c> profile.</summary>
+    public static ChatMessage Parse(string line) => Parse(line, ChatFormatProfile.Generic);
 
-    public static ChatMessage Parse(string line)
+    public static ChatMessage Parse(string line, ChatFormatProfile profile)
     {
+        ArgumentNullException.ThrowIfNull(line);
+        ArgumentNullException.ThrowIfNull(profile);
         var raw = line.Trim();
-        var rest = TimestampPrefix().Replace(raw, "", 1);
+        var rest = profile.StripTimestamp(raw);
 
         string? channel = null;
-        var prefix = BracketPrefix().Match(rest);
-        if (prefix.Success && KnownChannels.Contains(prefix.Groups["ch"].Value.Trim()))
+        var prefix = Match(profile.BracketPrefix, rest);
+        if (prefix is not null && profile.CanonicalChannel(prefix.Groups["ch"].Value) is { } prefixChannel)
         {
-            channel = Canonical(prefix.Groups["ch"].Value.Trim());
+            channel = prefixChannel;
             rest = rest[prefix.Length..];
         }
 
         string? sender = null;
-        var colon = FindSenderColon(rest);
-        if (colon > 0)
+        var (separator, length) = FindSeparator(rest, profile);
+        if (separator > 0)
         {
-            var candidate = rest[..colon].Trim();
-            if (candidate.Length is > 0 and <= MaxSenderLength && !LooksLikeUrl().IsMatch(candidate))
+            var candidate = rest[..separator].Trim();
+            if (candidate.Length > 0 && candidate.Length <= profile.MaxSenderLength && !LooksLikeUrl().IsMatch(candidate))
             {
                 // "Name (Team): msg" style
-                var suffix = BracketSuffix().Match(candidate);
-                if (suffix.Success && KnownChannels.Contains(suffix.Groups["ch"].Value.Trim()))
+                var suffix = Match(profile.BracketSuffix, candidate);
+                if (suffix is not null && profile.CanonicalChannel(suffix.Groups["ch"].Value) is { } suffixChannel)
                 {
-                    channel ??= Canonical(suffix.Groups["ch"].Value.Trim());
+                    channel ??= suffixChannel;
                     candidate = candidate[..suffix.Index].Trim();
                 }
                 if (candidate.Length > 0)
                 {
                     sender = candidate;
-                    rest = rest[(colon + 1)..];
+                    rest = rest[(separator + length)..];
                 }
             }
         }
@@ -69,28 +57,39 @@ public static partial class ChatLineParser
         return new ChatMessage(raw, channel, sender, rest.Trim());
     }
 
-    /// <summary>First ':' or full-width '：' that isn't part of a time like 12:30 or a URL scheme.</summary>
-    private static int FindSenderColon(string s)
+    /// <summary>The line without a leading timestamp (generic format), for notice patterns.</summary>
+    internal static string StripTimestamp(string line) => ChatFormatProfile.Generic.StripTimestamp(line);
+
+    private static Match? Match(Regex regex, string text)
     {
-        for (var i = 1; i < s.Length && i <= MaxSenderLength + 1; i++)
+        try
         {
-            if (s[i] is not (':' or '：')) continue;
-            var digitBefore = char.IsDigit(s[i - 1]);
-            var digitAfter = i + 1 < s.Length && char.IsDigit(s[i + 1]);
-            if (digitBefore && digitAfter) continue;
-            if (i + 2 < s.Length && s[i + 1] == '/' && s[i + 2] == '/') return -1;
-            return i;
+            var m = regex.Match(text);
+            return m.Success ? m : null;
         }
-        return -1;
+        catch (RegexMatchTimeoutException)
+        {
+            return null;
+        }
     }
 
-    private static string Canonical(string channel) => channel.ToLowerInvariant() switch
+    /// <summary>
+    /// The first separator (':' or '：' in generic) that isn't part of a time like 12:30 or a URL scheme; -1 when there
+    /// is none within the sender length.
+    /// </summary>
+    private static (int Index, int Length) FindSeparator(string s, ChatFormatProfile profile)
     {
-        "all" or "everyone" or "全部" or "所有人" or "所有" or "전체" or "все" or "todos" or "alle" or "tous" or "全員" => "All",
-        "team" or "allies" or "ally" or "队伍" or "隊伍" or "团队" or "團隊" or "盟友" or "팀" or "아군" or "команда"
-            or "союзники" or "equipo" or "aliados" or "equipe" or "verbündete" or "équipe" or "alliés" or "チーム" or "味方" => "Team",
-        "observers" or "observer" or "spectators" or "观察者" or "觀察者" or "관전자" => "Observers",
-        "private" or "whisper" or "私聊" => "Private",
-        _ => channel,
-    };
+        for (var i = 1; i < s.Length && i <= profile.MaxSenderLength + 1; i++)
+        {
+            var separator = profile.Separators.FirstOrDefault(sep => s.AsSpan(i).StartsWith(sep, StringComparison.Ordinal));
+            if (separator is null) continue;
+            var end = i + separator.Length;
+            var digitBefore = char.IsDigit(s[i - 1]);
+            var digitAfter = end < s.Length && char.IsDigit(s[end]);
+            if (digitBefore && digitAfter) continue;
+            if (end + 1 < s.Length && s[end] == '/' && s[end + 1] == '/') return (-1, 0);
+            return (i, separator.Length);
+        }
+        return (-1, 0);
+    }
 }

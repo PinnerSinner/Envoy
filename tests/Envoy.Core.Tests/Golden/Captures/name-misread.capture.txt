@@ -1,0 +1,13 @@
+# A misread name folds to the known player's name; an unknown one stays as read.
+@players Zhang Wei
+@frame
+ 10  28 | Zhanq Wei: lets go castle
+ 32  50 | rnike: hello there
+@expect
+chat | - | Zhang Wei | lets go castle
+chat | - | rnike | hello there
+@frame
+ 10  28 | Zhang Wei: lets go castle
+ 32  50 | rnike: hello there
+@expect
+(none)

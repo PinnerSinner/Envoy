@@ -1,0 +1,9 @@
+# Kana and kanji wrapping onto a second line.
+@frame
+@pass ja
+ 10  28 | [全 員] さ く ら ： み ん な 、 城 主 時 代 に な っ た ら
+ 32  50 | 一 緒 に 攻 め よ う
+ 54  72 | け ん た ： 了 解
+@expect
+chat | All | さくら | みんな、城主時代になったら一緒に攻めよう
+chat | - | けんた | 了解

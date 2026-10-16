@@ -1,0 +1,24 @@
+# Your own and a muted player's wrapped messages are dropped whole, and their tails stay dropped as they scroll.
+@me Hoplite
+@muted Spammer
+@frame
+ 10  28 | Hoplite: I am going to attack the left side
+ 32  50 | with knights in two minutes
+ 54  72 | [All] Spammer: visit my channel for free
+ 76  94 | gold and wood hacks today
+ 98 116 | Kim: sounds good
+@expect
+chat | - | Kim | sounds good
+@frame
+ 10  28 | with knights in two minutes
+ 32  50 | [All] Spammer: visit my channel for free
+ 54  72 | gold and wood hacks today
+ 76  94 | Kim: sounds good
+@expect
+(none)
+@frame
+ 10  28 | gold and wood hacks today
+ 32  50 | Kim: sounds good
+ 54  72 | Bob: me too
+@expect
+chat | - | Bob | me too

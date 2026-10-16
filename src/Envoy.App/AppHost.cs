@@ -52,6 +52,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     private readonly ILog _log;
     private readonly ILog _captureLog;
     private readonly ILog _translationLog;
+    private readonly ILog _chatLog;
     private readonly bool _ownsLog;
     private readonly DateTimeOffset _startedAt;
     private int _saveFailures;
@@ -84,6 +85,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         _log = Log.For("App");
         _captureLog = Log.For("Capture");
         _translationLog = Log.For("Translation");
+        _chatLog = Log.For("Chat");
         _startedAt = Time.GetUtcNow();
 
         // Contract §3 constructor order. 1: settings (02).
@@ -106,8 +108,10 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
 
         Phrases = PhraseBook.LoadWithUserFile(UserPhrasesPath);
         Ocr = new OcrService(Time);
-        // [04 ChatFormatCatalog]
-        Pipeline = new ChatPipeline(_translator, PipelineOptions());
+        // 5: ChatFormatCatalog (04): built-in formats plus the user's chat-formats.json, read only.
+        ChatFormats = ChatFormatCatalog.LoadWithUserFile(ChatFormatsPath, _chatLog);
+        // 6: ChatPipeline, with an immutable options snapshot (contract §7).
+        Pipeline = new ChatPipeline(_translator, BuildChatOptions(), Time, _chatLog);
         Outgoing = new OutgoingTranslator(() => _composeTranslator, Phrases);
         // 7: ChatWatcher (05). The loop reads settings only through the CaptureOptions snapshot (contract §7).
         _captureOptions = CaptureOptions.From(Settings);
@@ -140,6 +144,12 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
 
     /// <summary>Saved translations, when "Remember translations" is on (REQ-TRR-20).</summary>
     public string TranslationCachePath => Path.Combine(DataFolder, TranslationCacheStore.FileName);
+
+    /// <summary>The user's own chat format profiles (REQ-CHAT-32). Envoy only reads this file; the user creates it.</summary>
+    public string ChatFormatsPath => Path.Combine(DataFolder, "chat-formats.json");
+
+    /// <summary>The chat format profiles in use (built-in plus <see cref="ChatFormatsPath"/>). UI thread.</summary>
+    public ChatFormatCatalog ChatFormats { get; private set; }
 
     public LogHub Log { get; }
     public MemoryLogSink? RecentLog { get; }
@@ -390,14 +400,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         TranslationRuntime.Configure(translationOptions); // 3
         (_translator, _composeTranslator) = BuildTranslator(); // 4
         Pipeline.Translator = _translator;
-        var o = PipelineOptions();
-        Pipeline.Options.MyLanguage = o.MyLanguage;
-        Pipeline.Options.MyPlayerName = o.MyPlayerName;
-        Pipeline.Options.SkipMyLanguage = o.SkipMyLanguage;
-        Pipeline.Options.UseSlangGlossary = o.UseSlangGlossary;
-        Pipeline.Options.MinCharacters = o.MinCharacters;
-        Pipeline.Options.MutedPlayers = o.MutedPlayers;
-        Pipeline.Options.Channels = o.Channels;
+        Pipeline.Options = BuildChatOptions(); // 5: chat options and format re-resolve (04)
         ConfigureOcr();
         Watcher.Invalidate(); // 6 (05)
         ApplyTheme();
@@ -499,7 +502,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         // A translation can finish after Dispose (the watcher does not wait for in-flight work) or after a reset or
         // "Delete all Envoy data": nothing may write logs/chat-*.txt or speak then.
         if (_disposed || SaveSuppressed) return;
-        if (!isNew && message.Status == IncomingStatus.Failed)
+        if (!isNew && message.Status == IncomingStatus.Failed && !message.WasCancelled)
         {
             _translationLog.Warn("Message translation failed", null, LogField.Sensitive("text", message.Chat.Text),
                 LogField.Of("error", message.Error));
@@ -592,16 +595,17 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         ProviderHealthChanged?.Invoke(snapshot);
     });
 
-    private ChatPipelineOptions PipelineOptions() => new()
+    /// <summary>The pipeline's options snapshot, with the chat format resolved for the current game (REQ-CHAT-20, 33).</summary>
+    private ChatPipelineOptions BuildChatOptions() =>
+        ChatPipelineOptions.From(Settings, ChatFormats.Resolve(Settings.Chat.FormatProfile, CurrentGameId));
+
+    /// <summary>Re-reads chat-formats.json and re-resolves the format (REQ-CHAT-32). UI thread.</summary>
+    public void ReloadChatFormats()
     {
-        MyLanguage = Settings.MyLanguage,
-        MyPlayerName = Settings.MyPlayerName,
-        SkipMyLanguage = Settings.Translation.SkipMyLanguage,
-        UseSlangGlossary = Settings.Translation.UseSlangGlossary,
-        MinCharacters = Settings.Capture.MinCharacters,
-        MutedPlayers = Settings.MutedPlayers,
-        Channels = Settings.Channels,
-    };
+        ChatFormats = ChatFormatCatalog.LoadWithUserFile(ChatFormatsPath, _chatLog);
+        Pipeline.Options = BuildChatOptions();
+        SettingsApplied?.Invoke();
+    }
 
     private void ConfigureOcr()
     {
@@ -624,7 +628,8 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         // Contract §3 RefreshGame position 1: log (profile name only, never window titles).
         if (_game is not null) _log.Info("Game detected", LogField.Of("game", _game.Profile.Name));
         else _log.Info("Game closed");
-        // [04 format re-resolve] [06 Updates.TickAsync on close] [07a Notices.TakeDeferred]
+        Pipeline.Options = BuildChatOptions(); // 2: format re-resolve for the new game (REQ-CHAT-34)
+        // [06 Updates.TickAsync on close] [07a Notices.TakeDeferred]
         if (_game is not null && before is null) NewMatch();
         Notify(nameof(Game));
         Notify(nameof(GameStatus));
@@ -647,6 +652,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         _gameTimer.Stop();
         _windowTimer.Stop();
         Watcher.Dispose();
+        Pipeline.Dispose(); // in-flight translations end as "cancelled" (contract §2.6); nothing is written
         _speech?.Dispose();
         SaveNow(); // a no-op once saving is suppressed, so a reset or Delete-all is never undone
         _translationLogging.Dispose();

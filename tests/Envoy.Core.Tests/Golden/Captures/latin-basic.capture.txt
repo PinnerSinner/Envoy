@@ -1,0 +1,14 @@
+# Single-line messages: [All]/(Team) prefixes, a suffix channel and timestamps.
+@me Hoplite
+@frame
+ 10  28 | [All] Bob: anyone want to trade wood for gold?
+ 32  50 | (Team) Alice: push mid now
+ 54  72 | Ivan (Team): sending villagers
+ 76  94 | 12:04 Pedro: hola amigo
+ 98 116 | [12:05:33] Kim: see you at the river
+@expect
+chat | All | Bob | anyone want to trade wood for gold?
+chat | Team | Alice | push mid now
+chat | Team | Ivan | sending villagers
+chat | - | Pedro | hola amigo
+chat | - | Kim | see you at the river

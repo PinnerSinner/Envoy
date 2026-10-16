@@ -1,0 +1,24 @@
+{
+  // Built-in chat formats (docs/chat-formats.md). A user chat-formats.json in the data folder adds or replaces
+  // profiles by id and can map game ids to profiles. "generic" reproduces Envoy's original parser exactly.
+  "profiles": [
+    {
+      "id": "generic",
+      "name": "Generic (every Age game)",
+      "channels": {
+        "All": ["all", "everyone", "全部", "所有人", "所有", "전체", "все", "todos", "alle", "tous", "全員"],
+        "Team": ["team", "allies", "ally", "队伍", "隊伍", "团队", "團隊", "盟友", "팀", "아군", "команда", "союзники",
+                 "equipo", "aliados", "equipe", "verbündete", "équipe", "alliés", "チーム", "味方"],
+        "Observers": ["observers", "observer", "spectators", "观察者", "觀察者", "관전자"],
+        "Private": ["private", "whisper", "私聊"]
+      },
+      "brackets": ["[]", "()", "<>"],
+      "separators": [":", "："],
+      "timestamp": "^\\s*[\\[(]?\\d{1,2}:\\d{2}(?::\\d{2})?[\\])]?\\s+",
+      "maxSenderLength": 32,
+      "stitching": { "enabled": true, "maxGapFactor": 1.0, "heightTolerance": 0.5, "maxContinuationLines": 4 },
+      "systemPatterns": {}
+    }
+  ],
+  "games": {}
+}

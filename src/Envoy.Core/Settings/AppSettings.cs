@@ -53,6 +53,10 @@ public sealed class AppSettings
     public Pipeline.ChannelFilter Channels { get; set; } = Pipeline.ChannelFilter.Everything;
 
     public CaptureSettings Capture { get; set; } = new();
+
+    /// <summary>How Envoy understands chat lines: wrapped lines, game notices, symbol cleanup, format (spec 04).</summary>
+    public ChatSettings Chat { get; set; } = new();
+
     public TranslationSettings Translation { get; set; } = new();
     public OverlaySettings Overlay { get; set; } = new();
     public ComposeSettings Compose { get; set; } = new();
@@ -138,6 +142,28 @@ public sealed class CaptureSettings
 
     /// <summary>Only read chat while an Age game is running (saves CPU when you're not playing).</summary>
     public bool OnlyWhileGameRuns { get; set; } = true;
+}
+
+/// <summary>The Reading Chat page's "Understanding chat" card (spec 04).</summary>
+public sealed class ChatSettings
+{
+    /// <summary>Join a message that wraps onto the next line into one message (REQ-CHAT-5).</summary>
+    public bool StitchWrappedLines { get; set; } = true;
+
+    /// <summary>Don't show game notices (REQ-CHAT-27). Notices are never translated either way.</summary>
+    public bool HideSystemLines { get; set; } = true;
+
+    /// <summary>One notice pattern per entry; see docs/chat-formats.md. May contain player names.</summary>
+    [Personal] public List<string> SystemLinePatterns { get; set; } = [];
+
+    /// <summary>Treat a line with no ':' that starts with a known player's name as a notice (REQ-CHAT-28). Off by default.</summary>
+    public bool DetectSystemLinesByPlayerName { get; set; }
+
+    /// <summary>Remove stray symbols that OCR reads from rank and civilisation icons (REQ-CHAT-39).</summary>
+    public bool CleanSymbols { get; set; } = true;
+
+    /// <summary>"auto" (match the game) or a chat format profile id from chat-formats.json (REQ-CHAT-33).</summary>
+    public string FormatProfile { get; set; } = Envoy.Core.Chat.ChatFormatCatalog.Auto;
 }
 
 public sealed class TranslationSettings

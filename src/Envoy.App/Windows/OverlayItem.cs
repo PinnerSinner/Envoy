@@ -33,7 +33,8 @@ public sealed class OverlayItem(IncomingMessage message, bool showSender = true,
     public string LanguageName => LanguageCatalog.NameOf(Message.SourceLanguage);
 
     public bool IsPending => Message.Status == IncomingStatus.Pending;
-    public bool IsFailed => Message.Status == IncomingStatus.Failed;
+    /// <summary>A real failure shows the ⚠ row; a cancelled translation (new match, exit) just shows the original (REQ-CHAT-47).</summary>
+    public bool IsFailed => Message.Status == IncomingStatus.Failed && !Message.WasCancelled;
     public string? Error => Message.Error;
     public string Provider => Message.FromGlossary ? "slang glossary" : Message.ProviderId ?? "";
 

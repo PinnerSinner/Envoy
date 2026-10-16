@@ -1,0 +1,14 @@
+# With byName on, a line with no ':' that starts with a known player's name is a notice; short names never are.
+@me Hoplite
+@players Zhang Wei, Al
+@set byName=true hideSystem=false
+@frame
+ 10  28 | Al will boom now
+ 54  72 | Zhang Wei has advanced to the Castle Age
+ 76  94 | Hoplite was defeated
+ 98 116 | Kim: wow
+@expect
+fragment | - | - | Al will boom now
+system | - | - | Zhang Wei has advanced to the Castle Age
+system | - | - | Hoplite was defeated
+chat | - | Kim | wow

@@ -55,4 +55,58 @@ public static class TextSimilarity
     }
 
     public static int TextElementCount(string s) => new StringInfo(s).LengthInTextElements;
+
+    /// <summary>Longest input <see cref="ContainsFuzzy"/> looks at; longer strings are cut.</summary>
+    public const int MaxFuzzyLength = 400;
+
+    /// <summary>
+    /// True when <paramref name="needle"/> occurs in <paramref name="haystack"/> exactly, or some stretch of the haystack
+    /// is at least <paramref name="threshold"/> similar to it (1 − edit distance ÷ needle length). Approximate substring
+    /// matching (Sellers), so it costs O(haystack × needle) rather than a window per position. Inputs are capped at
+    /// <see cref="MaxFuzzyLength"/> characters. Compare normalised strings.
+    /// </summary>
+    public static bool ContainsFuzzy(string haystack, string needle, double threshold)
+    {
+        ArgumentNullException.ThrowIfNull(haystack);
+        ArgumentNullException.ThrowIfNull(needle);
+        if (needle.Length == 0) return false;
+        if (haystack.Length > MaxFuzzyLength) haystack = haystack[..MaxFuzzyLength];
+        if (needle.Length > MaxFuzzyLength) needle = needle[..MaxFuzzyLength];
+        if (haystack.Contains(needle, StringComparison.Ordinal)) return true;
+
+        var allowed = (int)Math.Floor((1 - threshold) * needle.Length + 1e-9);
+        if (allowed <= 0 || haystack.Length < needle.Length - allowed) return false;
+
+        // column[i] = the smallest edit distance between needle[..i] and any substring of the haystack ending here.
+        var prev = new int[needle.Length + 1];
+        var curr = new int[needle.Length + 1];
+        for (var i = 0; i <= needle.Length; i++) prev[i] = i;
+        for (var j = 1; j <= haystack.Length; j++)
+        {
+            curr[0] = 0; // a match may start anywhere in the haystack
+            for (var i = 1; i <= needle.Length; i++)
+            {
+                var cost = needle[i - 1] == haystack[j - 1] ? 0 : 1;
+                curr[i] = Math.Min(Math.Min(curr[i - 1] + 1, prev[i] + 1), prev[i - 1] + cost);
+            }
+            if (curr[needle.Length] <= allowed) return true;
+            (prev, curr) = (curr, prev);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// <see cref="Normalize"/> plus folding of the letter pairs OCR confuses in names: rn→m, vv→w, cl→d, q→g
+    /// (REQ-CHAT-21). Digits beyond Normalize's 0/1/5 are not folded, so "Player1" and "Player2" stay distinct.
+    /// </summary>
+    public static string OcrKey(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var folded = text.ToLowerInvariant()
+            .Replace("rn", "m", StringComparison.Ordinal)
+            .Replace("vv", "w", StringComparison.Ordinal)
+            .Replace("cl", "d", StringComparison.Ordinal)
+            .Replace('q', 'g');
+        return Normalize(folded);
+    }
 }

@@ -1,0 +1,9 @@
+# Full-width ASCII letters and digits fold to ASCII; Hangul compatibility jamo and the full-width colon stay.
+@frame
+ 10  28 | Ｐｌａｙｅｒ１: ｒｅａｄｙ
+ 32  50 | Kim: ㅋㅋ ㄱㄱ
+ 54  72 | 小明：６６６
+@expect
+chat | - | Player1 | ready
+chat | - | Kim | ㅋㅋ ㄱㄱ
+chat | - | 小明 | 666

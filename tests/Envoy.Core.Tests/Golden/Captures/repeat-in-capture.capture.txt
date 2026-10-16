@@ -1,0 +1,22 @@
+# Two visible copies of the same message are two messages; re-reading them gives none; a third copy gives one.
+@frame
+ 10  28 | Bob: gg
+ 32  50 | Kim: wp
+ 54  72 | Bob: gg
+@expect
+chat | - | Bob | gg
+chat | - | Kim | wp
+chat | - | Bob | gg
+@frame
+ 10  28 | Bob: gg
+ 32  50 | Kim: wp
+ 54  72 | Bob: gg
+@expect
+(none)
+@frame
+ 10  28 | Kim: wp
+ 32  50 | Bob: gg
+ 54  72 | Bob: gg
+ 76  94 | Bob: gg
+@expect
+chat | - | Bob | gg

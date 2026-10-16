@@ -25,6 +25,7 @@ is changed, apart from the optional "Start with Windows" entry in your user's Ru
 | `translation-cache.json` | Saved translations, if you turned on "Remember translations". |
 | `translation-cache.json.tmp` | Left over if Envoy closed while saving translations. |
 | `translation-cache.json.bad` | A damaged saved-translations file set aside. |
+| `chat-formats.json` | Your own chat format profiles (you create this file). |
 | `error.log` | Error log from Envoy 0.1. |
 
 The `.bak` copies hold your API keys encrypted the same way as `settings.json`, so only your Windows account can read
@@ -40,6 +41,16 @@ It never leaves this PC. The fingerprint stops casual reading of the original li
 still guess short, common ones, so treat the file like your chat transcripts.
 It holds at most 2,000 entries (and 1 MiB), forgets entries after 30 days, and never stores messages longer than 200
 characters. Turning the option off, or **Clear saved translations**, deletes the file.
+
+### Chat formats and test captures
+
+Envoy never writes `chat-formats.json`; it only reads it if you create one (see [chat formats](chat-formats.md)). The
+game-notice patterns you type on the Reading Chat page are stored in `settings.json` and may contain player names, so
+diagnostics show only how many there are.
+
+**Copy as test capture** (Reading Chat › Live view) copies what OCR read from the chat area, with its positions, to the
+clipboard so you can attach it to a bug report. It runs only when you click it and is never sent anywhere by Envoy, but
+it contains chat and player names: anonymise it before you share it.
 
 ### The diagnostic log
 

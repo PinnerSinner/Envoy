@@ -1,0 +1,11 @@
+# A zh-CN pass with Windows OCR's spaces between characters, a full-width colon, a wrap joined without a space,
+# and a one-character tail that is kept.
+@frame
+@pass zh-CN
+ 10  28 | [全 部] 天 下 第 一 ： 这 张 地 图 的 金 矿 在 中 间 ， 我 们
+ 32  50 | 应 该 先 占 领 它
+ 54  72 | 小 明 ： 好 的 ， 我 去 了 你 跟 着
+ 76  94 | 我
+@expect
+chat | All | 天下第一 | 这张地图的金矿在中间，我们应该先占领它
+chat | - | 小明 | 好的，我去了你跟着我
