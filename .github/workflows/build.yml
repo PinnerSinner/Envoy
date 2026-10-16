@@ -116,7 +116,7 @@ jobs:
           if ($p.ExitCode -ne 0) { Write-Error "Smoke test failed with exit code $($p.ExitCode)"; exit 1 }
           Get-ChildItem screenshots -ErrorAction SilentlyContinue | Select-Object Name, Length
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: screenshots
@@ -248,14 +248,14 @@ jobs:
           Get-Content SHA256SUMS.txt
           "setup_sha256=$setup" >> $env:GITHUB_OUTPUT
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Envoy-${{ steps.version.outputs.value }}-win-x64
           path: |
             publish/Envoy.exe
             publish/Envoy.exe.sha256
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.version.outputs.pack_enabled == 'true'
         with:
           name: Envoy-${{ steps.version.outputs.pack }}-setup
@@ -303,7 +303,7 @@ jobs:
             --sha256 "${{ steps.sums.outputs.setup_sha256 }}" --out winget
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: startsWith(github.ref, 'refs/tags/v') && steps.version.outputs.prerelease != 'true'
         with:
           name: winget-manifests
