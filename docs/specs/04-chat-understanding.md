@@ -1,6 +1,6 @@
 # Chat understanding: wrapped lines, game notices, stable message identity and the pending-message lifecycle
 
-Status: Proposed (revised against `00-integration.md`)
+Status: Implemented (revised against `00-integration.md`; see Deviations)
 
 Area id: `04-chat-understanding` · Requirement prefix: `CHAT` · Step **6** of 11 (contract §1).
 
@@ -939,3 +939,68 @@ Changes from the pre-review draft, made to comply with `00-integration.md` and t
   are merged into `geometry-breaks`). SHOULD fixtures arrive with their features, and an unknown `@set` key fails
   parsing, so an unbuilt feature can never pass vacuously.
 - **Allowlists (contract §5).** No P/Invoke, network or launch additions. `policy.json` is unchanged.
+
+## Deviations
+
+Every MUST is built. Every SHOULD is built: REQ-CHAT-4, 8, 10, 12, 19, 21, 28–34, 37–39, 41, 42 and 45. The one COULD
+is not.
+
+**Not built**
+
+- **REQ-CHAT-13 (COULD)**, demoting an unknown sender when the previous line is full width. `Left`/`Right` are now
+  collected (REQ-CHAT-4), so it can land later with AC-CHAT-7; it adds no setting or control.
+
+**Existing tests touched** (contract §10.1)
+
+- 05's `OcrMergerTests.MergeLines_left_right_reserved_zero` asserted that `Left`/`Right` stay 0. REQ-CHAT-4 fills them
+  by design, so it is replaced by `MergeLines_carries_left_right_medians` (AC-CHAT-1).
+- `ChatLineParserTests`, `ChatDeduplicatorTests` and `PlayerDirectoryTests` became `partial` so the new tests carry the
+  class names this spec uses. No existing test body changed.
+
+**Design details that differ from the text above**
+
+- **Fragments are joinable.** Algorithm step 3 lists chat and system entries; REQ-CHAT-15 needs consecutive orphan
+  lines to form one fragment, so a fragment takes continuations under the same geometry test and limit. A candidate
+  contributes its parsed text (a timestamp or known channel tag is removed); a lone channel tag (`[All]`) is skipped.
+  System and fragment entries have no channel. A system entry's text has its leading timestamp removed.
+- **`Raw`** is the cleaned source lines (also for a single line), not the untrimmed OCR text.
+- **`TextSimilarity.ContainsFuzzy`** uses approximate substring matching (Sellers' algorithm: the needle's smallest
+  edit distance to any stretch of the haystack, similarity = 1 − edits ÷ needle length) instead of sliding windows of
+  the needle's length ±1. Same intent, O(haystack × needle) per memory entry, so a capture stays well under 1 ms.
+- **Dedupe memory.** An empty-after-normalisation message is ignored (as `TryAccept` did). A suppressed fragment is not
+  remembered. An entry created by a fragment adopts the sender of a later matching message. Eviction drops the oldest
+  `SeenAt` beyond `Capacity`.
+- **REQ-CHAT-28** compares a known name by `OcrKey` against the line's prefix of the same length, so a misread that
+  changes the name's length is not matched.
+- **REQ-CHAT-45.** The fallback parses each raw line with `ChatLineParser.Parse`. `ChatPipeline.Analyze` (and so
+  `Describe`) falls back the same way without logging, so the Live view never throws.
+- **Logging.** Format-file problems are logged by `ChatFormatCatalog.LoadWithUserFile`, which AppHost gives
+  `Log.For("Chat")`, not by AppHost itself. Pattern errors are logged (Info, one entry per error, pattern and error as
+  sensitive fields) only when the pattern list changed. A cancelled translation is not logged as "Message translation
+  failed" by AppHost.
+- **`CaptureFixture`.** An `@set` may appear inside a frame and applies from that frame on (the `system-patterns`
+  fixture needs it), so the records gain `Settings` at fixture and frame level, plus `Language`, `Row`, `SettingKeys`,
+  `DirectiveNames` and `Kinds`. Directive lines have no inline `# …` comments (the annotations in this spec's example
+  are explanations); `@pattern` must come before the first `@frame`. An empty `@expect` equals `(none)`.
+- **`ChatUnderstandingText`** gains `ChatEntryNoChannel` and `ChatEntryNoSender` (whole-sentence templates rather than
+  cutting `[{channel}] ` out of `ChatEntry`), `FormatsSettingInvalid`, `FormatsProfileWithoutId`, `FormatsProfileInvalid` (errors without a profile or
+  field), `MatchGameFormat` (the "Chat format" list's first entry, built in code) and `CopyFailedCaption`
+  (`IShell.CopyText` returns false). `Describe` starts with `UnderstoodHeader`.
+- **`CapturePreviewViewModel`** takes `Func<string, bool>? copyText` (`IShell.CopyText` returns `bool`) and exposes
+  `CanCopy`, which hides the button for a view model without one.
+- **Format profiles.** Validation also covers `heightTolerance` (0–5), `maxSenderLength` (1–64), brackets (two-character
+  pairs), separators (1–8 characters, so a word such as `" says "` works), and channel keys (the four canonical names).
+  A user file over 256 KiB is treated as unreadable. A profile without `inherits` takes missing fields from `generic`.
+  A profile's notice patterns that don't compile are dropped and reported as its `systemPatterns` field. Additions:
+  `ChatFormatCatalog.Find`, `ChatFormatProfile.SystemPatternsFor` and `CanonicalChannels`. `ReloadChatFormats()` has no
+  button; the file is read at start-up (the smoke test calls the method).
+- **Smoke.** The setup section `chat-understanding` uses the standard `Section` line (no `entries` field) and also
+  checks pattern errors and the line-count text. A first-palette MainWindow check `chat-card({palette})` sets an invalid
+  pattern through the view model and asserts the card's Danger line appears and clears. 05's capture-engine section
+  now disposes its pipeline.
+- **Golden corpus.** All 18 fixtures (the 14 required plus the four SHOULD ones) are hand-written. The `fullwidth`
+  fixture avoids a space between full-width letters, because 05's `OcrText.Clean` (inside `MergeLines`) treats
+  full-width forms as CJK and removes that space (`ｇｇ ｗｐ` → `ggwp`). That is outside this area; it is noted for
+  the M-CHAT-5 calibration.
+- **Docs.** M-CHAT-1 to 6 are in `docs/chat-formats.md` and also in `docs/releasing.md` › Manual checks, next to the
+  other areas' steps. `CLAUDE.md` gains a chat-understanding rule.

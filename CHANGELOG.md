@@ -46,6 +46,18 @@ versioning: [SemVer](https://semver.org/).
 - A hint when the chat area is blank, which usually means the game runs in exclusive fullscreen.
 - `Envoy.exe --soak <minutes>`: a pre-release endurance run on a synthetic chat window that fails if Envoy's memory,
   handles or drawing objects keep growing.
+- **Understanding chat** (Reading Chat): a long message that wraps onto the next line is now one message, translated
+  once, instead of two half-sentences; your own and muted players' wrapped messages are hidden whole. When chat scrolls
+  and only the end of an old message is left, it isn't shown again.
+- **Game notices**: list lines such as `*has resigned*` or `{player} advanced to the * Age` under **Also treat these
+  lines as notices**. Notices are never translated (they cost nothing) and are hidden unless you turn off **Hide game
+  notices**. Optionally, lines that start with a player's name and have no `:` count as notices too. A pattern Envoy
+  can't use is named in red under the box. See [chat formats](docs/chat-formats.md).
+- **Chat formats**: a `chat-formats.json` in the Envoy folder can teach Envoy other channel words, separators and
+  timestamps, per game (**Chat format**, default "Match the game"). Envoy only reads this file.
+- The Live view shows **Understood as**: how Envoy split what it read into messages, notices and leftover lines, and
+  **Copy as test capture** copies what it read (with positions) for a bug report. It contains chat and names, so
+  anonymise it before sharing.
 
 ### Changed
 - **Translation never hangs.** A slow provider used to leave a line on "translating…" forever and the fallback was
@@ -81,6 +93,12 @@ versioning: [SemVer](https://semver.org/).
   restarts in five minutes does Envoy stop and say "Chat reading stopped responding". Status and error lines are plain sentences, never raw error text, and "Paused" now reads "Chat
   reading is off".
 - Stopping or restarting chat reading no longer leaves lines stuck on "translating…".
+- **No line stays on "translating…".** A translation interrupted by **New match**, selecting the chat area again or
+  quitting now ends showing the original line, without a spinner or error.
+- **Better identity for messages.** Two players writing the same `gg` are two messages, and the same player's `gg`
+  twice on screen shows twice. A name OCR misreads (`Zhanq Wei` for `Zhang Wei`) is shown as the player's name.
+- Stray symbols OCR reads from rank, civilisation and platform icons (`■`, `©`, `|`), invisible characters and
+  full-width letters are cleaned from chat lines, so names match your own name and the mute list (can be turned off).
 - Less CPU and memory while gaming: unchanged frames skip all image processing, pixel buffers are reused, and the
   screen-copy surfaces are kept between frames.
 - Selecting the chat area and placing the overlay are exact on every monitor, including mixed scaling (for example a

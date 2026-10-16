@@ -63,6 +63,12 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
   and `SetRegion`), never `AppSettings`; `ChatWatcher` passes `CancellationToken.None` to `ProcessAsync` (typecheck
   R11). Game-window probing goes only through `GameWindowTracker` → `AppHost.GameWindow`; capture coordinates are
   physical pixels. Capture/OCR failures become a `CaptureText` sentence via `CaptureErrors.Describe`.
+- Chat understanding lives in Core: `ChatCaptureAnalyzer` (pure) → `ChatDeduplicator.AcceptNew` (one lock per capture)
+  → filters in `ChatPipeline`, which reads only its immutable `ChatPipelineOptions` snapshot (built by
+  `ChatPipelineOptions.From` in `AppHost.ApplySettings`/`RefreshGame`). Every Pending message gets exactly one
+  `MessageUpdated` (contract §2.6): translations run under the pipeline's lifetime token, never the caller's. A change
+  to parsing, cleaning or stitching adds or updates a golden fixture in `tests/Envoy.Core.Tests/Golden/Captures`
+  (format in `docs/chat-formats.md`). Notices are never translated; ship no unverified game notice strings.
 - Log through `ILog` (`AppHost.Log.For("Category")`), never `Debug`/`Trace`/`Console`. Chat text and player names go
   only through `LogField.Sensitive(...)`. Every `catch` in `AppHost.cs` logs. Fire-and-forget is
   `task.Forget(log, "what")`, never `_ = SomethingAsync()` (typecheck R9).

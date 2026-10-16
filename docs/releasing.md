@@ -114,3 +114,20 @@ ordered pass). Each uses any supported title in a skirmish against AI.
 - **M-CAP-6** Run `Envoy.exe --soak 120`. It exits 0, and `soak-test.log` shows no metric growing by more than 20%.
 - **M-CAP-7** Alt-tab to a browser on a second monitor with the game still visible and "Pause when the game isn't the
   active window" off. Chat is still read.
+
+### Chat understanding (04)
+
+The steps are described in full in [chat formats](chat-formats.md#manual-release-checks).
+
+- **M-CHAT-1** A message long enough to wrap (from an AI ally or a second account, AoE II: DE or AoE IV, English
+  client) shows as one overlay entry.
+- **M-CHAT-2** Keep chatting until that message's first line scrolls out of the chat area. Nothing new appears.
+- **M-CHAT-3** Add `*resign*` (or the client-language equivalent) to the notice list and resign an AI game. Nothing is
+  translated, and the Translation usage counter does not move.
+- **M-CHAT-4** With a translation in flight (slow provider or no network), click **New match**, and separately pause
+  capture. No overlay line stays on "translating…".
+- **M-CHAT-5** (calibration, before 1.0) At least 3 anonymised "Copy as test capture" fixtures from at least 2 games in
+  `tests/Envoy.Core.Tests/Golden/Captures/real/` pass `dotnet test`; adjust the stitching defaults if one needs it,
+  then drop "provisional" from REQ-CHAT-5 and the docs.
+- **M-CHAT-6** With a wrapped message visible, the Live view's "Understood as" shows `(2 lines)`, and "Copy as test
+  capture" puts text on the clipboard that `CaptureFixture.Parse` accepts.

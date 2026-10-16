@@ -105,6 +105,24 @@ couldn't register under **Hotkeys**. Pick a different combination there.
 - If a message is wrongly treated as being in your language, turn off
   **Translation → Don't translate messages already in my language**.
 
+## Messages are split, or notices are translated
+
+Reading Chat › **Understanding chat** controls how Envoy turns what it reads into messages. The Live view's
+**Understood as** list shows the result for the current capture.
+
+- **A long message shows as two half-messages:** make sure **Join messages that wrap onto the next line** is on. If
+  the wrapped part still shows separately (as "part of an earlier message"), the lines may be spaced unusually; use
+  **Copy as test capture** and attach it to a bug report (anonymise names first).
+- **Two people's messages are joined into one:** OCR probably missed the second player's `:`. Raise **Enlarge before
+  reading**, or turn joining off.
+- **Game notices ("… has resigned", "… advanced to the Castle Age") are translated:** add them under **Also treat
+  these lines as notices**, one per line, for example `*has resigned*` or `{player} advanced to the * Age`. Notices
+  are never translated, and they are hidden while **Hide game notices** is on. A line in red under the box means a
+  pattern couldn't be used; see [chat formats](chat-formats.md) for the syntax.
+- **Names show stray symbols (`■`, `©`, `|`):** turn on **Remove stray symbols that OCR reads from icons**.
+- **Your game writes chat differently** (other channel words or separators): create a `chat-formats.json` profile;
+  see [chat formats](chat-formats.md).
+
 ## High CPU use
 
 - Envoy adapts how often it checks: fast while the chat is moving, every 1.5 s while it's quiet. Raise

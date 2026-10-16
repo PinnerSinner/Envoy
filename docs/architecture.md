@@ -16,8 +16,9 @@ the screen, the keyboard and the user.
 ┌──────────────────────── Envoy.Core (net8.0, any OS) ──────────────────────────┐
 │  OcrMerger ── pick the best engine per line, strip CJK spaces                 │
 │      │                                                                        │
-│  ChatPipeline                                                                 │
-│   ChatLineParser ─► filters (noise, me, muted, channel) ─► ChatDeduplicator   │
+│  ChatPipeline (options snapshot, pipeline-lifetime token)                     │
+│   ChatCaptureAnalyzer: clean ─► notice patterns ─► parse ─► stitch wraps      │
+│   ─► ChatDeduplicator.AcceptNew (sender+text, fragments) ─► filters (me, …)   │
 │        ─► SlangGlossary ─► ScriptDetector ─► ITranslator ─► PlayerDirectory   │
 │                                                                               │
 │  ITranslator stack:  Caching → Coalescing → Fallback(deadline)[               │
@@ -36,13 +37,13 @@ the screen, the keyboard and the user.
 
 | Folder | What's there |
 | --- | --- |
-| `Chat/` | `ChatLineParser` (channel, sender and text from many chat formats), `ChatDeduplicator` (fuzzy, time-windowed "seen it" memory), `TextSimilarity`, `PlayerDirectory` (per-player language memory), `MuteList`, `TranscriptWriter` |
-| `Ocr/` | `OcrMerger` combines several engines' readings line by line (`MergeLines` keeps each row's median `Top`/`Bottom`; `Merge` is its text); `OcrText.Clean` removes the spaces Windows OCR puts between CJK characters |
+| `Chat/` | `ChatCaptureAnalyzer` (one capture's lines → chat messages, notices and fragments; joins wrapped lines by geometry), `ChatTextCleaner` (invisible characters and icon junk), `SystemLinePatterns` (the user's game-notice patterns), `ChatLineParser` (channel, sender and text, driven by a `ChatFormatProfile`), `ChatFormatCatalog` + embedded `chat-formats.json` (the `generic` profile plus the user's file), `ChatDeduplicator` (identity = sender + text; fragment suppression; one lock per capture), `TextSimilarity` (`OcrKey`, `ContainsFuzzy`), `PlayerDirectory` (per-player language memory, `Canonicalize`), `MuteList`, `TranscriptWriter`, `ChatUnderstandingText` |
+| `Ocr/` | `OcrMerger` combines several engines' readings line by line (`MergeLines` keeps each row's median `Top`/`Bottom`/`Left`/`Right`; `Merge` is its text); `OcrText.Clean` removes the spaces Windows OCR puts between CJK characters; `CaptureFixture`, the recorded-capture text format behind the golden tests and "Copy as test capture" |
 | `Capture/` | The capture engine's pure logic (spec 05): `CaptureOptions` (the immutable snapshot the loop reads), `GameWindowInfo`, `RegionMath` (window-relative regions, output size, sample points), `CaptureGate` (pause reasons), `AdaptivePollPolicy`, `FramePool`/`FrameBuffer`, `FrameProcessing` (fingerprint and preprocessing without allocation) and `BlankFrames`, `SingleFlight` (OCR timeout, one call at a time), `LoopWatchdog`, `CaptureMetrics`, `CaptureText`/`CaptureErrors`, `SoakBudget` |
 | `Languages/` | `LanguageCatalog` (codes, names, OCR tags, normalising provider codes), `ScriptDetector` (offline language guess from Unicode blocks) |
 | `Translation/` | `ITranslator` and providers (`Providers/`, all HTTP through `ProviderHttp`), `TranslationException` with a `TranslationErrorKind` and its `TranslationErrorText`; `FallbackTranslator` (overall deadline), `CoalescingTranslator`, `CachingTranslator` + `TranslationCache` (+ the opt-in `TranslationCacheStore`), `BudgetedTranslator` + `UsageTracker`, `TranslatorFactory`, `SlangGlossary`; `TranslationRuntime` (long-lived: per-provider guards, `ProviderHealthRegistry`, the cache; survives rebuilds) and `TranslationLogging` |
 | `Translation/Resilience/` | `ResilienceOptions` (per-provider defaults, chat and compose lanes), `RetryPolicy`, `CircuitBreaker`, `TokenBucket`, `ResilientTranslator`, `ProviderHealthRegistry` (the single provider-health source, contract §2.1) and `ProviderHealthText` |
-| `Pipeline/` | `ChatPipeline` (OCR lines → `IncomingMessage` events), `OutgoingTranslator` (your text → their language) |
+| `Pipeline/` | `ChatPipeline` (OCR lines → `IncomingMessage` events; owns the pending-message lifecycle) with its immutable `ChatPipelineOptions`, `PipelineText`, `OutgoingTranslator` (your text → their language) |
 | `Phrases/` | `PhraseBook` + embedded `phrases.json`; `PhrasePreview` (the Phrasebook page's rows and starter file) |
 | `Hotkeys/` | `HotkeyStatus`, `HotkeyRegistrationResult` (one per action, published as `AppHost.HotkeyResults`), `HotkeyText` |
 | `Mvvm/` | `ObservableObject`, `RelayCommand`, `RelayCommand<T>`, `AsyncRelayCommand` (required `onError`; never rethrows) |
@@ -58,15 +59,31 @@ Everything here is covered by `tests/Envoy.Core.Tests` and runs on any OS.
 
 ### Message lifecycle
 
-1. The watcher hands `ChatPipeline.ProcessAsync` the lines read in one capture.
-2. Each line is parsed. Noise, your own messages, muted players and filtered channels are dropped.
-3. `ChatDeduplicator.TryAccept` rejects lines already seen within the last 3 minutes. Matching is fuzzy, so OCR
-   jitter like `rushing`/`rushlng` doesn't count as a new line.
-4. `Classify`: a whole-message slang hit is answered from the glossary. A non-Latin script that matches your
-   language is marked *Untranslated*. Everything else stays *Pending*.
-5. `MessageReceived` fires so the overlay shows the line immediately ("translating…").
-6. Pending messages are translated concurrently. `MessageUpdated` fires with the result or the error.
-7. `PlayerDirectory` records the sender's language. `SuggestedReplyLanguage` uses it to pick the reply language.
+1. The watcher hands `ChatPipeline.ProcessAsync` the merged lines of one capture, with their geometry
+   (`OcrMerger.MergeLines`). The pipeline reads its options snapshot once for the whole capture.
+2. `ChatCaptureAnalyzer` cleans each line (`ChatTextCleaner`), marks lines that match a notice pattern as **system**,
+   parses the rest with the active `ChatFormatProfile`, and joins sender-less lines to the message above them when the
+   geometry says they are its wrapped continuation (gap at most one median line height, similar height, at most 4
+   continuations). Sender-less lines with nothing above them become **fragments**. If analysis throws, that capture
+   falls back to one message per line.
+3. Senders are folded to a known player's name when they differ only by OCR confusions (`rn`/`m`, `q`/`g`, …).
+4. `ChatDeduplicator.AcceptNew` decides the whole capture under one lock. A message's identity is (sender, text), so
+   `A: gg` and `B: gg` are two messages while OCR jitter like `rushing`/`rushlng` is not new. A fragment contained in a
+   remembered message (a tail whose head scrolled away) is dropped. Every entry is remembered, including the ones the
+   filters drop next, so your own and muted players' tails stay hidden too.
+5. Filters: hidden notices, noise, your own messages, muted players and filtered channels are dropped — judged on the
+   whole joined message.
+6. `Classify`: a notice is *Untranslated* and never sent anywhere. A whole-message slang hit is answered from the
+   glossary. A non-Latin script that matches your language is marked *Untranslated*. Everything else stays *Pending*.
+7. `MessageReceived` fires so the overlay shows the line immediately ("translating…").
+8. Pending messages are translated concurrently under the pipeline's own lifetime token, never the caller's. Every
+   Pending message reaches exactly one terminal state and raises `MessageUpdated` exactly once (contract §2.6). New
+   match, a region change and exit cancel that token; those messages end *Failed* with `WasCancelled`, and the overlay
+   shows the original line without a spinner or error row.
+9. `PlayerDirectory` records the sender's language. `SuggestedReplyLanguage` uses it to pick the reply language.
+
+The golden corpus in `tests/Envoy.Core.Tests/Golden/Captures` replays recorded multi-frame captures through steps 1–7;
+[chat formats](chat-formats.md) describes the format.
 
 ## Envoy.App
 
@@ -170,8 +187,10 @@ true; `ReadingChatPage` sets that from its visibility. Two live views never swit
   without waiting for translation. It reads settings only through the immutable `CaptureOptions` snapshot and the
   detected game through a `volatile` field; `GameWindow` is published to the UI thread with `BeginInvoke`, and the
   watcher's `StateChanged`, `FrameCaptured` and `RegionChanged` fire on the loop thread.
-- `ChatPipeline` is thread-safe for concurrent `ProcessAsync` calls: de-duplication and the player directory lock
-  internally.
+- `ChatPipeline` is thread-safe for concurrent `ProcessAsync` calls: `AcceptNew` decides a whole capture under one lock,
+  and the player directory locks internally. `ApplySettings` (and a game change) publishes a new immutable
+  `ChatPipelineOptions` snapshot through `Pipeline.Options` (a volatile write); each capture reads it once.
+  `Analyze`/`Describe` have no side effects and run on the UI thread for the Live view.
 - All UI updates go through `Dispatcher.BeginInvoke` in `AppHost`.
 - Translation state is thread-safe: one lock per breaker and bucket, a `SemaphoreSlim` per lane gate, lock-protected
   caches; no lock is held across an `await`. `TranslationRuntime.ProviderHealthChanged` and `Diagnostic` fire on the
