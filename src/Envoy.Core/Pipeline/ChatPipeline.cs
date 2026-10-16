@@ -434,7 +434,9 @@ public sealed class ChatPipeline : IDisposable
         var count = Volatile.Read(ref _inFlight);
         if (count > 0) _log.Debug("Translations cancelled", LogField.Of("reason", reason), LogField.Of("count", count));
         old.Cancel();
-        old.Dispose();
+        // A replaced source is only cancelled: a translation may still link to its token. It holds no timer, so the GC
+        // takes it; the last one is disposed with the pipeline.
+        if (!replace) old.Dispose();
     }
 
     private void NoteOpponentLanguage(string code, string? sender, ChatPipelineOptions options)
