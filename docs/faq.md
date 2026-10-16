@@ -26,9 +26,18 @@ account. See [Translation providers](translation-providers.md).
 
 ### What data leaves my PC?
 
-Only the text of chat messages, sent to the translation provider you choose. If update checks are on, the
-start-up check also contacts GitHub (`api.github.com`), sending nothing but the request itself. Envoy collects no
-telemetry. Transcripts, if you enable them, stay on your PC in `%APPDATA%\Envoy\logs`.
+Only the text of chat messages, sent to the translation provider you choose. Update checks and update downloads go
+to GitHub only (`api.github.com` and this project's release downloads), sending nothing but the request and the Envoy
+version; untick **Check for updates automatically** (Appearance › Startup & updates) and Envoy makes no update request
+unless you press **Check for updates** on About. Envoy collects no telemetry. Transcripts, if you enable them, stay on
+your PC in `%APPDATA%\Envoy\logs`. See [Installing & updates](installing.md).
+
+### Does Envoy phone home?
+
+No. There is no telemetry, no account and no Envoy server. The only requests Envoy makes on its own are update checks,
+and they go to GitHub only: at start-up (at most once an hour) and every 12 hours, plus the update download on an
+installed copy. They can be turned off with **Check for updates automatically**; safe mode never checks by itself.
+See [How updates work](installing.md#how-updates-work).
 
 ### Why not hook into the game to read chat directly?
 

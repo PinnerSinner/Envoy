@@ -1,44 +1,96 @@
 # Releasing
 
-Releases are fully automated by `.github/workflows/build.yml`.
+Releases are built and published by `.github/workflows/build.yml`. A release has two downloads, the per-user
+installer `Envoy-win-Setup.exe` (Velopack; it keeps itself up to date) and the portable `Envoy.exe`, plus the files the
+updater reads. See [Installing & updates](installing.md) for what users see.
 
-1. Update `CHANGELOG.md`: move items from *Unreleased* to a new version heading.
+## Cutting a release
+
+1. Update `CHANGELOG.md`: move the items from *Unreleased* to a new `## [x.y.z] - YYYY-MM-DD` heading. **A stable tag
+   without its section fails the build before anything is uploaded**; the section becomes the release notes on GitHub
+   and in the app's update banner. A beta tag (`v1.3.0-beta.1`) uses its own `## [1.3.0-beta.1]` section if there is
+   one, else *Unreleased*.
 2. Commit, then tag and push:
    ```bash
    git tag v0.2.0
    git push origin v0.2.0
    ```
-3. The workflow then:
-   - runs the policy check, the unit tests and the Linux type-check,
-   - publishes `Envoy.exe` with the version from the tag,
-   - runs the Windows smoke test against that exe,
-   - creates a GitHub Release with `Envoy.exe`, its SHA-256 checksum and generated notes.
+3. Tag builds run under the protected **`release` environment**: a required reviewer approves the `windows` job
+   before it starts. Then the workflow:
+   1. runs the policy check, the unit tests, the Linux type-check and the release-tooling checks (`check` job);
+   2. takes the release notes from `CHANGELOG.md` (`tools/release/changelog_notes.py`);
+   3. publishes the portable single-file `Envoy.exe` with the version from the tag and runs the Windows smoke test
+      against it;
+   4. signs `Envoy.exe` if the environment holds a certificate (see Code signing), then writes `Envoy.exe.sha256`;
+   5. publishes a folder build and runs `dotnet vpk pack` (Start menu shortcut, no portable zip, a delta against the
+      previous release on the same track when `vpk download` finds one), signing every packed binary and
+      `Envoy-win-Setup.exe` with the same certificate;
+   6. writes `SHA256SUMS.txt` (`Envoy.exe` and `Envoy-win-Setup.exe`, `sha256sum` format);
+   7. creates or merges a **draft** release with `dotnet vpk upload github`, uploads `Envoy.exe`,
+      `Envoy.exe.sha256` and `SHA256SUMS.txt`, and runs `tools/release/check_release_assets.py`: the release must still
+      be a draft and hold exactly `Envoy.exe`, `Envoy.exe.sha256`, `SHA256SUMS.txt`, `Envoy-win-Setup.exe`,
+      `Envoy-<v>-full.nupkg`, `releases.win.json`, `assets.win.json`, `RELEASES` (plus `Envoy-<v>-delta.nupkg` when a
+      previous release existed), and the checksums must match the files. Only then is the draft published, with the
+      notes and a fixed footer (`tools/release/release-footer.md`), and marked prerelease when the tag contains `-`.
+      Users' copies never see a draft, so a failed run never offers a partial release;
+   8. for stable tags, renders winget manifests (artifact `winget-manifests`).
 
-Every push to any branch also uploads `Envoy.exe` as a workflow artifact, so testers can grab a build without a
-release.
+Every push to any branch uploads `Envoy.exe` as a workflow artifact. Pushes to `main` also build an unsigned
+`Envoy-win-Setup.exe` (version `<csproj Version>-ci.<run>`, artifact `Envoy-<version>-setup`), so a broken package
+shows up before a tag. Re-running a failed tag build is safe: `vpk upload --merge` reuses the draft.
 
 ## Versioning
 
-[Semantic versioning](https://semver.org/). The in-app update check compares the running version with the latest
-non-prerelease GitHub Release. Tags such as `v0.3.0-beta.1` are published as prereleases and don't trigger update
-prompts.
+[Semantic versioning](https://semver.org/). The app compares versions by SemVer precedence, prerelease suffix
+included (`1.2.0-beta.2` < `1.2.0-beta.10` < `1.2.0`), and shows its own version with the suffix (from the
+informational version the tag sets). Tags with a `-` (`v0.9.0-beta.1`) are published as GitHub prereleases: copies on
+the **Beta** channel are offered them, Stable copies are not. Moving from Beta back to Stable never downgrades.
 
 ## Verifying a download
 
-Each release lists `Envoy.exe.sha256`. On Windows:
+Each release lists `SHA256SUMS.txt` and `Envoy.exe.sha256`. On Windows:
 
 ```powershell
-Get-FileHash .\Envoy.exe -Algorithm SHA256
+Get-FileHash .\Envoy-win-Setup.exe -Algorithm SHA256
 ```
 
-It should match the checksum file. The release's workflow run (linked from the release) shows the exact commit it
-was built from.
+It should match the line in `SHA256SUMS.txt`. The release's workflow run (linked from the release) shows the exact
+commit it was built from.
 
 ## Code signing
 
-Release builds aren't code-signed yet, so Windows SmartScreen warns on first run. Signing needs a certificate.
-Options include [SignPath Foundation](https://signpath.org/) (free for open source) or Azure Trusted Signing. The
-workflow has a marked place where a signing step would go.
+Signing runs **only in `v*` tag builds**, in steps of the `windows` job that runs under the protected `release`
+environment (`environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}`). Untagged builds and forks
+get no environment, cannot read the secrets, and print "Unsigned build (not a v* tag)".
+`tools/release/check_signing_scope.py` fails CI if a signing secret is used anywhere else.
+
+To enable it, in the repository's *Settings › Environments*, create `release` with required reviewers and add two
+**environment secrets**:
+
+- `ENVOY_SIGN_PFX_BASE64`: the code-signing certificate (`.pfx`), base64-encoded
+  (`[Convert]::ToBase64String([IO.File]::ReadAllBytes("cert.pfx"))`);
+- `ENVOY_SIGN_PFX_PASSWORD`: its password.
+
+`tools/release/sign.ps1 <file>` signs with the newest `signtool.exe` on the runner (SHA-256 digest, RFC 3161 timestamp
+from DigiCert). Without a certificate a tag build publishes unsigned with the notice "Code signing skipped (no
+certificate in the release environment)", and Windows SmartScreen warns on first run. Other services (Azure Trusted
+Signing, [SignPath Foundation](https://signpath.org/), free for open source) replace the `signtool` call in `sign.ps1`;
+its header explains the contract.
+
+## winget
+
+Stable tags produce `winget-manifests` (schema 1.6.0, `PinnerSinner.Envoy`, user-scope `exe` installer with
+`--silent`), rendered from `packaging/winget/` by `tools/release/render_winget.py`. Submission is manual: download
+the artifact, then open a pull request to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) with
+`manifests/p/PinnerSinner/Envoy/<version>/` (or run `wingetcreate submit` on the folder). The first submission is
+reviewed by a moderator. Add `ProductCode` and `AppsAndFeaturesEntries` once M-DIST-2 has recorded the uninstall key.
+
+## Updating Velopack
+
+The `Velopack` package and the `vpk` tool must be the same exact version, in three places: `src/Envoy.App/Envoy.App.csproj`,
+`tools/typecheck/TypeCheck.csproj` and `.config/dotnet-tools.json`. `tools/release/check_velopack_pin.sh` fails CI
+when they disagree. CI runs `vpk` only through `dotnet tool restore` and `dotnet vpk`. After a bump, run the M-DIST-1
+rehearsal on a fork before the next real release.
 
 ## Manual checks
 
@@ -131,3 +183,37 @@ The steps are described in full in [chat formats](chat-formats.md#manual-release
   then drop "provisional" from REQ-CHAT-5 and the docs.
 - **M-CHAT-6** With a wrapped message visible, the Live view's "Understood as" shows `(2 lines)`, and "Copy as test
   capture" puts text on the clipboard that `CaptureFixture.Parse` accepts.
+
+### Distribution and updates (06)
+
+Run these on a fork (or with throwaway tags) before the first release, after a Velopack bump and before 1.0.
+
+- **M-DIST-1 Release rehearsal.** Push `v0.9.0-beta.1`, then `v0.9.0-beta.2`, each with a CHANGELOG section. Each
+  release appears only after its job finishes, is marked prerelease, its body is the CHANGELOG text plus the footer,
+  and `Get-FileHash` matches `SHA256SUMS.txt`. Install beta.1 with its `Envoy-win-Setup.exe`, choose the **Beta**
+  channel and restart Envoy: the banner shows "Downloading…", then "Envoy 0.9.0-beta.2 is ready" with notes behind
+  **What's new**. **Restart to update**: Envoy reopens on beta.2 within about 10 s in the same window state, and "Envoy
+  was updated to 0.9.0-beta.2" shows once. Repeat with a ready update, quit from the tray and start Envoy from the
+  Start menu: it is already on the new version.
+- **M-DIST-2 Install and uninstall.** `Envoy-win-Setup.exe` runs without a UAC prompt; the Start menu has "Envoy";
+  *Apps & features* lists it. Record the `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\<key>` name and
+  the install folder here. Turn on "Start Envoy when I sign in to Windows", then uninstall: the
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` value `Envoy` is gone, the data folder still holds
+  `settings.json`, and `%LocalAppData%\Envoy` is gone. With "Start with Windows" on, switching from the portable exe to
+  the installed one points the Run value at the installed exe after the first start.
+- **M-DIST-3 No apply under another instance or in safe mode.** With an update ready and Envoy running, start Envoy
+  from the Start menu: the running instance comes to the front and nothing is applied. Quit, then start with Shift
+  held: safe mode starts on the old version and applies nothing; the next normal start applies it. With an update
+  ready, the tray menu shows "Restart to update to …".
+- **M-DIST-4 In game.** Background downloads on, an update available, AoE II: DE (or any detected title) running:
+  About and the banner read "… will download after your game", and no `packages\*.partial` file appears under
+  `%LocalAppData%\Envoy`. After closing the game the download starts within a few seconds.
+- **M-DIST-5 Signing.** With a certificate in the `release` environment, `Get-AuthenticodeSignature` on the tag
+  build's `Envoy.exe`, `Envoy-win-Setup.exe` and the installed `current\Envoy.exe` reports a signature (`NotSigned`
+  fails; `UnknownError` is expected only for a self-signed test certificate). A push to `main` in the same repository
+  produces an unsigned artifact and the log line "Unsigned build (not a v* tag)".
+- **M-DIST-6 Portable and opt-out.** The portable beta.1 `Envoy.exe` with Beta selected offers **Download** and **Get
+  the installer** (which opens the `Envoy-win-Setup.exe` URL); the exe's timestamp is unchanged after an hour. Untick
+  "Check for updates automatically", restart and watch Resource Monitor › Network for 2 minutes: no `api.github.com`
+  connection. **Check for updates** on About then makes one. Repeat the 2-minute watch in safe mode with the box
+  ticked.

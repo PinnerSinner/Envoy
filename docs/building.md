@@ -20,6 +20,19 @@ For a small exe that needs the .NET 8 Desktop Runtime installed:
 dotnet publish src/Envoy.App -c Release -o publish-fd -p:SelfContained=false
 ```
 
+To build the installer the way CI does (Velopack's `vpk`, pinned in `.config/dotnet-tools.json`):
+
+```powershell
+dotnet tool restore
+dotnet publish src/Envoy.App -c Release -o publish-velo -p:PublishSingleFile=false -p:InformationalVersion=0.1.0-local.1
+dotnet vpk pack --packId Envoy --packVersion 0.1.0-local.1 --packDir publish-velo --mainExe Envoy.exe --packTitle Envoy `
+  --channel win --runtime win-x64 --noPortable --shortcuts StartMenuRoot -o Releases
+# → Releases\Envoy-win-Setup.exe plus the update packages
+```
+
+To try an update without a release, pack two versions into one folder, install the first, and start it with
+`ENVOY_UPDATE_FEED` set to that folder (a local folder only; anything else is ignored).
+
 To run the UI smoke test locally:
 
 ```powershell

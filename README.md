@@ -10,7 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><b>Download Envoy.exe</b></a> ·
+  <a href="../../releases/latest/download/Envoy-win-Setup.exe"><b>Download Envoy</b></a> ·
+  <a href="docs/installing.md">Installing &amp; updates</a> ·
   <a href="docs/getting-started.md">Getting started</a> ·
   <a href="docs/translation-providers.md">Providers &amp; cost</a> ·
   <a href="docs/troubleshooting.md">Troubleshooting</a> ·
@@ -67,14 +68,16 @@ translation into the game for you.
 - **Herald mode.** Have translations read aloud by a Windows voice, so your eyes stay on the battle.
 - **Looks the part.** Five themes, one per game (Imperial, Parchment, Frontier, Olympian and Classic), with an
   option to switch automatically to match the running game.
-- **One file.** A portable, self-contained `Envoy.exe` that lives in the tray, with global hotkeys. It can start with
-  Windows and tells you about updates.
+- **Installer or one file.** A per-user installer (no admin) that keeps Envoy up to date with one click, or the
+  portable, self-contained `Envoy.exe`. Envoy lives in the tray, with global hotkeys, and can start with Windows.
 - **Private by design.** No telemetry. API keys are encrypted with Windows DPAPI. Optional chat transcripts stay on
   your PC.
 
 ## Quick start
 
-1. Download **[Envoy.exe](../../releases/latest)** and run it. It's portable; nothing to install.
+1. Download **[Envoy-win-Setup.exe](../../releases/latest/download/Envoy-win-Setup.exe)** and run it; it installs for
+   your Windows account only (no admin) and keeps itself up to date. Prefer no install? Download the portable
+   `Envoy.exe` from the [releases page](../../releases/latest). See [Installing & updates](docs/installing.md).
 2. Set the game to **Borderless window**.
 3. Click **Select chat area** and drag a box around the in-game chat.
 4. Choose your language. Done. Press **`Ctrl+Shift+T`** in game to reply.
@@ -101,7 +104,8 @@ like OBS or Discord and **types** like an on-screen keyboard. It doesn't automat
 
 | For players | For developers |
 | --- | --- |
-| [Getting started](docs/getting-started.md) | [Architecture](docs/architecture.md) |
+| [Installing & updates](docs/installing.md) | [Architecture](docs/architecture.md) |
+| [Getting started](docs/getting-started.md) | |
 | [Translation providers & cost](docs/translation-providers.md) | [Building from source](docs/building.md) |
 | [OCR languages](docs/ocr-languages.md) | [Theming](docs/theming.md) |
 | [Phrasebook](docs/phrasebook.md) | [Releasing](docs/releasing.md) |
@@ -114,7 +118,7 @@ like OBS or Discord and **types** like an on-screen keyboard. It doesn't automat
 - [ ] Voice chat transcription and translation
 - [ ] Per-game chat colour presets for the OCR enhancement
 - [ ] Text-to-speech for incoming messages
-- [ ] Signed releases and an optional installer with auto-update
+- [ ] Signed releases
 - [ ] More phrasebook languages, with community review by native speakers
 
 Ideas and translations are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -127,8 +131,8 @@ tools/typecheck/typecheck.sh                         # type-check the Windows ap
 dotnet publish src/Envoy.App -c Release -o publish   # Windows → publish/Envoy.exe
 ```
 
-Every push builds and smoke-tests `Envoy.exe` on Windows. Pushing a `v*` tag publishes a release. See
-[docs/building.md](docs/building.md).
+Every push builds and smoke-tests `Envoy.exe` on Windows; pushes to `main` also build the installer. Pushing a `v*`
+tag publishes a release with both. See [docs/building.md](docs/building.md) and [docs/releasing.md](docs/releasing.md).
 
 ---
 

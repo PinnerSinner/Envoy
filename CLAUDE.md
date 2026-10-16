@@ -14,6 +14,10 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - CI sets `CI=true`, which turns every warning into an error. Run `CI=true dotnet test tests/Envoy.Core.Tests -c Release`
   and `CI=true tools/typecheck/typecheck.sh` locally before pushing.
 - The real WPF build + `Envoy.exe --smoke-test` only run on Windows CI (`.github/workflows/build.yml`).
+- `tools/release/` (release tooling, run with `--self-test` in the `check` job): `check_velopack_pin.sh` (Velopack in
+  `Envoy.App.csproj`, `TypeCheck.csproj` and `vpk` in `.config/dotnet-tools.json` are one version),
+  `check_signing_scope.py` (signing secrets only in v* tag steps), `check_release_assets.py`, `changelog_notes.py`,
+  `render_winget.py`. Run them after touching the workflow or the pins.
 
 ## Layout
 - `src/Envoy.Core` — all logic: chat parsing, OCR merging, pipeline, providers, settings, diagnostics (logging,
@@ -76,6 +80,12 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
   `DialogService` is only for confirmations the user starts in `MainWindow`.
 - All Envoy files live under the instance `AppHost.DataFolder`; only `SettingsStore.DefaultPath` names `%APPDATA%`
   (typecheck R8). A new data file joins `DataInventory.Items` and `docs/privacy.md` in the same change.
+- Updates (spec 06): all update state and policy is `AppHost.Updates` (`UpdateCoordinator`); UI binds
+  `Host.UpdateView` and runs actions through `Services/UpdateActions.cs`. Update UI text comes from `UpdateText`.
+  Only `Services/VelopackUpdateBackend.cs` creates an `UpdateManager`, only `Program.cs` runs `VelopackApp` (auto-apply
+  stays off; typecheck UPD1/UPD2). Nothing automatic reaches the network in safe mode or with `CheckForUpdates` off.
+  Never write user data under the install folder (`%LocalAppData%\Envoy`); all user data lives under
+  `Host.DataFolder`. Signing secrets appear only in v* tag steps (`check_signing_scope.py`).
 - Anything written during `Host.Dispose` or exit checks `Host.SaveSuppressed` first, so a reset or "Delete all Envoy
   data" is never undone. Handlers of background events (pipeline, watcher) are unsubscribed in `AppHost.Dispose` and
   do nothing once the host is disposed or saving is suppressed. Start-up and exit code goes in its slot of `App.OnStartup`/`ExitApp` (contract §4).

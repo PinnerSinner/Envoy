@@ -52,7 +52,7 @@ the screen, the keyboard and the user.
 | `Settings/` | `AppSettings` (the whole settings model; `[Secret]`, `[Personal]` and `[Location]` markers) and `SettingsStore` (JSON, `[Secret]` properties encrypted via `ISecretProtector`; atomic flushed saves, last-known-good `.bak`, `.broken` recovery, `LoadWithReport`, `SuppressSaves`, `ResetToDefaults`), `SettingsMigrator` (no steps yet), `SettingsSanitizer`, `SettingsRedaction` (masks marked values for diagnostics) |
 | `Diagnostics/` | `LogHub`/`ILog` with `RollingFileSink` (`logs/envoy.log`, 5 × 1 MiB) and `MemoryLogSink` (500-entry ring); `LogRedactor`, the one redactor; `Task.Forget`; `UnhandledErrorPolicy` (the global handlers' bodies), `CrashLoopGuard`, `CrashMarker`; `SafeModeDecision`, `StartupSentinel`, `StartupPlan`; `DiagnosticsReport`/`DiagnosticsBundle`; `DataInventory`; `ProblemText`, `SafeModeText`, `DiagnosticsText`, `DataText` |
 | `Notifications/` | `NotificationThrottle` (the single throttle every notification surface asks), `ProblemReport` |
-| `Updates/` | `UpdateChecker` (GitHub Releases; only this repository's `https://github.com/…/releases/…` URLs are accepted) |
+| `Updates/` | Spec 06. `ReleaseVersion` (SemVer 2.0 precedence; `FromInformational`), `UpdateChecker` (GitHub Releases; Stable = `releases/latest`, Beta = the highest SemVer of `releases?per_page=10`; typed `UpdateCheckException` kinds; only this repository's `https://github.com/…/releases/…` URLs are accepted), `IUpdateBackend` + `AvailableUpdate`, `GitHubReleaseBackend` (portable: notify only), `UpdatePreferences` (the immutable settings snapshot), `UpdateCoordinator` (the single update state and policy, contract §2.5: automatic vs manual checks, game deferral, periodic checks, skip, restart to update), `UpdateViewBuilder`/`UpdateView` (banner and status line), `UpdateText`, `ReleaseNotesText`, `UserAgents`, `UpdateEndpoints`, `PendingUpdatePolicy`, `UpdateDiagnostics` |
 | `Security/` | `OutgoingText` (sanitises everything Envoy types or pastes), `SendTargetGuard` + `SecurityText` (which window a reply may be typed into), `LaunchTarget` (validation behind `ShellLauncher`), `ReleaseUrlPolicy`, `PhraseLimits` |
 
 Everything here is covered by `tests/Envoy.Core.Tests` and runs on any OS.
@@ -89,14 +89,15 @@ The golden corpus in `tests/Envoy.Core.Tests/Golden/Captures` replays recorded m
 
 | Folder / file | What's there |
 | --- | --- |
-| `AppHost.cs` | Composition root, built from `AppHostOptions`: owns settings, services and history; the instance data paths (`DataFolder`, `LogsFolder`, `UserPhrasesPath`, `CrashMarkerPath`); the log hub, the notification throttle and `ReportProblem`; marshals events to the UI thread; applies settings live; holds `HotkeyResults` (written only by `App.RegisterHotkeys`); owns the `TranslationRuntime` (`TranslationHealth`, the chat and compose-lane stacks, `ActiveProviderIds`, `TranslationCachePath`) and derives `ProviderStatus` from provider health |
+| `Program.cs` | The entry point: `VelopackApp.Build().SetAutoApplyOnStartup(false)…Run()` before any WPF object (install/uninstall hooks run and exit there; uninstall removes the Run value), then `App` |
+| `AppHost.cs` | Composition root, built from `AppHostOptions`: owns settings, services and history; the instance data paths (`DataFolder`, `LogsFolder`, `UserPhrasesPath`, `CrashMarkerPath`); the log hub, the notification throttle and `ReportProblem`; marshals events to the UI thread; applies settings live; holds `HotkeyResults` (written only by `App.RegisterHotkeys`); owns the `TranslationRuntime` (`TranslationHealth`, the chat and compose-lane stacks, `ActiveProviderIds`, `TranslationCachePath`) and derives `ProviderStatus` from provider health; owns the `UpdateCoordinator` (`Updates`, `UpdateView`, `UpdatesToken`, `StartUpdates`, `SkipUpdate`, `JustUpdatedTo`), `AppVersion` and `UpdateBackendFactory` |
 | `App.xaml.cs` | Start-up and exit in the contract §4 order (see below), single instance, tray icon, hotkey bindings, window management; implements `IShell` |
 | `IShell.cs` | The app-level actions view models may trigger (select region, open compose, open a URL, install an OCR pack, show an info box…). Each area adds its own block |
 | `Security/` | `ShellLauncher`: the only code that starts processes (`TryOpen`, `InstallOcrPack`, `RestartSelf`, `RevealFile`), each validated by Core `LaunchTarget` |
-| `Services/` | `Capture/` (`ICaptureBackend`, `GdiCaptureBackend`, `CaptureBackendFactory`), `ScreenCapturer` (one-shot facade for Scan & translate), `OcrService` (Windows.Media.Ocr; bounded single-flight overload for the watcher), `ChatWatcher` (the loop), `GameWindowTracker` (the only game-window probe), `HotkeyService` (RegisterHotKey), `KeyboardSender` (SendInput, guarded by `SendTargetGuard`), `GameDetector`, `ThemeManager`, `DpapiProtector`, `StartupRegistration`, `DialogService` (the only place that shows a `MessageBox`), `SettingsAutoApplier` (the 400 ms debounce), `LogBootstrap`, `GlobalExceptionHandlers` (wires the four exception events to `UnhandledErrorPolicy`), `ToastService` (problem toasts), `DiagnosticsCollector` |
+| `Services/` | `Capture/` (`ICaptureBackend`, `GdiCaptureBackend`, `CaptureBackendFactory`), `ScreenCapturer` (one-shot facade for Scan & translate), `OcrService` (Windows.Media.Ocr; bounded single-flight overload for the watcher), `ChatWatcher` (the loop), `GameWindowTracker` (the only game-window probe), `HotkeyService` (RegisterHotKey), `KeyboardSender` (SendInput, guarded by `SendTargetGuard`), `GameDetector`, `ThemeManager`, `DpapiProtector`, `StartupRegistration`, `DialogService` (the only place that shows a `MessageBox`), `SettingsAutoApplier` (the 400 ms debounce), `LogBootstrap`, `GlobalExceptionHandlers` (wires the four exception events to `UnhandledErrorPolicy`), `ToastService` (problem toasts), `DiagnosticsCollector`, `VelopackUpdateBackend` (installed copies: the only `UpdateManager`; names no network type), `UpdateActions` (runs a banner, tray or balloon `UpdateAction`; opens only trusted release URLs) |
 | `Windows/` | `MainWindow` (title bar, safe-mode banner, sidebar and page hosts), `OverlayWindow`, `ComposeWindow`, `LookupWindow`, `RegionSelectorWindow`, `ToastWindow` (non-activating problem toast) |
 | `Pages/` | One `UserControl` per settings page (`WarRoomPage`, `TranslationPage`, `ReadingChatPage`, `OverlayPage`, `ReplyingPage`, `PhrasebookPage`, `HotkeysPage`, `AppearancePage`, `AboutPage`) and `PageIds` |
-| `ViewModels/` | `MainViewModel` (one instance shared by every page, split into `.Translation`, `.ReadingChat`, `.Phrasebook`, `.Diagnostics` and `.Actions` partials), `CapturePreviewViewModel` (the live view), `ProviderHealthRow` (the Translation page's health card), `Option`, `OcrLanguageItem`, `ThemeOption` |
+| `ViewModels/` | `MainViewModel` (one instance shared by every page, split into `.Translation`, `.ReadingChat`, `.Phrasebook`, `.Diagnostics`, `.Updates` and `.Actions` partials), `CapturePreviewViewModel` (the live view), `ProviderHealthRow` (the Translation page's health card), `Option`, `OcrLanguageItem`, `ThemeOption` |
 | `Controls/` | `HotkeyBox`, `SecretBox`, converters, `AutoApply.Ignore` |
 | `Themes/` | `Palette.<theme>.xaml` (colours only) + `Controls.xaml` (all control templates) |
 | `SmokeTest.cs` | `Envoy.exe --smoke-test` builds every window and settings page under every palette and fails on binding errors; CI runs it on Windows |
@@ -112,13 +113,31 @@ settings (the sidebar, the "Try it" box, the live view, the phrase preview langu
 
 ### Start-up and exit
 
-`App.OnStartup` runs in a fixed order (contract §4): read Shift → log hub and the four global exception handlers →
-the `--smoke-test` branch → the single-instance mutex → the safe-mode decision and `StartupSentinel.BeginStartup` →
-`AppHost` → toasts → `Host.Start()` → overlay and hotkeys (not in safe mode) → tray and window →
-`StartupSentinel.MarkHealthy` after 30 s or the first render. `ExitApp` hides and unregisters, saves unless saving is
-suppressed, disposes the host, ends the session, closes toasts and tray, closes the log, optionally deletes the data
-folder's inventory files, releases the mutex and optionally restarts through `ShellLauncher.RestartSelf`. Later areas
-fill the slots marked `[NN …]` in the code.
+`Program.Main` runs Velopack first (auto-apply off). `App.OnStartup` then runs in a fixed order (contract §4): read
+Shift → log hub and the four global exception handlers → the `--smoke-test` branch → the single-instance mutex → the
+pending update apply (slot 5: a downloaded update is applied through Velopack's updater and Envoy exits, unless
+`--safe-mode` or Shift; local only, never blocks start-up) → the safe-mode decision and `StartupSentinel.BeginStartup` →
+`AppHost` (with the Velopack backend from slot 5) → toasts → `Host.Start()` and, unless in safe mode,
+`Host.StartUpdates()` → overlay and hotkeys (not in safe mode) → tray and window → `StartupSentinel.MarkHealthy` after
+30 s or the first render. `ExitApp` hides and unregisters, saves unless saving is suppressed, disposes the host
+(cancelling update work), ends the session, closes toasts and tray, closes the log, optionally deletes the data
+folder's inventory files, releases the mutex and optionally restarts: through `UpdateCoordinator.RestartToUpdate`
+(Velopack's updater waits for the exit, applies and relaunches; `ShellLauncher.RestartSelf` is the fallback) for
+**Restart to update**, else through `ShellLauncher.RestartSelf`. Later areas fill the slots marked `[NN …]` in the
+code.
+
+### Updates
+
+`UpdateBackendFactory` (in `AppHost.cs`) picks the backend once: `VelopackUpdateBackend` for an installed copy, else
+`GitHubReleaseBackend` (portable exe, `dotnet run`); the smoke test passes a scripted one through `AppHostOptions`.
+`UpdateCoordinator` runs on the thread pool and raises `Changed` there; `AppHost` rebuilds `UpdateView` on the UI
+thread, which the War Room banner, the About status line and the tray item bind to. Preferences reach it only as the
+immutable `UpdatePreferences` (`ApplySettings` position 7); the game-running flag comes from `Game`/`GameWindow`, and a
+download that waited for the game starts when it closes. `LastCheckUtc` is written back to settings through
+`Dispatcher.BeginInvoke`. Nothing automatic runs in safe mode; About's **Check for updates** always works. The update
+files live in the install folder (`%LocalAppData%\Envoy`), never in the data folder. The updater process (`Update.exe`) is
+started by Velopack (pinned version, hash-verified packages), never by Envoy code, so `ShellLauncher` stays the only
+launcher in Envoy's own code.
 
 ### Errors, logging and notifications
 
@@ -206,3 +225,4 @@ true; `ReadingChatPage` sets that from its visibility. Two live views never swit
 | Banned APIs | `BannedSymbols.txt` (`RS0030`) | No `Process.Start`/`ProcessStartInfo` outside `ShellLauncher`, no TLS bypass, `WebClient`, `BinaryFormatter`, `XamlReader`, `Process.MainModule` |
 | Policy check | `tools/ci/check_policy.py` + `policy.json` | P/Invoke allowlist and denied list, network code only in `Core/Translation/`, `Core/Updates/` and `AppHost.cs`, known URL hosts, `asInvoker` manifest, one `#pragma`, justified suppressions, build settings intact |
 | Secret coverage | `SettingsSecretTests` | Credential-named settings are `[Secret]` and encrypted on save |
+| Release tooling | `tools/release/` (run in the `check` job with self-tests) | One Velopack version in `Envoy.App.csproj`, `TypeCheck.csproj` and `.config/dotnet-tools.json` (`check_velopack_pin.sh`); signing secrets only in v* tag steps under the `release` environment (`check_signing_scope.py`); a release stays a draft until its exact asset list and `SHA256SUMS.txt` are asserted (`check_release_assets.py`) |

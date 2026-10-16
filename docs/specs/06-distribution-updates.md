@@ -1,6 +1,6 @@
 # Distribution & updates: Velopack installer, one-click auto-update, channels, tag-only signing, winget
 
-Status: Proposed (revised against `00-integration.md`)
+Status: Implemented (revised against `00-integration.md`; see Deviations)
 
 Area id: `06-distribution-updates` · Requirement prefix: `DIST` · Step 7 of the contract's order (§1).
 
@@ -1109,3 +1109,66 @@ Revised against `00-integration.md` and the set critique.
   - Every MUST has a unit, typecheck, smoke, CI or numbered M-step acceptance criterion.
 - **Allowlists.** No native, network-path or host additions. No new `BannedSymbols` exception. Velopack's own
   updater launch is noted in the threat model. New static rules `UPD1`/`UPD2`.
+
+## Deviations
+
+Every MUST (DIST-1, 2, 3, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 19, 20, 27) and every SHOULD (4, 6, 18, 21–26, 28,
+31) is built, and the COULD (30, `ENVOY_UPDATE_FEED`) too. MUST levels are unchanged, so contract §9 is unchanged.
+Differences from the text above, with reasons:
+
+1. **Background download failures are silent** (REQ-DIST-20 wins over the state rule "Download → Failed"). An automatic
+   download that fails goes back to `Available` with `Error` kept and a Warning logged; the banner then offers **Update
+   now**. `Failed` with `FailedWhileDownloading` and **Retry** comes only from a download the user started (Update now /
+   Retry). Test `Background_download_failure_is_silent`.
+2. **Cancellation** restores the previous state and raises `Changed` once for that restore (otherwise the UI could stay
+   on "Checking…"); it sets no `Error` and does not record a check.
+3. **`Configure`** compares the channel with the previous preferences, the constructor's `initial` included: a first
+   call with an unchanged channel never checks (`First_configure_does_not_check`), but a changed channel checks even on
+   the first call, because AppHost does not call `ApplySettings` at start-up, so the user's first edit can be the
+   channel switch. `SkipAvailableVersion` also writes the skipped version into the coordinator's own preferences, so
+   the next automatic check hides it before `ApplySettings` runs.
+4. **`UpdateText`**: `OpenReleasePage` has three labels by place, so `UpdateText` has `DownloadLabel`, `ReleaseNotesLabel`
+   and `WhatsNewLabel` constants; `ActionLabel(OpenReleasePage)` is "Release notes". Added `TrayRestartItem`,
+   `KindText`, `ChannelText`, the template constants and `Checking`/`NeverChecked`/"Last checked {time}" status lines.
+   The status time is the local short time (`"t"`, current culture).
+5. **`UpdateView`** has computed `HasNotes`, `HasPrimary`, `HasSecondary` and a `Hidden` value: there is no
+   string-to-visibility converter, and no palette or converter was added. The "What's new" toggle is a `ToggleButton`
+   with the existing `Button.Base` style (`c:AutoApply.Ignore`); the banner's Skip button reads "Skip" with the
+   accessible name "Skip this version".
+6. **`StartupPlan.AutoCheckUpdates`** is a computed property (`=> !SafeMode`) rather than a new positional parameter, so
+   02's `Startup_plan` theory is unchanged. Its tests (`Safe_mode_disables_automatic_update_checks`,
+   `Normal_start_enables_automatic_update_checks`) live in 02's `SafeModeTests.cs`, which holds the StartupPlan tests.
+   The new `UpdateCheckerTests` cases stay in `PlayerAndUpdateTests.cs` as the spec says.
+7. **AppHost**: exposes `UpdatesToken` (the update CTS's token; banner, tray and About commands pass it) and keeps
+   `ReleaseRepository` as an alias of `UpdateEndpoints.Repository`; `UpdateEndpoints.ReleasesUrl` was added for the
+   fallback link. Instead of a `GameWindowChanged` subscription, `PushGameRunning()` runs where `GameWindow` is
+   published and in `RefreshGame` (position 3); it ticks when the last of game process and game window is gone (so a
+   deferred download starts within about a second of the window disappearing, not 30 minutes later), and only after
+   `StartUpdates`, so safe mode never ticks. `RefreshGame`'s tick therefore covers both close paths.
+8. **App**: slot 5 builds the backend with `VelopackUpdateBackend.TryCreate` only (no download, no network) and logs
+   before launching the updater; a shared `ReleaseInstanceMutex()` serves slot 5 and exit step 7. Exit step 8 falls
+   back to `RestartSelf` on `UpdateCheckException` or `InvalidOperationException`. The tray item is shown when
+   `CanRestartToUpdate` and is unsubscribed at exit step 5. `Program.Main` also passes `args` to Velopack (`SetArgs`).
+9. **About/Appearance**: the version line binds `Version`, `InstallKindText` and `ChannelText` with `Run`s; the
+   background-download tooltip binds `AutoDownloadTooltip`, which is null (no tooltip) for installed copies.
+10. **`UpdateChecker`**: an `HttpClient` timeout (an `OperationCanceledException` not caused by the caller's token)
+    maps to `Offline`, like `HttpRequestException`. An untrusted installer URL is dropped like an untrusted download URL.
+11. **Workflow**: there are two `vpk pack` steps (signed, gated on `steps.sign.outputs.signing == 'true'`, and
+    unsigned), so the password secret is only ever in a signing-gated step. `check_release_assets.py` does not assert
+    the prerelease flag, because `gh release edit --prerelease` sets it at publish time; it fails on duplicate assets
+    and on a malformed `SHA256SUMS.txt`. The release footer lives in `tools/release/release-footer.md`.
+    `check_signing_scope.py --self-test` also checks the real `build.yml`. The asset list (`RELEASES` included) follows
+    the spec's verified pack output; that `vpk upload` uploads exactly these files is unverified (docs unreachable) and
+    is confirmed by M-DIST-1; if it differs, `expected_assets` changes with the evidence.
+12. **Conditional `environment:`** (risk 3) is used as specified. Whether GitHub accepts the empty name for untagged
+    runs is only observable in CI; if it does not, steps 5–12 move into a tag-only `release` job and this list says so.
+13. **Threat model**: `docs/security/threat-model.md` does not exist yet (08b creates it). The T8 line ("the updater
+    process is started by Velopack (pinned, hash-verified packages), never by Envoy code") is in
+    `docs/architecture.md` (Updates) for 08b to carry over.
+14. **Smoke**: `updates-portable` also asserts that `DownloadAsync` on a portable copy changes nothing and that no
+    restart is offered; `CheckDiagnostics` asserts the report's `Updates:` line (REQ-DIST-31).
+15. **REQ-DIST-30 (COULD)** is built: `ENVOY_UPDATE_FEED` set to an existing, fully qualified, non-UNC local folder
+    makes the installed copy use a Velopack `SimpleFileSource`; any other value is ignored with a Warning.
+16. **Docs**: `docs/building.md` gained "build the installer locally"; `README.md`'s documentation table links
+    `docs/installing.md`. `docs/privacy.md` is unchanged (no new data file; 07a adds the data-flow section).
+

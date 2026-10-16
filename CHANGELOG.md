@@ -58,6 +58,20 @@ versioning: [SemVer](https://semver.org/).
 - The Live view shows **Understood as**: how Envoy split what it read into messages, notices and leftover lines, and
   **Copy as test capture** copies what it read (with positions) for a bug report. It contains chat and names, so
   anonymise it before sharing.
+- **Installer with automatic updates.** Releases now include `Envoy-win-Setup.exe`, which installs Envoy for your
+  Windows account (no admin), adds it to the Start menu and *Apps & features*, downloads new versions in the
+  background (never during a game) and offers **Restart to update**; a downloaded update is otherwise applied the next
+  time Envoy starts (hold Shift to skip that). The portable `Envoy.exe` is still published; it tells you about new
+  versions and offers **Download** and **Get the installer**, but never changes itself. See
+  [Installing & updates](docs/installing.md).
+- The War Room's update banner shows the new version and its release notes (**What's new**), **Skip** for a version
+  you don't want, and after an update says once "Envoy was updated to …".
+- **Update channel** (Appearance › Startup & updates): Stable, or Beta for early builds (GitHub prereleases).
+  Switching back to Stable never installs an older version.
+- About › Version & updates: the version (with its beta suffix), install type, channel, the update status and a
+  **Check for updates** button that always works, also with automatic checks off and in safe mode.
+- Releases list `SHA256SUMS.txt` for both downloads, use the `CHANGELOG.md` section as their notes, and are published
+  only once every file is uploaded and checked. Signed releases are possible once a certificate is configured.
 
 ### Changed
 - **Translation never hangs.** A slow provider used to leave a line on "translating…" forever and the fallback was
@@ -103,6 +117,13 @@ versioning: [SemVer](https://semver.org/).
   screen-copy surfaces are kept between frames.
 - Selecting the chat area and placing the overlay are exact on every monitor, including mixed scaling (for example a
   150% laptop next to a 100% monitor).
+- **Update checks** ask GitHub at start-up at most once an hour and every 12 hours while Envoy runs (it used to check
+  at every start only). "Tell me when a new version is released" is now **Check for updates automatically**: off
+  means no automatic update request at all; safe mode never checks by itself. A failed background check stays
+  silent; a check you start says what went wrong and offers **Retry**. Prereleases are compared correctly
+  (`1.2.0-beta.2` is older than `1.2.0`).
+- Uninstalling the installed Envoy removes the "Start Envoy when I sign in to Windows" entry; with that option on,
+  each start points it at the exe that is running.
 
 ### Security
 - Links, files and folders are opened only through one launcher that accepts web links, Windows Settings pages and
@@ -110,6 +131,15 @@ versioning: [SemVer](https://semver.org/).
   Envoy's own repository, so a spoofed update response can't open a local program or a network share.
 
 ### Internal
+- Distribution and updates (spec 06): `Envoy.Core.Updates` (`ReleaseVersion`, `IUpdateBackend`, `GitHubReleaseBackend`,
+  the channel-aware `UpdateChecker`, `UpdatePreferences`, `UpdateCoordinator`, `UpdateViewBuilder`, `UpdateText`,
+  `ReleaseNotesText`, `UserAgents`, `PendingUpdatePolicy`); `Program.Main` runs Velopack 1.2.161 (`vpk` pinned in
+  `.config/dotnet-tools.json`); `VelopackUpdateBackend`, `UpdateActions`, `IShell.RestartToUpdate`, start-up slot 5
+  (pending apply) and slot 9 (`StartUpdates`); typecheck rules UPD1/UPD2; smoke sections `updates(<palette>)` and
+  `updates-portable` with `{palette}-update.png`; the release workflow (folder publish, `vpk pack`/`upload`, draft →
+  asset assertion → publish, tag-only signing under the `release` environment, winget manifests) and its
+  `tools/release/` checks; the diagnostics report has an "Updates" line. The User-Agent's Envoy token now carries the
+  real version.
 - Capture engine (spec 05): `Envoy.Core.Capture` (`CaptureOptions` snapshot, `RegionMath`, `CaptureGate`,
   `AdaptivePollPolicy`, `FramePool`, `FrameProcessing`, `SingleFlight`, `LoopWatchdog`, `CaptureMetrics`,
   `CaptureText`/`CaptureErrors`, `SoakBudget`), `OcrMerger.MergeLines` with row geometry and the `OcrLine`
