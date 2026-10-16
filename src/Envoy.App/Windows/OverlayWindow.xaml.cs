@@ -119,7 +119,10 @@ public partial class OverlayWindow : Window, INotifyPropertyChanged
     private void UpdateEmptyHint() =>
         EmptyHint.Visibility = _editMode && _items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-    /// <summary>Places the overlay relative to the chat region (or at the saved free position).</summary>
+    /// <summary>
+    /// Places the overlay relative to the chat region, or at the saved free position. Anchored placement is computed in
+    /// physical pixels and applied with SetWindowPos, so it is right on every monitor whatever its scale (REQ-CAP-33).
+    /// </summary>
     public void Reposition()
     {
         if (_hwnd == IntPtr.Zero) return;
@@ -131,18 +134,26 @@ public partial class OverlayWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        // Region is in physical pixels; convert using this window's DPI.
+        // The overlay's own size in physical pixels at its current DPI.
         var dpi = VisualTreeHelper.GetDpi(this);
-        double x = region.X / dpi.DpiScaleX, y = region.Y / dpi.DpiScaleY;
-        double w = region.Width / dpi.DpiScaleX, h = region.Height / dpi.DpiScaleY;
-        var height = ActualHeight > 0 ? ActualHeight : 100;
-        (Left, Top) = S.Anchor switch
+        var width = (int)Math.Round((ActualWidth > 0 ? ActualWidth : Width) * dpi.DpiScaleX);
+        var height = (int)Math.Round((ActualHeight > 0 ? ActualHeight : 100) * dpi.DpiScaleY);
+        var gap = (int)Math.Round(6 * dpi.DpiScaleY);
+        var (x, y) = S.Anchor switch
         {
-            OverlayAnchor.AboveChat => (x, y - height - 6),
-            OverlayAnchor.BelowChat => (x, y + h + 6),
-            OverlayAnchor.RightOfChat => (x + w + 8, y + h - height),
-            _ => (S.Left, S.Top),
+            OverlayAnchor.AboveChat => (region.X, region.Y - height - gap),
+            OverlayAnchor.BelowChat => (region.X, region.Y + region.Height + gap),
+            OverlayAnchor.RightOfChat => (region.X + region.Width + (int)Math.Round(8 * dpi.DpiScaleX), region.Y + region.Height - height),
+            _ => (region.X, region.Y),
         };
+        _ = Native.SetWindowPos(_hwnd, IntPtr.Zero, x, y, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
+    }
+
+    /// <summary>Moving to a monitor with another scale changes the overlay's physical size: place it again.</summary>
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        if (!_editMode) Dispatcher.BeginInvoke(DispatcherPriority.Loaded, Reposition);
     }
 
     public void ToggleEditMode()

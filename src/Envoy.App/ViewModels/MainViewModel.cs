@@ -32,6 +32,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _hostChanged = (_, _) => Notify(nameof(Host));
         host.PropertyChanged += _hostChanged;
         host.HotkeyResultsChanged += OnHotkeyResultsChanged;
+        host.RegionMoved += OnRegionMoved;
+        host.GameWindowChanged += OnRegionMoved;
 
         ReplyLanguages = [new Option(LanguageCatalog.Auto, "Auto — whatever they last wrote in"), .. Languages.Select(l => new Option(l.Code, l.DisplayName))];
         Games = [new Option(GameCatalog.Any, "Detect automatically"), .. GameCatalog.All.Select(g => new Option(g.Id, g.Name))];
@@ -133,8 +135,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void RefreshStatus()
     {
-        Notify(nameof(RegionText));
-        Notify(nameof(HasRegion));
+        OnRegionMoved();
         Notify(nameof(UsageText));
         Notify(nameof(OcrSummary));
         Notify(nameof(HotkeyErrors));
@@ -187,6 +188,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _disposed = true;
         Host.PropertyChanged -= _hostChanged;
         Host.HotkeyResultsChanged -= OnHotkeyResultsChanged;
+        Host.RegionMoved -= OnRegionMoved;
+        Host.GameWindowChanged -= OnRegionMoved;
         DetachTranslationHealth();
         CapturePreview.Dispose();
     }

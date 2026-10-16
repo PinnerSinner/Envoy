@@ -11,7 +11,9 @@ namespace Envoy.App.Windows;
 
 /// <summary>
 /// Full-screen "drag a rectangle" picker. One instance covers each monitor; the result is in physical screen
-/// pixels so it lines up with the capture code regardless of display scaling.
+/// pixels so it lines up with the capture code regardless of display scaling. Conversions go through
+/// <see cref="Visual.PointToScreen"/>/<see cref="Visual.PointFromScreen"/>, which use this window's own monitor DPI
+/// (REQ-CAP-31).
 /// </summary>
 public partial class RegionSelectorWindow : Window
 {
@@ -61,15 +63,32 @@ public partial class RegionSelectorWindow : Window
         Native.SetWindowPos(hwnd, Native.HWND_TOPMOST, _screen.X, _screen.Y, _screen.Width, _screen.Height, Native.SWP_SHOWWINDOW);
     }
 
+    /// <summary>For the size label only; positions always convert through PointToScreen/PointFromScreen.</summary>
     private double Scale => VisualTreeHelper.GetDpi(this).DpiScaleX;
 
     private void ShowCurrent()
     {
-        if (_current is null || _current.IsEmpty) return;
-        var s = Scale;
-        var r = new Rect((_current.X - _screen.X) / s, (_current.Y - _screen.Y) / s, _current.Width / s, _current.Height / s);
+        if (_current is null || _current.IsEmpty || PresentationSource.FromVisual(Surface) is null) return;
+        var r = new Rect(
+            Surface.PointFromScreen(new Point(_current.X, _current.Y)),
+            Surface.PointFromScreen(new Point(_current.X + _current.Width, _current.Y + _current.Height)));
         if (r.Right < 0 || r.Bottom < 0 || r.Left > ActualWidth || r.Top > ActualHeight) return;
         Draw(r);
+    }
+
+    /// <summary>
+    /// The physical screen rectangle for a rectangle in <see cref="Surface"/> coordinates (DIPs): both corners go
+    /// through <see cref="Visual.PointToScreen"/>, normalised with min/max.
+    /// </summary>
+    internal ScreenRegion ToScreen(Rect surfaceRect)
+    {
+        var a = Surface.PointToScreen(surfaceRect.TopLeft);
+        var b = Surface.PointToScreen(surfaceRect.BottomRight);
+        var left = (int)Math.Round(Math.Min(a.X, b.X));
+        var top = (int)Math.Round(Math.Min(a.Y, b.Y));
+        var right = (int)Math.Round(Math.Max(a.X, b.X));
+        var bottom = (int)Math.Round(Math.Max(a.Y, b.Y));
+        return new ScreenRegion(left, top, right - left, bottom - top);
     }
 
     private void OnDown(object sender, MouseButtonEventArgs e)
@@ -93,12 +112,7 @@ public partial class RegionSelectorWindow : Window
         var rect = new Rect(start, e.GetPosition(Surface));
         if (rect.Width < 20 || rect.Height < 12) return; // a click, not a drag
 
-        var s = Scale;
-        Completed?.Invoke(new ScreenRegion(
-            _screen.X + (int)Math.Round(rect.X * s),
-            _screen.Y + (int)Math.Round(rect.Y * s),
-            (int)Math.Round(rect.Width * s),
-            (int)Math.Round(rect.Height * s)));
+        Completed?.Invoke(ToScreen(rect));
     }
 
     private void OnKey(object sender, KeyEventArgs e)

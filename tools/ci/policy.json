@@ -8,7 +8,10 @@
       "gdi32!CreateCompatibleDC", "gdi32!CreateCompatibleBitmap", "gdi32!SelectObject", "gdi32!DeleteObject",
       "gdi32!DeleteDC", "gdi32!SetStretchBltMode", "gdi32!StretchBlt", "gdi32!GetDIBits",
       "user32!GetAsyncKeyState", "user32!MonitorFromPoint", "user32!MonitorFromWindow", "user32!GetMonitorInfoW",
-      "shcore!GetDpiForMonitor"
+      "shcore!GetDpiForMonitor",
+      "user32!GetClientRect", "user32!ClientToScreen", "user32!WindowFromPoint", "user32!GetAncestor",
+      "user32!EnumWindows", "user32!IsWindowVisible", "user32!GetWindow", "user32!MonitorFromRect",
+      "user32!GetThreadDpiAwarenessContext", "user32!AreDpiAwarenessContextsEqual", "user32!GetGuiResources"
     ],
     "denied": [
       "ReadProcessMemory", "WriteProcessMemory", "OpenProcess", "OpenThread", "VirtualAllocEx", "VirtualProtectEx",

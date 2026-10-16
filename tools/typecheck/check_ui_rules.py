@@ -13,6 +13,8 @@ R8  SpecialFolder.ApplicationData / APPDATA only in Envoy.Core/Settings/Settings
 R9  no `_ = <expr>Async(` discard in Envoy.App (use `.Forget(log, what)`)               REQ-REL-16
 R10 Windows/ComposeWindow.xaml.cs uses no DialogService; App.xaml.cs calls
     DialogService.ShowWarning at most once (the crash-loop message)                     REQ-REL-19
+R11 Services/ChatWatcher.cs passes only CancellationToken.None to ProcessAsync( and never
+    reads AppSettings or `.Settings` outside its usings (it reads the CaptureOptions snapshot)  REQ-CAP-42
 
 R8 also scans the sibling Envoy.Core folder (`<app dir>/../Envoy.Core`) when it exists.
 """
@@ -42,6 +44,9 @@ REQUIRED_FILES = (
     ]
 )
 
+WATCHER = "Services/ChatWatcher.cs"
+PROCESS_ASYNC = re.compile(r"\bProcessAsync\s*\(")
+WATCHER_SETTINGS = re.compile(r"\bAppSettings\b|\.Settings\b")
 APPDATA = re.compile(r"\bSpecialFolder\.ApplicationData\b|APPDATA")
 APPDATA_ALLOWED = "Envoy.Core/Settings/SettingsStore.cs"
 ASYNC_DISCARD = re.compile(r"(?<![\w.])_\s*=\s*(?!=)[^;]*?\w+Async\s*\(")
@@ -169,7 +174,51 @@ def check(root):
         for n in warnings[1:]:
             report(app, n, "R10", "DialogService.ShowWarning is only for the one crash-loop message")
 
+    watcher = os.path.join(root, *WATCHER.split("/"))
+    if os.path.exists(watcher):
+        text = _read(watcher)
+        lines = dict(_code_lines(text))
+        for m in PROCESS_ASYNC.finditer(text):
+            n = text.count("\n", 0, m.start()) + 1
+            if n not in lines:
+                continue  # a comment
+            args = _call_args(text, m.end() - 1)
+            parts = _split_args(args)
+            if len(parts) < 2 or parts[-1].strip() != "CancellationToken.None":
+                report(watcher, n, "R11", "the watcher must pass CancellationToken.None to ProcessAsync (contract §2.6)")
+        for n, line in lines.items():
+            if not line.lstrip().startswith("using ") and WATCHER_SETTINGS.search(line):
+                report(watcher, n, "R11", "the watcher reads settings only through the CaptureOptions snapshot (contract §7)")
+
     return problems
+
+
+def _call_args(text, open_paren):
+    """The text between the parenthesis at open_paren and its match."""
+    depth = 0
+    for i in range(open_paren, len(text)):
+        if text[i] == "(":
+            depth += 1
+        elif text[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return text[open_paren + 1:i]
+    return text[open_paren + 1:]
+
+
+def _split_args(args):
+    """Top-level comma-separated arguments."""
+    parts, depth, start = [], 0, 0
+    for i, c in enumerate(args):
+        if c in "([{<":
+            depth += 1
+        elif c in ")]}>":
+            depth -= 1
+        elif c == "," and depth == 0:
+            parts.append(args[start:i])
+            start = i + 1
+    parts.append(args[start:])
+    return [p for p in parts if p.strip()]
 
 
 def _app_sources(root):

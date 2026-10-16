@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices.WindowsRuntime;
+using Envoy.Core.Capture;
 using Envoy.Core.Languages;
 using Envoy.Core.Ocr;
 using Windows.Graphics.Imaging;
@@ -13,10 +15,17 @@ public sealed record OcrLanguageStatus(string Code, string Name, string WindowsT
 /// Wraps the OCR engine built into Windows 10/11. It is free, offline and fast, and supports every language the
 /// user has the Windows "Optical character recognition" feature installed for (Settings → Time &amp; language).
 /// </summary>
-public sealed class OcrService
+public sealed class OcrService(TimeProvider? time = null)
 {
     private readonly List<(string Code, OcrEngine Engine)> _engines = [];
     private readonly object _gate = new();
+    private readonly SingleFlight _flight = new(time ?? TimeProvider.System);
+
+    /// <summary>
+    /// True while a watcher OCR pass runs, including one abandoned after its timeout (REQ-CAP-26): the watcher skips OCR
+    /// until it really ends.
+    /// </summary>
+    public bool IsBusy => _flight.IsBusy;
 
     public IReadOnlyList<string> ActiveLanguages
     {
@@ -68,20 +77,45 @@ public sealed class OcrService
 
     public static uint MaxImageDimension => OcrEngine.MaxImageDimension;
 
-    public async Task<IReadOnlyList<OcrPass>> RecognizeAsync(CapturedImage image)
+    /// <summary>
+    /// The watcher's OCR pass (REQ-CAP-24..26): single-flight over all engines and bounded by <paramref name="timeout"/>,
+    /// which cancels the WinRT operations. The pooled pixels are wrapped in a length-bounded <c>IBuffer</c> view (no
+    /// managed copy) and copied into the bitmap before this returns, so <paramref name="frame"/> may be returned to its
+    /// pool as soon as the call ends, even after a timeout. Throws <see cref="SingleFlightBusyException"/> while busy and
+    /// <see cref="TimeoutException"/> on timeout.
+    /// </summary>
+    public Task<IReadOnlyList<OcrPass>> RecognizeAsync(FrameBuffer frame, TimeSpan timeout, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(frame);
+        return _flight.RunAsync(token =>
+        {
+            var bitmap = SoftwareBitmap.CreateCopyFromBuffer(frame.Array.AsBuffer(0, frame.Length),
+                BitmapPixelFormat.Bgra8, frame.Width, frame.Height, BitmapAlphaMode.Premultiplied);
+            return RecognizeAndDisposeAsync(bitmap, token);
+        }, timeout, ct);
+    }
+
+    /// <summary>One-shot OCR of a copied image (Scan &amp; translate, the smoke test). Not single-flight and not bounded.</summary>
+    public Task<IReadOnlyList<OcrPass>> RecognizeAsync(CapturedImage image)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        var bitmap = SoftwareBitmap.CreateCopyFromBuffer(
+            CryptographicBuffer.CreateFromByteArray(image.Pixels),
+            BitmapPixelFormat.Bgra8, image.Width, image.Height, BitmapAlphaMode.Premultiplied);
+        return RecognizeAndDisposeAsync(bitmap, CancellationToken.None);
+    }
+
+    private async Task<IReadOnlyList<OcrPass>> RecognizeAndDisposeAsync(SoftwareBitmap bitmap, CancellationToken ct)
+    {
+        using var owned = bitmap;
         List<(string Code, OcrEngine Engine)> engines;
         lock (_gate) engines = [.. _engines];
         if (engines.Count == 0) return [];
 
-        using var bitmap = SoftwareBitmap.CreateCopyFromBuffer(
-            CryptographicBuffer.CreateFromByteArray(image.Pixels),
-            BitmapPixelFormat.Bgra8, image.Width, image.Height, BitmapAlphaMode.Premultiplied);
-
         var passes = new List<OcrPass>(engines.Count);
         foreach (var (code, engine) in engines)
         {
-            var result = await engine.RecognizeAsync(bitmap);
+            var result = await engine.RecognizeAsync(owned).AsTask(ct);
             var lines = result.Lines
                 .Where(l => l.Words.Count > 0)
                 .Select(l =>

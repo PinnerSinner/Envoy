@@ -15,9 +15,11 @@
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Region" Style="{StaticResource Text.Label}" />
-                        <TextBlock Grid.Column="1" Text="{Binding RegionText}" Style="{StaticResource Text.Label}" />
+                        <TextBlock Grid.Column="1" Text="{Binding RegionText, Mode=OneWay}" Style="{StaticResource Text.Label}" TextWrapping="Wrap" />
                         <Button Grid.Column="2" Content="Select chat area" Command="{Binding SelectRegionCommand}" />
                     </Grid>
+                    <TextBlock Text="{Binding RegionHint, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="220,0,0,6"
+                               Visibility="{Binding HasRegionHint, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Game" Style="{StaticResource Text.Label}" />
@@ -60,7 +62,23 @@
             <ContentControl Style="{StaticResource OrnateFrame}">
                 <StackPanel>
                     <TextBlock Text="Fine tuning" Style="{StaticResource Text.H2}" />
-                    <Grid Style="{StaticResource SettingRow}">
+                    <CheckBox Content="Adapt reading speed to chat activity" IsChecked="{Binding Settings.Capture.AdaptivePolling}"
+                              AutomationProperties.Name="Adapt reading speed to chat activity" />
+                    <Grid Style="{StaticResource SettingRow}" Visibility="{Binding Settings.Capture.AdaptivePolling, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Fastest check (chat is moving)" Style="{StaticResource Text.Label}" />
+                        <Slider Grid.Column="1" Minimum="150" Maximum="1000" TickFrequency="50" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.MinIntervalMs}"
+                                AutomationProperties.Name="Fastest check" />
+                        <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.MinIntervalMs, StringFormat='{}{0} ms'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}" Visibility="{Binding Settings.Capture.AdaptivePolling, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Slowest check (chat is quiet)" Style="{StaticResource Text.Label}" />
+                        <Slider Grid.Column="1" Minimum="500" Maximum="5000" TickFrequency="100" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.MaxIntervalMs}"
+                                AutomationProperties.Name="Slowest check" />
+                        <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.MaxIntervalMs, StringFormat='{}{0} ms'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
+                    </Grid>
+                    <Grid Style="{StaticResource SettingRow}" Visibility="{Binding Settings.Capture.AdaptivePolling, Converter={StaticResource InverseBoolToVisibility}}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Check for new messages every" Style="{StaticResource Text.Label}" />
                         <Slider Grid.Column="1" Minimum="250" Maximum="3000" TickFrequency="50" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.IntervalMs}" />
@@ -82,6 +100,16 @@
                     <CheckBox Content="Invert colours (try this if light-on-dark text reads poorly)" IsChecked="{Binding Settings.Capture.Invert}" />
                     <CheckBox Content="Start reading chat when Envoy starts" IsChecked="{Binding Settings.StartCapturingAutomatically}" />
                     <CheckBox Content="Only read chat while an Age game is running (saves CPU)" IsChecked="{Binding Settings.Capture.OnlyWhileGameRuns}" />
+                    <CheckBox Content="Pause while another window covers the chat area" IsChecked="{Binding Settings.Capture.PauseWhenCovered}"
+                              AutomationProperties.Name="Pause while another window covers the chat area" />
+                    <CheckBox Content="Pause when the game isn't the active window" IsChecked="{Binding Settings.Capture.PauseWhenNotForeground}"
+                              AutomationProperties.Name="Pause when the game isn't the active window" />
+                    <Grid Style="{StaticResource SettingRow}" Visibility="{Binding HasCaptureBackendChoice, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Capture method" Style="{StaticResource Text.Label}" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding CaptureBackends}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  SelectedValue="{Binding Settings.Capture.Backend}" AutomationProperties.Name="Capture method" />
+                    </Grid>
                 </StackPanel>
             </ContentControl>
 
@@ -91,6 +119,8 @@
                         <TextBlock x:Name="PreviewStats" Text="{Binding CapturePreview.Stats}" DockPanel.Dock="Right" Style="{StaticResource Text.Caption}" />
                         <TextBlock Text="Live view" Style="{StaticResource Text.H2}" />
                     </DockPanel>
+                    <TextBlock x:Name="PreviewHealth" Text="{Binding CapturePreview.HealthText, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                    <TextBlock x:Name="PreviewMetrics" Text="{Binding CapturePreview.MetricsText, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,4" />
                     <TextBlock Text="What Envoy sees (after enhancement) and what it read. Open a game with chat on screen to tune the settings above." Style="{StaticResource Text.Caption}" Margin="0,0,0,8" />
                     <Border BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="1" Background="{DynamicResource Bg.Input}" MinHeight="80">
                         <Image x:Name="PreviewImage" Source="{Binding CapturePreview.Image}" Stretch="Uniform" MaxHeight="240" HorizontalAlignment="Left" RenderOptions.BitmapScalingMode="HighQuality" />

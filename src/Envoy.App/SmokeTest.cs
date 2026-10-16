@@ -11,9 +11,12 @@ using Envoy.App.Controls;
 using Envoy.App.Interop;
 using Envoy.App.Pages;
 using Envoy.App.Services;
+using Envoy.App.Services.Capture;
 using Envoy.App.ViewModels;
 using Envoy.App.Windows;
+using Envoy.Core.Capture;
 using Envoy.Core.Diagnostics;
+using Envoy.Core.Games;
 using Envoy.Core.Notifications;
 using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
@@ -118,8 +121,21 @@ internal static class SmokeTest
             var image = ScreenCapturer.Capture(new ScreenRegion(0, 0, 320, 120), 2.0);
             ScreenCapturer.Preprocess(image, true, 1.3, false);
             var passes = await host.Ocr.RecognizeAsync(image);
+            using (var backend = new GdiCaptureBackend())
+            using (var frame = backend.Capture(new CaptureTarget(new ScreenRegion(0, 0, 320, 120), IntPtr.Zero, 640, 240), new FramePool()))
+            {
+                // The watcher's bounded, single-flight overload (REQ-CAP-25, 26).
+                var bounded = await host.Ocr.RecognizeAsync(frame, TimeSpan.FromSeconds(10), CancellationToken.None);
+                Check(bounded.Count == passes.Count, $"the bounded OCR overload ran {bounded.Count} engines, the one-shot one {passes.Count}");
+                Check(!host.Ocr.IsBusy, "OCR is still busy after the bounded call returned");
+            }
             Log($"capture+ocr: {image.Width}x{image.Height}, {passes.Count} engines");
             Section("capture-ocr", sw);
+
+            // ---- 05: the capture engine on a real window, once ----
+            await CaptureEngineSmokeAsync(host, log);
+            Check(sw.Elapsed <= CaptureEngineBudget, $"capture-engine took {sw.ElapsedMilliseconds} ms (budget {CaptureEngineBudget.TotalMilliseconds:0} ms)");
+            Section("capture-engine", sw);
 
             Check(PageIds.All.SequenceEqual(LegacyPageNames), $"PageIds.All is [{string.Join(", ", PageIds.All)}], expected the legacy names in order");
             Section("page-ids", sw);
@@ -332,6 +348,180 @@ internal static class SmokeTest
         catch (Exception ex)
         {
             Warn($"provider warm-up failed: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    // ---------------- 05 checks ----------------
+
+    private static readonly TimeSpan CaptureEngineBudget = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// The capture engine's Win32 glue on a real captioned window (AC-CAP-2, 5, 12, 13, 18, 19): window probing,
+    /// window-relative regions across a move, minimise and restore, DIP-to-physical conversion in the region selector,
+    /// steady-state allocations, the backend fallback, and a dedicated watcher with a preview lease. Its pipeline has an
+    /// offline translator, so nothing leaves the runner.
+    /// </summary>
+    private static async Task CaptureEngineSmokeAsync(AppHost host, LogHub log)
+    {
+        // 1. A captioned 640×360 "game" with chat-like text, on top so nothing covers it.
+        var text = new TextBlock
+        {
+            Text = "[All] 小明: 你好，再来一局？\nKim: ㅈㅈ\nBob: nice wall bro\nСокол: хорошая стена",
+            FontSize = 18,
+            Margin = new Thickness(24),
+        };
+        text.SetResourceReference(TextBlock.ForegroundProperty, "Text.Primary");
+        var game = new Window
+        {
+            Title = "Envoy smoke game",
+            Width = 640,
+            Height = 360,
+            Left = 80,
+            Top = 80,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            Topmost = true,
+            ShowActivated = false,
+            Content = text,
+        };
+        game.SetResourceReference(Control.BackgroundProperty, "Bg.Panel");
+        game.Show();
+        await Pump();
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(game).Handle;
+            Check(GameWindowTracker.IsThreadPerMonitorV2(), "the UI thread is not per-monitor DPI aware (v2)");
+
+            // 2. Probing (AC-CAP-2).
+            var fake = new RunningGame(GameCatalog.Find("aoe2de")!, Environment.ProcessId, hwnd);
+            var info = GameWindowTracker.Observe(fake, 0);
+            Check(info is not null, "Observe found no window for the smoke game");
+            Check(info!.Handle == hwnd, "Observe returned another window");
+            Check(!info.Minimized, "the smoke game reads as minimised");
+            Check(info.HasCaption, "the captioned smoke game has no caption");
+            Check(RegionMath.Contains(info.WindowRect, info.ClientRect), $"WindowRect {info.WindowRect} does not contain ClientRect {info.ClientRect}");
+            Check(RegionMath.Contains(info.MonitorBounds, info.ClientRect), $"MonitorBounds {info.MonitorBounds} does not contain ClientRect {info.ClientRect}");
+            Check(GameWindowTracker.IsOnAnyMonitor(info.ClientRect), "the smoke game's client area is on no monitor");
+            Check(!GameWindowTracker.IsOnAnyMonitor(new ScreenRegion(-100000, -100000, 50, 50)), "a far off-screen area reads as on a monitor");
+
+            // 3. Window-relative round trip across a move of (+50, +30) physical px (AC-CAP-2).
+            var chosen = new ScreenRegion(info.ClientRect.X + 20, info.ClientRect.Y + 20, 300, 100);
+            var relative = RegionMath.ToWindowRelative(chosen, info.ClientRect);
+            Check(relative is not null, "a region inside the client area was not stored relative to it");
+            Check(Native.SetWindowPos(hwnd, IntPtr.Zero, info.WindowRect.X + 50, info.WindowRect.Y + 30, 0, 0,
+                Native.SWP_NOSIZE | Native.SWP_NOZORDER | Native.SWP_NOACTIVATE), "SetWindowPos failed");
+            await Pump();
+            var moved = GameWindowTracker.Observe(fake, 0)!;
+            var resolved = RegionMath.Resolve(relative!, moved.ClientRect);
+            Check(resolved == chosen with { X = chosen.X + 50, Y = chosen.Y + 30 }, $"after a (+50, +30) move the region resolved to {resolved}, not {chosen} moved");
+            Log($"capture-engine: client {info.ClientRect} → {moved.ClientRect}, region {chosen} → {resolved}");
+
+            // 4. Minimise and restore (AC-CAP-5).
+            CaptureObservation Observation(GameWindowInfo w) => new(true, GameWindowTracker.IsOnAnyMonitor(resolved), true, true,
+                w.Minimized, w.GameForeground, w.EnvoyForeground, RegionSource.WindowRelative, null);
+            var gate = new CaptureGateOptions(true, false, false, false);
+            game.WindowState = WindowState.Minimized;
+            await Pump();
+            var minimised = GameWindowTracker.Observe(fake, 0)!;
+            Check(minimised.Minimized, "the minimised smoke game does not read as minimised");
+            Check(CaptureGate.Evaluate(Observation(minimised), gate) == PauseReason.GameMinimized, "the gate does not pause for a minimised game");
+            game.WindowState = WindowState.Normal;
+            await Pump();
+            var restored = GameWindowTracker.Observe(fake, 0)!;
+            Check(!restored.Minimized, "the restored smoke game still reads as minimised");
+            Check(CaptureGate.Evaluate(Observation(restored), gate) == PauseReason.None, "the gate still pauses after restore");
+
+            // 5. The region selector converts DIPs to physical pixels through PointToScreen (AC-CAP-13).
+            var screen = System.Windows.Forms.Screen.PrimaryScreen!.Bounds;
+            var selector = new RegionSelectorWindow(screen, null);
+            selector.Show();
+            await Pump();
+            try
+            {
+                var scale = VisualTreeHelper.GetDpi(selector);
+                var physical = selector.ToScreen(new Rect(10, 20, 200, 100));
+                var expected = new ScreenRegion(screen.X + (int)Math.Round(10 * scale.DpiScaleX), screen.Y + (int)Math.Round(20 * scale.DpiScaleY),
+                    (int)Math.Round(200 * scale.DpiScaleX), (int)Math.Round(100 * scale.DpiScaleY));
+                Check(Math.Abs(physical.X - expected.X) <= 1 && Math.Abs(physical.Y - expected.Y) <= 1
+                    && Math.Abs(physical.Width - expected.Width) <= 1 && Math.Abs(physical.Height - expected.Height) <= 1,
+                    $"the selector converted (10, 20, 200, 100) DIPs to {physical}, expected {expected} ±1");
+            }
+            finally
+            {
+                selector.Close();
+            }
+
+            // 6. Steady-state allocations (AC-CAP-19, warning only) and the backend fallback (AC-CAP-18).
+            var pool = new FramePool();
+            using (var backend = new GdiCaptureBackend())
+            {
+                var target = new CaptureTarget(new ScreenRegion(0, 0, 320, 120), IntPtr.Zero, 640, 240);
+                var options = new PreprocessOptions(true, 1.3, false);
+                void OneFrame()
+                {
+                    using var frame = backend.Capture(target, pool);
+                    _ = FrameProcessing.Analyze(frame.Pixels);
+                    FrameProcessing.Preprocess(frame.Pixels, options);
+                }
+                OneFrame();
+                OneFrame();
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                for (var i = 0; i < 20; i++) OneFrame();
+                var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+                Log($"[smoke] capture-engine steady-state alloc {allocated} B for 20 captures of 320x120 at 2x");
+                if (allocated >= 307_200) Warn($"capture steady-state allocated {allocated} B for 20 frames (expected < 307200)");
+                Check(pool.Outstanding == 0, $"{pool.Outstanding} frame buffers were not returned");
+            }
+            using (var fallback = CaptureBackendFactory.Create("nonsense"))
+                Check(fallback.Id == CaptureBackendIds.Gdi, $"an unknown backend id gave {fallback.Id}, not gdi");
+
+            // 7. A dedicated watcher on the smoke game, with a preview lease (AC-CAP-12).
+            var settings = new AppSettings();
+            settings.Capture.OnlyWhileGameRuns = false;
+            settings.Capture.WindowRegions["aoe2de"] = new WindowRelativeRegion(20, 20, 300, 100, restored.ClientRect.Width, restored.ClientRect.Height);
+            var captureOptions = CaptureOptions.From(settings);
+            var observed = new List<GameWindowInfo?>();
+            var frames = new List<CaptureFrame>();
+            var pipeline = new ChatPipeline(new EchoTranslator(TimeSpan.Zero), new ChatPipelineOptions());
+            var watcher = new ChatWatcher(host.Ocr, pipeline, () => captureOptions, () => fake, log.For("Capture"), TimeProvider.System, w =>
+            {
+                lock (observed) observed.Add(w);
+            });
+            watcher.FrameCaptured += f =>
+            {
+                lock (frames) frames.Add(f);
+            };
+            try
+            {
+                using (watcher.BeginPreview())
+                {
+                    watcher.Start();
+                    var wait = Stopwatch.StartNew();
+                    while (wait.Elapsed < TimeSpan.FromSeconds(10) && (watcher.Metrics.FramesCaptured < 3 || frames.Count == 0)) await Task.Delay(100);
+                    var metrics = watcher.Metrics;
+                    Log($"capture-engine watcher: {CaptureText.Stats(metrics)}; {CaptureText.Health(metrics)}; state {watcher.State}");
+                    Check(metrics.FramesCaptured >= 3, $"the watcher captured {metrics.FramesCaptured} frames in 10 s");
+                    Check(metrics.Health != CaptureHealth.Failing, $"the watcher is failing: {watcher.LastError}");
+                    Check(metrics.Backend == CaptureBackendIds.Gdi, $"the watcher used backend {metrics.Backend}");
+                    Check(watcher.CurrentRegionSource == RegionSource.WindowRelative, $"the watcher resolved a {watcher.CurrentRegionSource} region");
+                    lock (observed) Check(observed.Any(o => o?.Handle == hwnd), "windowObserved never saw the smoke game's window");
+                    CaptureFrame first;
+                    lock (frames) first = frames[0];
+                    Check(first.Image.Pixels.Length == first.Image.Width * first.Image.Height * 4,
+                        $"a Live view frame has {first.Image.Pixels.Length} bytes for {first.Image.Width}×{first.Image.Height}");
+                    watcher.Stop();
+                    Check(!watcher.IsRunning && watcher.State == WatcherState.Stopped, "the watcher did not stop");
+                }
+                Check(!watcher.IsPreviewing, "the smoke watcher's preview lease is still held");
+            }
+            finally
+            {
+                watcher.Dispose();
+            }
+        }
+        finally
+        {
+            game.Close();
+            await Pump();
         }
     }
 

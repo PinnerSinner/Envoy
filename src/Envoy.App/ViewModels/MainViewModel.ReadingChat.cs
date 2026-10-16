@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
 using Envoy.App.Services;
+using Envoy.App.Services.Capture;
+using Envoy.Core.Capture;
+using Envoy.Core.Games;
 using Envoy.Core.Languages;
 
 namespace Envoy.App.ViewModels;
@@ -13,11 +16,41 @@ public sealed partial class MainViewModel
     /// <summary>The live view. ReadingChatPage switches it on while the page is visible.</summary>
     public CapturePreviewViewModel CapturePreview { get; }
 
-    public string RegionText => Host.Watcher.CurrentRegion is { IsEmpty: false } r
-        ? $"{r.Width} × {r.Height} px at ({r.X}, {r.Y})"
-        : "Not set yet — click “Select chat area”";
+    /// <summary>The chat area's size and whether it follows the game window or is a fixed screen position (REQ-CAP-8).</summary>
+    public string RegionText
+    {
+        get
+        {
+            if (Host.Watcher.CurrentRegion is not { IsEmpty: false } r) return CaptureText.RegionNotSet;
+            if (Host.Watcher.CurrentRegionSource != RegionSource.WindowRelative) return CaptureText.RegionFixed(r);
+            var game = GameCatalog.Find(Host.CurrentGameId)?.Name ?? Host.Game?.Profile.Name ?? Host.CurrentGameId;
+            return CaptureText.RegionFollows(r.Width, r.Height, game);
+        }
+    }
+
+    /// <summary>Asks for a re-select when the game's size changed since the chat area was chosen; "" otherwise.</summary>
+    public string RegionHint => Host.Watcher.CurrentRegionSource == RegionSource.WindowRelative && Host.Watcher.ClientSizeDiffers
+        ? CaptureText.RegionResizedHint
+        : "";
+
+    public bool HasRegionHint => RegionHint.Length > 0;
 
     public bool HasRegion => Host.Watcher.CurrentRegion is { IsEmpty: false };
+
+    /// <summary>The capture methods this machine offers ("Capture method"; collapsed while there is only one).</summary>
+    public IReadOnlyList<Option> CaptureBackends { get; } =
+        [.. CaptureBackendFactory.Available().Select(b => new Option(b.Id, b.Label))];
+
+    public bool HasCaptureBackendChoice => CaptureBackends.Count > 1;
+
+    /// <summary>Re-reads the region row when the game window moves or the resolved region changes.</summary>
+    private void OnRegionMoved()
+    {
+        Notify(nameof(RegionText));
+        Notify(nameof(RegionHint));
+        Notify(nameof(HasRegionHint));
+        Notify(nameof(HasRegion));
+    }
 
     public string OcrSummary => Host.Ocr.ActiveLanguages.Count == 0
         ? "No OCR languages available"

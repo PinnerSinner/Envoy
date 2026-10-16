@@ -59,7 +59,8 @@ public partial class App : Application, IShell
 
         // 2. Log bootstrap and the global handlers. The smoke test adds its own file sink on its temp data folder.
         var smoke = e.Args.Contains("--smoke-test");
-        _dataFolder = smoke ? null : Path.GetDirectoryName(SettingsStore.DefaultPath);
+        var soak = e.Args.Contains(SoakTest.Flag);
+        _dataFolder = smoke || soak ? null : Path.GetDirectoryName(SettingsStore.DefaultPath);
         var (hub, recent, _) = LogBootstrap.Create(_dataFolder);
         _hub = hub;
         _recent = recent;
@@ -70,10 +71,15 @@ public partial class App : Application, IShell
         _handlers = GlobalExceptionHandlers.Install(this, policy, hub.For(UnhandledErrorPolicy.Category));
         SessionEnding += OnSessionEnding;
 
-        // 3. Smoke branch. [08b --ocr-e2e] [05 --soak]
+        // 3. Smoke branch. [08b --ocr-e2e]
         if (smoke)
         {
             SmokeTest.Run(this, e.Args, hub, recent);
+            return;
+        }
+        if (soak)
+        {
+            SoakTest.Run(this, e.Args, hub);
             return;
         }
 
@@ -120,6 +126,7 @@ public partial class App : Application, IShell
             _overlay = new OverlayWindow(Host);
             if (Host.Settings.Overlay.Visible) _overlay.Show();
             Host.SettingsApplied += SyncOverlayVisibility;
+            Host.RegionMoved += RepositionOverlay; // the anchored overlay follows a moved game window (REQ-CAP-7)
         }
         if (plan.RegisterHotkeys)
         {
@@ -262,6 +269,8 @@ public partial class App : Application, IShell
     }
 
     public void ToggleOverlayEditMode() => _overlay?.ToggleEditMode();
+
+    private void RepositionOverlay() => _overlay?.Reposition();
 
     /// <inheritdoc />
     public void ExitApp() => ExitApp(null);

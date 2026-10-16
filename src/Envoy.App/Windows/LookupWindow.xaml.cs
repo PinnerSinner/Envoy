@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using Envoy.App.Services;
+using Envoy.Core.Capture;
 using Envoy.Core.Languages;
 using Envoy.Core.Ocr;
 using Envoy.Core.Settings;
@@ -50,7 +51,7 @@ public partial class LookupWindow : Window
         try
         {
             var cfg = _host.Settings.Capture;
-            var scale = Math.Min(Math.Clamp(cfg.Upscale, 1, 4), Math.Min((double)OcrService.MaxImageDimension / region.Width, (double)OcrService.MaxImageDimension / region.Height));
+            var scale = ScreenCapturer.ScaleFor(region, cfg.Upscale);
             var image = await Task.Run(() =>
             {
                 var img = ScreenCapturer.Capture(region, scale);
@@ -69,6 +70,10 @@ public partial class LookupWindow : Window
             Status.Text = "Translating…";
             var result = await _host.Translator.TranslateAsync(new TranslationRequest(original, _host.Settings.MyLanguage));
             ShowResult(original, result.Text, result.DetectedSourceLanguage);
+        }
+        catch (CaptureException)
+        {
+            Status.Text = "⚠ " + CaptureText.ScreenUnreadable;
         }
         catch (Exception ex) when (ex is TranslationException or InvalidOperationException or HttpRequestException)
         {

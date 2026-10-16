@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Threading;
 using Envoy.App.Services;
+using Envoy.Core.Capture;
 using Envoy.Core.Chat;
 using Envoy.Core.Diagnostics;
 using Envoy.Core.Games;
@@ -58,11 +59,13 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     private readonly TranslatorFactory _factory;
     private readonly IDisposable _translationLogging;
     private readonly DispatcherTimer _gameTimer;
+    private readonly DispatcherTimer _windowTimer;
     private readonly DispatcherTimer _saveTimer;
     private ITranslator _translator;
     private ITranslator _composeTranslator;
     private IReadOnlyList<string> _activeProviderIds = [];
-    private RunningGame? _game;
+    private volatile RunningGame? _game; // written on the UI thread, read by the capture loop
+    private CaptureOptions _captureOptions;
     private string _providerStatus = "";
     private UpdateInfo? _update;
     private bool _disposed;
@@ -102,16 +105,14 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         (_translator, _composeTranslator) = BuildTranslator();
 
         Phrases = PhraseBook.LoadWithUserFile(UserPhrasesPath);
-        Ocr = new OcrService();
+        Ocr = new OcrService(Time);
         // [04 ChatFormatCatalog]
         Pipeline = new ChatPipeline(_translator, PipelineOptions());
         Outgoing = new OutgoingTranslator(() => _composeTranslator, Phrases);
-        // [05 ChatWatcher rewrite]
-        Watcher = new ChatWatcher(Ocr, Pipeline, () => Settings, () => CurrentGameId)
-        {
-            Log = _captureLog,
-            ShouldRead = () => !Settings.Capture.OnlyWhileGameRuns || _game is not null || Settings.Game != GameCatalog.Any,
-        };
+        // 7: ChatWatcher (05). The loop reads settings only through the CaptureOptions snapshot (contract §7).
+        _captureOptions = CaptureOptions.From(Settings);
+        Watcher = new ChatWatcher(Ocr, Pipeline, () => CaptureOptions, () => _game, _captureLog, Time, PublishGameWindow);
+        Watcher.RegionChanged += OnWatcherRegionChanged;
         Transcript = new TranscriptWriter(LogsFolder);
         // [06 UpdateCoordinator] [07a NoticeCenter, skipped in safe mode]
 
@@ -126,6 +127,8 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
             RefreshGame();
             RefreshProviderStatus(); // a cooling-down period may have ended
         }, _ui);
+        // The game window is published every second even while capture is stopped (contract §2.4).
+        _windowTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => RefreshGameWindow(), _ui) { IsEnabled = false };
         _saveTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(600), DispatcherPriority.Background, (_, _) => SaveNow(), _ui) { IsEnabled = false };
     }
 
@@ -226,18 +229,40 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public RunningGame? Game => _game;
+
+    /// <summary>The capture settings snapshot the watcher reads (contract §7); republished by ApplySettings and SetRegion.</summary>
+    public CaptureOptions CaptureOptions => Volatile.Read(ref _captureOptions);
+
+    /// <summary>The latest probe of the game window, or null without one (contract §2.4). UI thread.</summary>
+    public GameWindowInfo? GameWindow { get; private set; }
+
+    /// <summary>Raised on the UI thread when <see cref="GameWindow"/> changes; re-read it.</summary>
+    public event Action? GameWindowChanged;
+
+    /// <summary>The resolved chat region moved (the game window moved or was resized); raised on the UI thread.</summary>
+    public event Action? RegionMoved;
     public string CurrentGameId => Settings.Game != GameCatalog.Any ? Settings.Game : _game?.Profile.Id ?? GameCatalog.Any;
     public string GameStatus => _game is null ? "No Age game running" : $"{_game.Profile.Name} detected";
     public string ProviderStatus => _providerStatus;
 
-    public string CaptureStatus => Watcher.State switch
+    /// <summary>The War Room status line, from <see cref="CaptureText"/>; a blank-area hint goes on a second line.</summary>
+    public string CaptureStatus
     {
-        WatcherState.Running => "Reading chat",
-        WatcherState.NoRegion => "Chat area not set",
-        WatcherState.Idle => "Waiting for a game to start",
-        WatcherState.Error => "Error: " + Watcher.LastError,
-        _ => "Paused",
-    };
+        get
+        {
+            var status = Watcher.State switch
+            {
+                WatcherState.Running when Watcher.Health == CaptureHealth.Degraded => CaptureText.ReadingSlow,
+                WatcherState.Running => CaptureText.Reading,
+                WatcherState.Paused => CaptureText.Paused(Watcher.PauseReason),
+                WatcherState.Idle => CaptureText.WaitingForGame,
+                WatcherState.NoRegion => CaptureText.NoRegion,
+                WatcherState.Error => Watcher.LastError ?? CaptureText.CaptureFailed,
+                _ => CaptureText.Stopped,
+            };
+            return Watcher.Hint is { } hint ? status + Environment.NewLine + hint : status;
+        }
+    }
 
     /// <summary>Starts the game timer and, unless in safe mode, automatic capture and the update check.</summary>
     public void Start()
@@ -245,6 +270,8 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         RefreshGame();
         ApplyTheme();
         _gameTimer.Start();
+        _windowTimer.Start();
+        RefreshGameWindow();
         if (!IsSafeMode && Settings.StartCapturingAutomatically) Watcher.Start();
         Notify(nameof(CaptureStatus));
         if (!IsSafeMode && Settings.CheckForUpdates) CheckForUpdatesAsync().Forget(_log, "update check");
@@ -322,11 +349,25 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Notify(nameof(CaptureStatus));
     }
 
-    /// <summary>Saves the chat region for the current game (and as the default for games without their own).</summary>
+    /// <summary>
+    /// Saves the chat region for the current game: relative to the game window when one is known and the region lies in
+    /// its client area (REQ-CAP-1), and always as the fixed screen rectangle (and as the default for games without their
+    /// own).
+    /// </summary>
     public void SetRegion(ScreenRegion region)
     {
-        Settings.Capture.Regions[CurrentGameId] = region;
+        ArgumentNullException.ThrowIfNull(region);
+        var gameId = CurrentGameId;
+        var window = _game is { } game ? GameWindowTracker.Observe(game, Watcher.UniformFrameStreak) : null;
+        if (window is { Minimized: false } && RegionMath.ToWindowRelative(region, window.ClientRect) is { } relative)
+            Settings.Capture.WindowRegions[gameId] = relative;
+        else
+            Settings.Capture.WindowRegions.Remove(gameId); // chosen outside the game window: a fixed position from now on
+        Settings.Capture.Regions[gameId] = region;
         if (!Settings.Capture.Regions.ContainsKey(GameCatalog.Any)) Settings.Capture.Regions[GameCatalog.Any] = region;
+        Volatile.Write(ref _captureOptions, CaptureOptions.From(Settings));
+        _captureLog.Info("Chat area selected", LogField.Of("size", SettingsRedaction.Size(region)),
+            LogField.Of("followsWindow", Settings.Capture.WindowRegions.ContainsKey(gameId)));
         Pipeline.Reset();
         Watcher.Invalidate();
         if (!Watcher.IsRunning) Watcher.Start();
@@ -339,7 +380,8 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     public void ApplySettings()
     {
         ApplyDiagnosticsSettings(); // contract §3 ApplySettings position 1
-        var translationOptions = TranslationRuntimeOptions.From(Settings.Translation); // 2: publish the snapshot
+        var translationOptions = TranslationRuntimeOptions.From(Settings.Translation); // 2: publish the snapshots
+        Volatile.Write(ref _captureOptions, CaptureOptions.From(Settings));
         TranslationRuntime.Configure(translationOptions); // 3
         (_translator, _composeTranslator) = BuildTranslator(); // 4
         Pipeline.Translator = _translator;
@@ -352,7 +394,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Pipeline.Options.MutedPlayers = o.MutedPlayers;
         Pipeline.Options.Channels = o.Channels;
         ConfigureOcr();
-        Watcher.Invalidate();
+        Watcher.Invalidate(); // 6 (05)
         ApplyTheme();
         StartupRegistration.Apply(Settings.StartWithWindows);
         ScheduleSave();
@@ -416,12 +458,34 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     private void OnPipelineMessageUpdated(IncomingMessage m) => _ui.BeginInvoke(() => OnMessage(m, isNew: false));
     private void OnWatcherStateChanged(WatcherState state) => _ui.BeginInvoke(() => OnWatcherState(state));
 
+    private void OnWatcherRegionChanged(ScreenRegion? region) => _ui.BeginInvoke(() =>
+    {
+        if (_disposed) return;
+        RegionMoved?.Invoke();
+    });
+
+    /// <summary>Publishes a game-window probe from any thread; raises <see cref="GameWindowChanged"/> on the UI thread on change.</summary>
+    private void PublishGameWindow(GameWindowInfo? info) => _ui.BeginInvoke(() =>
+    {
+        if (_disposed || Equals(GameWindow, info)) return;
+        GameWindow = info;
+        GameWindowChanged?.Invoke();
+    });
+
+    /// <summary>The 1 s window timer (contract §2.4): probe while a game runs, clear when it is gone.</summary>
+    private void RefreshGameWindow()
+    {
+        if (_disposed) return;
+        if (_game is { } game) PublishGameWindow(GameWindowTracker.Observe(game, Watcher.UniformFrameStreak));
+        else if (GameWindow is not null) PublishGameWindow(null);
+    }
+
     private void OnWatcherState(WatcherState state)
     {
         if (_disposed) return;
         Notify(nameof(CaptureStatus));
         if (state != WatcherState.Error) return;
-        _captureLog.Warn("Capture stopped with an error", null, LogField.Of("error", Watcher.LastError));
+        _captureLog.Warn("Chat reading is failing", null, LogField.Of("error", Watcher.LastError));
         ReportProblem(ProblemText.CaptureError);
     }
 
@@ -573,8 +637,10 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Pipeline.MessageReceived -= OnPipelineMessageReceived;
         Pipeline.MessageUpdated -= OnPipelineMessageUpdated;
         Watcher.StateChanged -= OnWatcherStateChanged;
+        Watcher.RegionChanged -= OnWatcherRegionChanged;
         TranslationRuntime.ProviderHealthChanged -= OnProviderHealthChanged;
         _gameTimer.Stop();
+        _windowTimer.Stop();
         Watcher.Dispose();
         _speech?.Dispose();
         SaveNow(); // a no-op once saving is suppressed, so a reset or Delete-all is never undone

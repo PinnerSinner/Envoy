@@ -121,6 +121,59 @@ internal static partial class Native
     public static double ScaleOf(IntPtr monitor) =>
         monitor != IntPtr.Zero && GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, out var dpi, out _) == 0 && dpi > 0 ? dpi / 96.0 : 1.0;
 
+    // ---- Game window probing (spec 05: GameWindowTracker, GameDetector.FindMainWindow) ----
+    public const int GWL_STYLE = -16;
+    public const long WS_CAPTION = 0x00C00000;
+    public const uint GA_ROOT = 2;
+    public const uint GW_OWNER = 4;
+    public const uint MONITOR_DEFAULTTONULL = 0;
+
+    /// <summary>DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2.</summary>
+    public static readonly IntPtr DpiAwarenessContextPerMonitorV2 = new(-4);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetClientRect(IntPtr hWnd, out RECT rect);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool ClientToScreen(IntPtr hWnd, ref POINT point);
+
+    [LibraryImport("user32.dll")]
+    public static partial IntPtr WindowFromPoint(POINT point);
+
+    [LibraryImport("user32.dll")]
+    public static partial IntPtr GetAncestor(IntPtr hWnd, uint flags);
+
+    /// <summary>Enumerates top-level windows; the callback returns non-zero to continue.</summary>
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static unsafe partial bool EnumWindows(delegate* unmanaged<IntPtr, IntPtr, int> callback, IntPtr lParam);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsWindowVisible(IntPtr hWnd);
+
+    [LibraryImport("user32.dll")]
+    public static partial IntPtr GetWindow(IntPtr hWnd, uint command);
+
+    [LibraryImport("user32.dll")]
+    public static partial IntPtr MonitorFromRect(ref RECT rect, uint flags);
+
+    [LibraryImport("user32.dll")]
+    public static partial IntPtr GetThreadDpiAwarenessContext();
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool AreDpiAwarenessContextsEqual(IntPtr a, IntPtr b);
+
+    // ---- Soak mode only (REQ-CAP-43): GDI and USER object counts of this process ----
+    public const uint GR_GDIOBJECTS = 0;
+    public const uint GR_USEROBJECTS = 1;
+
+    [LibraryImport("user32.dll")]
+    public static partial uint GetGuiResources(IntPtr hProcess, uint flags);
+
     // ---- Hotkeys ----
     public const int WM_HOTKEY = 0x0312;
     public const uint MOD_ALT = 0x0001;

@@ -1,4 +1,4 @@
-"""Tests for check_ui_rules.py (REQ-UIF-17, spec 02): a clean tree passes and each rule R1-R10 reports its own violation.
+"""Tests for check_ui_rules.py (REQ-UIF-17, specs 02 and 05): a clean tree passes and each rule R1-R11 reports its own violation.
 The mini trees are built in a temp directory from check_ui_rules.REQUIRED_FILES, so they track the real file list."""
 import os
 import shutil
@@ -184,6 +184,34 @@ class CheckUiRulesTests(unittest.TestCase):
         self.assertEqual([], check_ui_rules.check(self.root))
         self.append("App.xaml.cs", "class B { void Y() => DialogService.ShowWarning(null, \"c\", \"d\"); }\n")
         self.assertOnly("R10", "App.xaml.cs:4")
+
+    WATCHER_OK = """using Envoy.Core.Settings;
+// pipeline.ProcessAsync(lines, ct) in a comment is fine, and so is a comment about AppSettings.
+namespace Envoy.App.Services; class ChatWatcher
+{
+    void Tick(System.Func<CaptureOptions> options)
+    {
+        var o = options();
+        _pipeline.ProcessAsync(lines, CancellationToken.None).Forget(_log, "pipeline");
+    }
+}
+"""
+
+    def test_r11_watcher_token_and_snapshot_are_fine(self):
+        self.write("Services/ChatWatcher.cs", self.WATCHER_OK)
+        self.assertEqual([], check_ui_rules.check(self.root))
+
+    def test_r11_watcher_passes_loop_token(self):
+        self.write("Services/ChatWatcher.cs", self.WATCHER_OK.replace("CancellationToken.None", "ct"))
+        self.assertOnly("R11", "Services/ChatWatcher.cs:8")
+        self.write("Services/ChatWatcher.cs", self.WATCHER_OK.replace("(lines, CancellationToken.None)", "(lines)"))
+        self.assertOnly("R11", "Services/ChatWatcher.cs:8")
+
+    def test_r11_watcher_reads_settings(self):
+        for snippet in ("var s = host.Settings.Capture;", "System.Func<AppSettings> settings = null;"):
+            with self.subTest(snippet=snippet):
+                self.write("Services/ChatWatcher.cs", self.WATCHER_OK.replace("var o = options();", snippet))
+                self.assertOnly("R11", "Services/ChatWatcher.cs:7")
 
 
 if __name__ == "__main__":
