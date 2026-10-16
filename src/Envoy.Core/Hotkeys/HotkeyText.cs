@@ -12,6 +12,18 @@ public static class HotkeyText
     /// <summary>One entry of {list}: {name} = action display name; {combo} = the combination.</summary>
     public const string TakenItemFormat = "{name} ({combo})";
 
+    /// <summary>Cheat sheet (07a): an action with no combination.</summary>
+    public const string CheatNotSet = "Not set";
+
+    /// <summary>Cheat sheet: {combo} = the combination.</summary>
+    public const string CheatTakenFormat = "{combo} · taken by another app";
+
+    /// <summary>Cheat sheet: {combo} = the combination.</summary>
+    public const string CheatInvalidFormat = "{combo} · not a valid combination";
+
+    /// <summary>Cheat sheet: {combo} = the combination.</summary>
+    public const string CheatSafeModeFormat = "{combo} · off in safe mode";
+
     /// <summary>Display name of a hotkey action, keyed by its <c>HotkeySettings</c> property name.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The id is not a known hotkey action.</exception>
     public static string ActionName(string actionId) => actionId switch

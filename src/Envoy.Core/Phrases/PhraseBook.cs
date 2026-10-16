@@ -1,8 +1,10 @@
+using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using Envoy.Core.Chat;
 using Envoy.Core.Languages;
 using Envoy.Core.Security;
+using Envoy.Core.Text;
 
 namespace Envoy.Core.Phrases;
 
@@ -47,22 +49,43 @@ public sealed class PhraseBook(IReadOnlyList<Phrase> phrases)
     /// <summary>
     /// Built-in phrases plus any user phrases (user entries with the same id replace built-ins). A user file over
     /// <see cref="PhraseLimits.MaxFileBytes"/> is ignored like a broken one; user phrases are cleaned by <see cref="Clean"/>.
+    /// Problems are swallowed; use the overload with <c>out string? error</c> to report them (REQ-OUXA-23).
     /// </summary>
-    public static PhraseBook LoadWithUserFile(string userFile)
+    public static PhraseBook LoadWithUserFile(string userFile) => LoadWithUserFile(userFile, out _);
+
+    /// <summary>
+    /// <see cref="LoadWithUserFile(string)"/>, reporting why the user file was not used (REQ-OUXA-23): null when it is
+    /// missing or loaded, otherwise <see cref="PhrasebookText.LoadInvalidJsonAt"/> (or <see cref="PhrasebookText.LoadInvalidJson"/>),
+    /// <see cref="PhrasebookText.LoadTooLarge"/> or <see cref="PhrasebookText.LoadUnreadable"/>. Built-ins are used on error.
+    /// </summary>
+    public static PhraseBook LoadWithUserFile(string userFile, out string? error)
     {
+        error = null;
         var builtIn = LoadBuiltIn().All.ToList();
         if (!File.Exists(userFile)) return new PhraseBook(builtIn);
         try
         {
             // The limit is enforced on the bytes actually read, so a file that grows after a size check still can't pass.
             using var stream = ReadAtMost(userFile, PhraseLimits.MaxFileBytes);
-            if (stream is null) return new PhraseBook(builtIn);
+            if (stream is null)
+            {
+                error = PhrasebookText.LoadTooLarge;
+                return new PhraseBook(builtIn);
+            }
             var user = Clean(Deserialize(stream));
             var ids = user.Select(p => p.Id).ToHashSet();
             return new PhraseBook([.. user, .. builtIn.Where(p => !ids.Contains(p.Id))]);
         }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        catch (JsonException ex)
         {
+            error = ex.LineNumber is { } line
+                ? TextTemplate.Format(PhrasebookText.LoadInvalidJsonAt, CultureInfo.InvariantCulture, ("line", line + 1))
+                : PhrasebookText.LoadInvalidJson;
+            return new PhraseBook(builtIn);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            error = PhrasebookText.LoadUnreadable;
             return new PhraseBook(builtIn);
         }
     }

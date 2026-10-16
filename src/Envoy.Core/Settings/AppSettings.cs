@@ -68,7 +68,59 @@ public sealed class AppSettings
     public ComposeSettings Compose { get; set; } = new();
     public HotkeySettings Hotkeys { get; set; } = new();
     public DiagnosticsSettings Diagnostics { get; set; } = new();
+
+    /// <summary>The setup guide and the privacy acknowledgement (spec 07a).</summary>
+    public OnboardingSettings Onboarding { get; set; } = new();
+
+    /// <summary>Advisory tray balloons and the War Room notice list (spec 07a).</summary>
+    public NotificationSettings Notifications { get; set; } = new();
+
     public UsageSnapshot? Usage { get; set; }
+}
+
+/// <summary>
+/// The setup guide (REQ-OUXA-1, 2, 10) and the privacy acknowledgement (REQ-OUXA-47). Holds no names, chat text or
+/// positions, so it needs no marker. UI thread only; background code reads the acknowledgement through AppHost's
+/// volatile flag (contract §7).
+/// </summary>
+public sealed class OnboardingSettings
+{
+    /// <summary>The guide was finished (Finish on the last step).</summary>
+    public bool Completed { get; set; }
+
+    /// <summary>The guide was closed without finishing (Skip setup, Esc or the close button).</summary>
+    public bool Skipped { get; set; }
+
+    /// <summary>The <c>OnboardingStep</c> name to resume at; "" = the first step.</summary>
+    public string LastStep { get; set; } = "";
+
+    /// <summary>
+    /// The <c>PrivacyText.Version</c> the user acknowledged; 0 = never. Translation is off below
+    /// <c>PrivacyText.Version</c> (contract §8.1), so every existing settings file starts with translation off.
+    /// </summary>
+    public int PrivacyAcknowledgedVersion { get; set; }
+}
+
+/// <summary>
+/// Advisory notices (spec 07a, contract §2.2). Turning balloons off keeps the War Room list. Holds no names, chat text
+/// or positions: <see cref="Dismissed"/> holds notice keys such as <c>ocr-missing:ja,ko</c> and <c>provider:deepl</c>.
+/// </summary>
+public sealed class NotificationSettings
+{
+    /// <summary>Show advisory balloons in the notification area (the master switch).</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Balloon when a text recognition pack for a language Envoy reads is missing.</summary>
+    public bool OcrLanguageMissing { get; set; } = true;
+
+    /// <summary>Balloon when a translation provider keeps failing.</summary>
+    public bool ProviderFailing { get; set; } = true;
+
+    /// <summary>Balloon when an Envoy update is available.</summary>
+    public bool UpdateAvailable { get; set; } = true;
+
+    /// <summary>Notice keys the user chose "Don't remind me" for. A dismissed key is never shown or listed again.</summary>
+    public List<string> Dismissed { get; set; } = [];
 }
 
 /// <summary>How Envoy updates itself (spec 06). Holds no names, chat text or positions, so it needs no marker.</summary>
@@ -88,6 +140,12 @@ public sealed class UpdateSettings
 
     /// <summary>Version that last ran; drives the one-time "Envoy was updated to …" notice (REQ-DIST-23).</summary>
     public string LastRunVersion { get; set; } = "";
+
+    /// <summary>
+    /// Version last announced in an update balloon ("" = none). Only stops a second balloon for the same version
+    /// (contract §2.5); 06 fixed its meaning, 07a adds it as its only reader and writer (UI thread).
+    /// </summary>
+    public string LastAnnouncedVersion { get; set; } = "";
 }
 
 /// <summary>Logging and problem pop-ups (About › Troubleshooting).</summary>
