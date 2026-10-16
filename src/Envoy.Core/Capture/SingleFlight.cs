@@ -24,9 +24,13 @@ public sealed class SingleFlightBusyException : InvalidOperationException
 public sealed class SingleFlight(TimeProvider time)
 {
     private int _busy;
+    private Call? _current;
 
     /// <summary>True from the start of a call until its work task completes (even after a timeout).</summary>
     public bool IsBusy => Volatile.Read(ref _busy) != 0;
+
+    /// <summary>How long the running (or abandoned) call has been going; zero when idle.</summary>
+    public TimeSpan BusyFor => Volatile.Read(ref _current) is { } call ? time.GetElapsedTime(call.StartedAt) : TimeSpan.Zero;
 
     /// <summary>
     /// Runs <paramref name="work"/> with a token linked to <paramref name="ct"/>. Throws
@@ -39,7 +43,8 @@ public sealed class SingleFlight(TimeProvider time)
         ArgumentNullException.ThrowIfNull(work);
         if (Interlocked.CompareExchange(ref _busy, 1, 0) != 0) throw new SingleFlightBusyException();
 
-        var call = new Call(this, CancellationTokenSource.CreateLinkedTokenSource(ct));
+        var call = new Call(this, CancellationTokenSource.CreateLinkedTokenSource(ct), time.GetTimestamp());
+        Volatile.Write(ref _current, call);
         Task<T> task;
         try
         {
@@ -74,12 +79,14 @@ public sealed class SingleFlight(TimeProvider time)
         }
     }
 
-    private sealed class Call(SingleFlight owner, CancellationTokenSource cts)
+    private sealed class Call(SingleFlight owner, CancellationTokenSource cts, long startedAt)
     {
         private readonly object _gate = new();
         private bool _done;
 
         public CancellationToken Token => cts.Token;
+
+        public long StartedAt => startedAt;
 
         public void Cancel()
         {
@@ -98,7 +105,21 @@ public sealed class SingleFlight(TimeProvider time)
                 _done = true;
                 cts.Dispose();
             }
+            Interlocked.CompareExchange(ref owner._current, null, this);
             Volatile.Write(ref owner._busy, 0);
         }
     }
+}
+
+/// <summary>
+/// When an abandoned OCR call counts as stuck (REQ-CAP-26, Risks "Abandoned OCR operations"). WinRT cancellation is
+/// best-effort, so a call can outlive its timeout for good; the watcher then abandons it with its engines.
+/// </summary>
+public static class StuckOcr
+{
+    /// <summary>Automatic recoveries allowed per manual <c>Start</c>; after that the watcher stops trying on its own.</summary>
+    public const int MaxRecoveries = 3;
+
+    /// <summary>True once a call has run for at least twice the OCR timeout.</summary>
+    public static bool IsStuck(TimeSpan busyFor, TimeSpan timeout) => timeout > TimeSpan.Zero && busyFor >= timeout * 2;
 }

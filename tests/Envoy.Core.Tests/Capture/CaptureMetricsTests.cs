@@ -58,6 +58,22 @@ public class CaptureMetricsTests
     }
 
     [Fact]
+    public void Stuck_ocr_keeps_degraded_and_is_counted()
+    {
+        var clock = TestClock.Create();
+        var m = new CaptureMetrics(clock);
+        m.RecordOcrTimeout();
+        clock.Advance(TimeSpan.FromSeconds(59));
+        m.RecordOcrStuck();
+        clock.Advance(TimeSpan.FromSeconds(30));
+        var s = m.Snapshot();
+        Assert.Equal(CaptureHealth.Degraded, s.Health);
+        Assert.Equal(1, s.OcrStuck);
+        m.Reset();
+        Assert.Equal(0, m.Snapshot().OcrStuck);
+    }
+
+    [Fact]
     public void Failing_after_three_consecutive_failures()
     {
         var m = new CaptureMetrics(TestClock.Create());

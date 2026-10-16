@@ -74,10 +74,11 @@ versioning: [SemVer](https://semver.org/).
   and a reply is capped at 1000 characters.
 - `phrases.json` limits: files over 1 MiB are ignored, at most 500 user phrases load, phrases without an `id` are
   skipped, and long ids, categories, icons and texts are shortened. See [the phrasebook docs](docs/phrasebook.md#limits).
-- **Chat reading heals itself.** Text recognition that takes longer than 4 s is abandoned instead of stopping chat
-  reading for the session; failures slow the checks down (up to every 5 s) and the first good frame recovers; a stuck
-  loop is restarted, and only after more than three restarts in five minutes does Envoy stop and say "Chat reading
-  stopped responding". Status and error lines are plain sentences, never raw error text, and "Paused" now reads "Chat
+- **Chat reading heals itself.** Text recognition that takes longer than 4 s is abandoned; if Windows text
+  recognition hangs for good, Envoy recreates it (up to three times each time reading is turned on, then it says "Chat
+  reading stopped responding" until you turn reading off and on, which recreates it again). Failures slow the checks
+  down (up to every 5 s) and the first good frame recovers; a stuck loop is restarted, and only after more than three
+  restarts in five minutes does Envoy stop and say "Chat reading stopped responding". Status and error lines are plain sentences, never raw error text, and "Paused" now reads "Chat
   reading is off".
 - Stopping or restarting chat reading no longer leaves lines stuck on "translating…".
 - Less CPU and memory while gaming: unchanged frames skip all image processing, pixel buffers are reused, and the

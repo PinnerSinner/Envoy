@@ -50,6 +50,7 @@ public sealed class ChatWatcher : IDisposable
     private readonly CaptureMetrics _metrics;
     private readonly LoopWatchdog _watchdog;
     private readonly object _gate = new();
+    private readonly object _fingerprintGate = new();
 
     // Loop control; guarded by _gate.
     private CancellationTokenSource? _cts;
@@ -57,21 +58,27 @@ public sealed class ChatWatcher : IDisposable
     private int _generation;
     private bool _running;
     private bool _disposed;
+    private int _ocrRecoveries;
+
+    // The last OCR'd fingerprint and the invalidation epoch; guarded by _fingerprintGate (REQ-CAP-18).
+    private ulong _lastHash;
+    private int _fingerprintEpoch;
 
     // Shared between the loop and the UI thread.
-    private long _lastHash;
     private int _resetRequested = 1;
     private int _streak;
     private volatile WatcherState _state = WatcherState.Stopped;
     private volatile PauseReason _pause;
     private volatile string? _lastError;
     private volatile RegionResolution? _resolution;
-    private (WatcherState, PauseReason, CaptureHealth, bool) _announced = (WatcherState.Stopped, PauseReason.None, CaptureHealth.Healthy, false);
+    private (WatcherState, PauseReason, CaptureHealth, bool, bool) _announced = (WatcherState.Stopped, PauseReason.None, CaptureHealth.Healthy, false, false);
     private bool _dpiChecked;
+    private volatile bool _dpiUnaware;
 
     // Loop-thread only (one generation runs at a time; a stalled old one checks its generation before writing).
     private GameWindowInfo? _lastPublished;
     private ScreenRegion? _lastClient;
+    private ScreenRegion? _publishedRegion; // the last region RegionChanged reported; Invalidate never clears it
 
     public ChatWatcher(OcrService ocr, ChatPipeline pipeline, Func<CaptureOptions> options, Func<RunningGame?> currentGame,
         ILog log, TimeProvider time, Action<GameWindowInfo?>? windowObserved = null)
@@ -95,6 +102,12 @@ public sealed class ChatWatcher : IDisposable
 
     /// <summary>The last problem, always a <see cref="CaptureText"/> sentence (never exception text).</summary>
     public string? LastError => _lastError;
+
+    /// <summary>
+    /// The capture thread is not per-monitor DPI aware (REQ-CAP-34): <see cref="CaptureText.DpiUnaware"/> applies for the
+    /// rest of the session, whatever <see cref="Start"/> or a later success does to <see cref="LastError"/>.
+    /// </summary>
+    public bool DpiUnaware => _dpiUnaware;
 
     /// <summary><see cref="CaptureText.LikelyExclusiveFullscreen"/> after <see cref="BlankFrames.Threshold"/> blank frames (REQ-CAP-40).</summary>
     public string? Hint => UniformFrameStreak >= BlankFrames.Threshold ? CaptureText.LikelyExclusiveFullscreen : null;
@@ -139,7 +152,7 @@ public sealed class ChatWatcher : IDisposable
 
     public CaptureHealth Health => Metrics.Health;
 
-    /// <summary>Raised on a background thread when <see cref="State"/>, <see cref="PauseReason"/>, <see cref="Health"/> or <see cref="Hint"/> changes.</summary>
+    /// <summary>Raised on a background thread when <see cref="State"/>, <see cref="PauseReason"/>, <see cref="Health"/>, <see cref="Hint"/> or <see cref="DpiUnaware"/> changes.</summary>
     public event Action<WatcherState>? StateChanged;
 
     /// <summary>Raised on the loop thread, only while <see cref="IsPreviewing"/>.</summary>
@@ -162,7 +175,11 @@ public sealed class ChatWatcher : IDisposable
         }
     }
 
-    /// <summary>Starts reading. Resets the watchdog's restart budget, the polling interval and the metrics.</summary>
+    /// <summary>
+    /// Starts reading. Resets the watchdog's restart budget, the OCR recovery budget, the polling interval and the
+    /// metrics, and abandons an OCR pass still running past its timeout (recreating the engines), so turning chat
+    /// reading off and on always recovers from a hung text-recognition call.
+    /// </summary>
     public void Start()
     {
         lock (_gate)
@@ -171,10 +188,12 @@ public sealed class ChatWatcher : IDisposable
             _running = true;
             _watchdog.ResetBudget();
             _metrics.Reset();
-            _lastError = null;
+            _ocrRecoveries = 0;
+            _lastError = CalmError;
             _resolution = null;
             Interlocked.Exchange(ref _resetRequested, 1);
-            Volatile.Write(ref _lastHash, 0);
+            ResetFingerprint();
+            if (_ocr.IsBusy && _ocr.BusyFor >= TimeSpan.FromMilliseconds(_options().OcrTimeoutMs)) RecoverOcr("start");
             StartLoopLocked("start");
             _watchdogTimer = _time.CreateTimer(_ => OnWatchdog(), null, WatchdogPeriod, WatchdogPeriod);
         }
@@ -196,7 +215,7 @@ public sealed class ChatWatcher : IDisposable
     /// <summary>Forces the next frame through OCR and polls fast again (settings changed, new match, region chosen, preview).</summary>
     public void Invalidate()
     {
-        Volatile.Write(ref _lastHash, 0);
+        ResetFingerprint();
         Interlocked.Exchange(ref _resetRequested, 1);
         _resolution = null; // settings may have changed the region: resolve on demand until the next tick
     }
@@ -304,14 +323,47 @@ public sealed class ChatWatcher : IDisposable
         }
     }
 
-    /// <summary>Once per watcher: every coordinate is physical only on a per-monitor-v2 thread (REQ-CAP-34).</summary>
+    /// <summary>
+    /// Once per watcher: every coordinate is physical only on a per-monitor-v2 thread (REQ-CAP-34). The result sticks in
+    /// <see cref="DpiUnaware"/>; <see cref="LastError"/> gets the sentence too, and gets it back after a Start or recovery.
+    /// </summary>
     private void CheckDpiAwareness()
     {
         if (_dpiChecked) return;
         _dpiChecked = true;
         if (GameWindowTracker.IsThreadPerMonitorV2()) return;
-        _lastError = CaptureText.DpiUnaware;
+        _dpiUnaware = true;
+        _lastError ??= CaptureText.DpiUnaware;
         _log.Warn("The capture thread is not per-monitor DPI aware (v2); regions may be misaligned");
+    }
+
+    /// <summary>What <see cref="LastError"/> returns to once failures clear: the DPI notice, or nothing.</summary>
+    private string? CalmError => _dpiUnaware ? CaptureText.DpiUnaware : null;
+
+    // ---------------- fingerprint (REQ-CAP-18) ----------------
+
+    /// <summary>Forgets the last fingerprint and starts a new epoch, so an OCR pass already in flight can't restore it.</summary>
+    private void ResetFingerprint()
+    {
+        lock (_fingerprintGate)
+        {
+            _lastHash = 0;
+            _fingerprintEpoch++;
+        }
+    }
+
+    private (ulong Hash, int Epoch) ReadFingerprint()
+    {
+        lock (_fingerprintGate) return (_lastHash, _fingerprintEpoch);
+    }
+
+    /// <summary>Stores <paramref name="hash"/> unless <see cref="Invalidate"/> ran since <paramref name="epoch"/> was read.</summary>
+    private void StoreFingerprint(ulong hash, int epoch)
+    {
+        lock (_fingerprintGate)
+        {
+            if (_fingerprintEpoch == epoch) _lastHash = hash;
+        }
     }
 
     // ---------------- the tick (contract §2.7) ----------------
@@ -349,13 +401,15 @@ public sealed class ChatWatcher : IDisposable
         IReadOnlyList<SampleOwner>? samples = null;
         if (region is not null && onScreen && info is { Minimized: false } && resolution.Source == RegionSource.WindowRelative
             && o.PauseWhenCovered && !backend.SupportsOccludedCapture)
-            samples = GameWindowTracker.Sample(region, info.Handle);
+            samples = GameWindowTracker.Sample(region, info.Handle, game?.ProcessId ?? 0);
         var observation = new CaptureObservation(region is not null, onScreen, o.ShouldRead(game is not null),
             info is not null, info?.Minimized ?? false, info?.GameForeground ?? false, info?.EnvoyForeground ?? false,
             resolution.Source, samples);
         var gate = new CaptureGateOptions(o.PauseWhenCovered, o.PauseWhenNotForeground, backend.SupportsOccludedCapture, IsPreviewing);
         var reason = CaptureGate.Evaluate(observation, gate);
-        var reading = reason == PauseReason.None && CaptureGate.IsReading(observation, gate);
+        // Why frames may not go to the pipeline: the gate without the preview override (REQ-CAP-13). When only an open
+        // Live view lets the tick capture, the state still reports this pause, never "Reading chat".
+        var notReadingBecause = reason != PauseReason.None ? reason : CaptureGate.Evaluate(observation, gate with { PreviewOpen = false });
 
         FrameOutcome outcome;
         if (reason != PauseReason.None || region is null)
@@ -365,20 +419,27 @@ public sealed class ChatWatcher : IDisposable
         }
         else
         {
-            outcome = await CaptureAndReadAsync(generation, backend, o, region, info, reading, ct).ConfigureAwait(false);
+            outcome = await CaptureAndReadAsync(generation, backend, o, region, info, notReadingBecause, ct).ConfigureAwait(false);
         }
 
         // 12. Metrics and the next delay.
         var interval = policy.Next(outcome);
-        _metrics.SetInterval(outcome == FrameOutcome.Paused ? policy.Current : interval);
-        if (IsCurrent(generation)) Announce();
+        if (IsCurrent(generation))
+        {
+            _metrics.SetInterval(outcome == FrameOutcome.Paused ? policy.Current : interval);
+            Announce();
+        }
         return policy.DelayAfter(interval, _time.GetElapsedTime(started));
     }
 
-    /// <summary>Steps 5–11. Returns the outcome; failures are counted and described, never thrown (REQ-CAP-30).</summary>
+    /// <summary>
+    /// Steps 5–11. Returns the outcome; failures are counted and described, never thrown (REQ-CAP-30). A stalled old
+    /// generation that wakes up writes no shared state (streak, fingerprint, metrics).
+    /// </summary>
     private async Task<FrameOutcome> CaptureAndReadAsync(int generation, ICaptureBackend backend, CaptureOptions o,
-        ScreenRegion region, GameWindowInfo? info, bool reading, CancellationToken ct)
+        ScreenRegion region, GameWindowInfo? info, PauseReason notReadingBecause, CancellationToken ct)
     {
+        var reading = notReadingBecause == PauseReason.None;
         FrameBuffer? buffer = null;
         try
         {
@@ -387,24 +448,19 @@ public sealed class ChatWatcher : IDisposable
             var captureStarted = _time.GetTimestamp();
             buffer = backend.Capture(new CaptureTarget(region, info?.Handle ?? IntPtr.Zero, w, h), _pool);
             var captureTime = _time.GetElapsedTime(captureStarted);
+            if (!IsCurrent(generation)) return FrameOutcome.Unchanged;
 
-            // 6. Fingerprint the raw pixels; skip unchanged frames unless a Live view is open.
+            // 6. Fingerprint the raw pixels; skip unchanged frames unless a Live view is open. A frame read only for the
+            //    Live view never counts towards the blank-frame streak (REQ-CAP-40: "while not paused").
             var signature = FrameProcessing.Analyze(buffer.Pixels);
-            Volatile.Write(ref _streak, BlankFrames.Next(UniformFrameStreak, signature));
-            var changed = signature.Hash != (ulong)Interlocked.Read(ref _lastHash);
-            if (!changed && !IsPreviewing)
-            {
-                _metrics.RecordCapture(captureTime, changed: false);
-                return Succeeded(generation, FrameOutcome.Unchanged);
-            }
-            if (_ocr.IsBusy)
-            {
-                // An earlier (perhaps abandoned) OCR call is still running: leave the fingerprint unset and retry.
-                _metrics.RecordCapture(captureTime, changed: false);
-                _metrics.RecordOcrBusy();
-                return Succeeded(generation, FrameOutcome.Unchanged);
-            }
-            _metrics.RecordCapture(captureTime, changed: true);
+            Volatile.Write(ref _streak, reading ? BlankFrames.Next(UniformFrameStreak, signature) : 0);
+            var (lastHash, epoch) = ReadFingerprint();
+            var changed = signature.Hash != lastHash;
+            var busy = _ocr.IsBusy;
+            // Skipped = unchanged (even when the Live view still OCRs it) or not read because OCR is busy (REQ-CAP-38).
+            _metrics.RecordCapture(captureTime, changed: changed && !busy);
+            if (!changed && !IsPreviewing) return Succeeded(generation, FrameOutcome.Unchanged, notReadingBecause);
+            if (busy) return OcrBusy(generation, o);
 
             // 7. Enhance.
             FrameProcessing.Preprocess(buffer.Pixels, o.Preprocess);
@@ -413,12 +469,12 @@ public sealed class ChatWatcher : IDisposable
             var ocrStarted = _time.GetTimestamp();
             var passes = await _ocr.RecognizeAsync(buffer, TimeSpan.FromMilliseconds(o.OcrTimeoutMs), ct).ConfigureAwait(false);
             var ocrTime = _time.GetElapsedTime(ocrStarted);
-            _metrics.RecordOcr(ocrTime);
             if (!IsCurrent(generation)) return FrameOutcome.Unchanged;
+            _metrics.RecordOcr(ocrTime);
 
-            // 9. Merge the engines' readings.
+            // 9. Merge the engines' readings. An Invalidate() during the pass wins: the fingerprint stays unset.
             var lines = OcrMerger.MergeLines(passes, o.MyLanguage);
-            Interlocked.Exchange(ref _lastHash, (long)signature.Hash);
+            StoreFingerprint(signature.Hash, epoch);
 
             // 10. Translation never sees the loop's token: stopping capture must not strand a message (contract §2.6).
             if (reading) _pipeline.ProcessAsync(lines, CancellationToken.None).Forget(_log, "pipeline");
@@ -427,12 +483,11 @@ public sealed class ChatWatcher : IDisposable
             if (IsPreviewing)
                 FrameCaptured?.Invoke(new CaptureFrame(new CapturedImage(buffer.ToArray(), buffer.Width, buffer.Height), lines, ocrTime));
 
-            return Succeeded(generation, changed ? FrameOutcome.Changed : FrameOutcome.Unchanged);
+            return Succeeded(generation, changed ? FrameOutcome.Changed : FrameOutcome.Unchanged, notReadingBecause);
         }
         catch (SingleFlightBusyException)
         {
-            _metrics.RecordOcrBusy();
-            return Succeeded(generation, FrameOutcome.Unchanged);
+            return OcrBusy(generation, o);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -449,18 +504,71 @@ public sealed class ChatWatcher : IDisposable
         }
     }
 
+    // ---------------- OCR busy or stuck (REQ-CAP-26, Risks "Abandoned OCR operations") ----------------
+
+    /// <summary>
+    /// An earlier (perhaps abandoned) OCR call is still running, so this frame is not read: the fingerprint stays unset
+    /// and the frame is retried. That is never a successful tick. While the call is younger than twice the timeout the
+    /// tick is neutral (the state stays as it was, e.g. "slow" after the timeout). Once it is stuck, each such tick fails
+    /// and the call is abandoned with its engines, at most <see cref="StuckOcr.MaxRecoveries"/> times per Start; after
+    /// that the watcher says it stopped responding (so turning reading off and on, which recovers, is the advice).
+    /// </summary>
+    private FrameOutcome OcrBusy(int generation, CaptureOptions o)
+    {
+        if (!IsCurrent(generation)) return FrameOutcome.Unchanged;
+        _metrics.RecordOcrBusy();
+        if (!StuckOcr.IsStuck(_ocr.BusyFor, TimeSpan.FromMilliseconds(o.OcrTimeoutMs))) return FrameOutcome.Unchanged;
+
+        bool recover, giveUp;
+        lock (_gate)
+        {
+            if (!_running || generation != _generation) return FrameOutcome.Unchanged;
+            recover = _ocrRecoveries < StuckOcr.MaxRecoveries;
+            giveUp = _ocrRecoveries == StuckOcr.MaxRecoveries;
+            if (recover || giveUp) _ocrRecoveries++;
+            _metrics.RecordFailure();
+            _metrics.RecordOcrStuck();
+            _lastError = recover ? CaptureText.OcrTimedOut : CaptureText.StoppedResponding;
+            if (_metrics.Snapshot().ConsecutiveFailures >= CaptureMetrics.FailingAfter) SetStateLocked(WatcherState.Error, PauseReason.None);
+            if (recover) RecoverOcr("stuck");
+        }
+        if (giveUp)
+            _log.Error("Text recognition keeps hanging; stopped recreating it until chat reading is turned off and on", null,
+                LogField.Of("recoveries", StuckOcr.MaxRecoveries));
+        return FrameOutcome.Failed;
+    }
+
+    /// <summary>Abandons the hung OCR call and recreates the engines; logged, never thrown.</summary>
+    private void RecoverOcr(string why)
+    {
+        _log.Warn("Text recognition is stuck; abandoning the call and recreating the engines", null, LogField.Of("reason", why),
+            LogField.Of("busyMs", (long)_ocr.BusyFor.TotalMilliseconds));
+        try
+        {
+            _ocr.Recover();
+        }
+        catch (Exception ex)
+        {
+            _log.Warn("Recreating the text recognition engines failed", ex, LogField.Of("kind", ex.GetType().Name));
+        }
+    }
+
     // ---------------- state ----------------
 
-    /// <summary>A successful tick clears failures (and a failure's LastError) and means Running.</summary>
-    private FrameOutcome Succeeded(int generation, FrameOutcome outcome)
+    /// <summary>
+    /// A successful tick clears failures (and a failure's LastError). It means Running, unless only the Live view's
+    /// override let it capture: then the state keeps the pause the pipeline is under (REQ-CAP-13).
+    /// </summary>
+    private FrameOutcome Succeeded(int generation, FrameOutcome outcome, PauseReason notReadingBecause)
     {
         lock (_gate)
         {
             if (!_running || generation != _generation) return outcome;
             var hadFailures = _metrics.Snapshot().ConsecutiveFailures > 0;
             _metrics.RecordSuccess();
-            if (hadFailures && _lastError != CaptureText.DpiUnaware) _lastError = null;
-            SetStateLocked(WatcherState.Running, PauseReason.None);
+            if (hadFailures) _lastError = CalmError;
+            if (notReadingBecause == PauseReason.None) SetStateLocked(WatcherState.Running, PauseReason.None);
+            else SetPausedLocked(notReadingBecause);
         }
         return outcome;
     }
@@ -484,14 +592,19 @@ public sealed class ChatWatcher : IDisposable
         lock (_gate)
         {
             if (!_running || generation != _generation) return;
-            Volatile.Write(ref _streak, 0);
-            SetStateLocked(reason switch
-            {
-                PauseReason.NoRegion => WatcherState.NoRegion,
-                PauseReason.NoGame => WatcherState.Idle,
-                _ => WatcherState.Paused,
-            }, reason);
+            SetPausedLocked(reason);
         }
+    }
+
+    private void SetPausedLocked(PauseReason reason)
+    {
+        Volatile.Write(ref _streak, 0);
+        SetStateLocked(reason switch
+        {
+            PauseReason.NoRegion => WatcherState.NoRegion,
+            PauseReason.NoGame => WatcherState.Idle,
+            _ => WatcherState.Paused,
+        }, reason);
     }
 
     /// <summary>Every state write happens under the gate for the current generation, so a stopped loop can't overwrite it.</summary>
@@ -509,15 +622,17 @@ public sealed class ChatWatcher : IDisposable
     private void PublishRegion(int generation, RegionResolution resolution)
     {
         if (!IsCurrent(generation)) return;
-        var previous = _resolution;
         _resolution = resolution;
-        if (!Equals(previous?.Region, resolution.Region)) RegionChanged?.Invoke(resolution.Region);
+        // Compared with the last region reported, not _resolution, which Invalidate clears: no event without a move.
+        if (Equals(_publishedRegion, resolution.Region)) return;
+        _publishedRegion = resolution.Region;
+        RegionChanged?.Invoke(resolution.Region);
     }
 
-    /// <summary>Raises <see cref="StateChanged"/> once per change of state, pause reason, health or hint.</summary>
+    /// <summary>Raises <see cref="StateChanged"/> once per change of state, pause reason, health, hint or DPI notice.</summary>
     private void Announce()
     {
-        var now = (_state, _pause, _metrics.Snapshot().Health, Hint is not null);
+        var now = (_state, _pause, _metrics.Snapshot().Health, Hint is not null, _dpiUnaware);
         lock (_gate)
         {
             if (now == _announced) return;

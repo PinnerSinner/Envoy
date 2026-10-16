@@ -16,7 +16,7 @@ public enum CaptureHealth
 /// <summary>One consistent reading of <see cref="CaptureMetrics"/> (REQ-CAP-38).</summary>
 public sealed record CaptureMetricsSnapshot(double AvgCaptureMs, double AvgOcrMs, long FramesCaptured, long FramesSkipped,
     long OcrRuns, long OcrTimeouts, long OcrBusySkips, long Restarts, int ConsecutiveFailures, TimeSpan CurrentInterval,
-    string Backend, CaptureHealth Health, PauseReason PauseReason)
+    string Backend, CaptureHealth Health, PauseReason PauseReason, long OcrStuck = 0)
 {
     public static readonly CaptureMetricsSnapshot Empty = new(0, 0, 0, 0, 0, 0, 0, 0, 0, TimeSpan.Zero, CaptureBackendIds.Gdi,
         CaptureHealth.Healthy, PauseReason.None);
@@ -38,7 +38,7 @@ public sealed class CaptureMetrics
     private readonly object _gate = new();
     private readonly Ring _capture;
     private readonly Ring _ocr;
-    private long _framesCaptured, _framesSkipped, _ocrRuns, _ocrTimeouts, _ocrBusySkips, _restarts;
+    private long _framesCaptured, _framesSkipped, _ocrRuns, _ocrTimeouts, _ocrBusySkips, _ocrStuck, _restarts;
     private int _consecutiveFailures;
     private bool _gaveUp;
     private DateTimeOffset? _lastTrouble;
@@ -55,7 +55,10 @@ public sealed class CaptureMetrics
         _ocr = new Ring(window);
     }
 
-    /// <summary>A frame was captured; <paramref name="changed"/> false means OCR was skipped for it.</summary>
+    /// <summary>
+    /// A frame was captured; <paramref name="changed"/> false counts it as skipped: unchanged (even when an open Live
+    /// view still sent it to OCR) or not read because OCR was busy.
+    /// </summary>
     public void RecordCapture(TimeSpan elapsed, bool changed)
     {
         lock (_gate)
@@ -87,6 +90,16 @@ public sealed class CaptureMetrics
     public void RecordOcrBusy()
     {
         lock (_gate) _ocrBusySkips++;
+    }
+
+    /// <summary>A busy-skip found the running OCR call stuck (<see cref="StuckOcr.IsStuck"/>); keeps the health degraded.</summary>
+    public void RecordOcrStuck()
+    {
+        lock (_gate)
+        {
+            _ocrStuck++;
+            _lastTrouble = _time.GetUtcNow();
+        }
     }
 
     public void RecordFailure()
@@ -140,7 +153,7 @@ public sealed class CaptureMetrics
                 : _lastTrouble is { } t && now - t < DegradedFor ? CaptureHealth.Degraded
                 : CaptureHealth.Healthy;
             return new CaptureMetricsSnapshot(_capture.Average, _ocr.Average, _framesCaptured, _framesSkipped, _ocrRuns,
-                _ocrTimeouts, _ocrBusySkips, _restarts, _consecutiveFailures, _interval, _backend, health, _pause);
+                _ocrTimeouts, _ocrBusySkips, _restarts, _consecutiveFailures, _interval, _backend, health, _pause, _ocrStuck);
         }
     }
 
@@ -151,7 +164,7 @@ public sealed class CaptureMetrics
         {
             _capture.Clear();
             _ocr.Clear();
-            _framesCaptured = _framesSkipped = _ocrRuns = _ocrTimeouts = _ocrBusySkips = _restarts = 0;
+            _framesCaptured = _framesSkipped = _ocrRuns = _ocrTimeouts = _ocrBusySkips = _ocrStuck = _restarts = 0;
             _consecutiveFailures = 0;
             _gaveUp = false;
             _lastTrouble = null;

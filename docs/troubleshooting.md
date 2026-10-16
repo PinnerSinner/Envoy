@@ -48,9 +48,12 @@ happens again, copy diagnostics into a bug report; the report includes the last 
      click the game, or turn the option off.
    - *The chat area is off-screen.*: a monitor was unplugged or rearranged. Select the chat area again.
    - *Text recognition took too long* or *Reading the chat area failed*: Envoy keeps retrying and slows down while
-     it fails. *Envoy can't read the screen right now* is normal while Windows is locked or a UAC prompt is open.
+     it fails. If Windows text recognition hangs, Envoy restarts it by itself (up to three times each time reading is
+     turned on). *Envoy can't read the screen right now* is normal while Windows is locked or a UAC prompt is open.
    - *Chat reading stopped responding*: turn chat reading off and on (`Ctrl+Shift+P` twice). If it keeps happening,
      **Copy diagnostics** and report it.
+   - *Display scaling awareness is off…* on a line of its own: Envoy's coordinates may not match the screen, so the
+     chat area can be misaligned. Restart Envoy; if it stays, report it.
 2. **Does it see the text?** Open **Reading Chat → Live view**. Its header shows how reading is going and the
    capture and OCR times, skip rate and current check interval.
    - **Black image**, or *The chat area is blank…* under the status: the game is in exclusive fullscreen, which can't

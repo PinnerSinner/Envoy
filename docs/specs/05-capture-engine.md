@@ -934,7 +934,7 @@ Some functions are reused and not added. These come from 02: `POINT`, `MonitorFr
 | Game minimised | `Paused/GameMinimized`, 1 s wake-ups, no capture or OCR |
 | Browser over the chat (GDI) | `Paused/ChatCovered` (can be turned off) |
 | Windows locked / UAC secure desktop | `CaptureException` → back-off to 5 s; `Error` after 3; recovers on the first success |
-| OCR hangs | Timeout after 4 s → `Degraded`; single-flight skips until the call ends; the watchdog covers a hung loop |
+| OCR hangs | Timeout after 4 s → `Degraded`; single-flight skips until the call ends. A call still running at 2 × the timeout fails each tick and is abandoned with its engines (up to 3 times per `Start`, then `StoppedResponding`); the watchdog covers a hung loop |
 | Loop repeatedly hangs | More than 3 restarts in 5 min → `Error` with `StoppedResponding` and the 02 problem toast |
 | Capture stopped or restarted mid-translation | Translations continue (token `None`); 04 owns their terminal state |
 | Exclusive fullscreen (black) | `Hint` after 5 uniform frames; `UniformFrameStreak` feeds 07a |
@@ -1198,8 +1198,12 @@ Estimated size without WGC and soak: Core about 600 lines, tests about 500, App 
 - **Envoy's overlay over the chat.** GDI with `CAPTUREBLT` captures our own overlay. The default anchors avoid this.
   `WDA_EXCLUDEFROMCAPTURE` would also hide the overlay from streams, so 07c decides.
 - **Abandoned OCR operations.** WinRT cancellation is best-effort, so a permanently hung engine keeps `IsBusy` true.
-  The status then reads "slow". Toggling capture recreates the engines through `OcrService.Configure`. A SHOULD
-  follow-up recreates them automatically after 3 timeouts in a row.
+  Busy-skips are never successful ticks. Once the call has run for 2 × `OcrTimeoutMs` (Core `StuckOcr.IsStuck`), each
+  busy-skip is a failed tick, and `OcrService.Recover()` abandons the call. Recovery swaps in a fresh `SingleFlight`
+  and recreates the engines from the last `Configure`. This happens at most `StuckOcr.MaxRecoveries` (3) times per
+  `Start`. After that, `LastError` is `StoppedResponding` and the failures reach `Error`/`Failing`. `Start()` (toggling
+  capture) resets the budget and also recovers a call that has outlived its timeout. Each recovery may leak one hung
+  WinRT operation, which is why the number of recoveries is limited.
 - **`GameWindowChanged` churn.** The watcher and the timer both publish, but equality dedupe and the saturating streak
   bound the events to real changes. 06 and 07a must treat the event as "re-read `GameWindow`".
 - **Forwarding `ProcessAsync` overload before 04.** It is deliberately trivial, and its test pins behaviour so that
@@ -1276,8 +1280,12 @@ and the contract:
 
 1. **COULDs not built.** There is no `WgcCaptureBackend` (REQ-CAP-37), so `dwmapi!DwmGetWindowAttribute` is not
    allowlisted, `CaptureBackendFactory.Available()` lists GDI only and the "Capture method" row stays collapsed. There
-   is no one-time derivation of relative regions from v0.1 absolute ones (REQ-CAP-6). The SHOULD follow-up in Risks
-   (recreate the OCR engines after 3 timeouts in a row) is not built either; toggling capture still recreates them.
+   is no one-time derivation of relative regions from v0.1 absolute ones (REQ-CAP-6). The Risks follow-up
+   (recreate the OCR engines after 3 timeouts in a row) is built differently. A call still running at 2 × the timeout
+   is "stuck". Each busy-skip on a stuck call is a failed tick (`OcrStuck` counts them, and they keep the health
+   `Degraded`). The stuck call is abandoned through `OcrService.Recover()`, at most 3 times per `Start`; after that
+   `LastError` is `StoppedResponding`. `Start()` also recovers a call that has outlived its timeout. A busy-skip on a
+   younger call is neutral: it is not a success, so it neither clears failures nor sets `Running`.
 2. **`SetRegion` probes the window itself.** It calls `GameWindowTracker.Observe(_game, …)` at the moment of
    selection instead of reading the cached `AppHost.GameWindow`, which can be up to 1 s old. A minimised window gives
    no relative region. When the new area lies outside the game's client area, `SetRegion` also **removes**
@@ -1286,8 +1294,12 @@ and the contract:
 3. **Minimised game keeps its last client rect.** While the window is minimised (its client rect is meaningless),
    the tick resolves the region against the last client rect it saw, so the region does not jump and `RegionChanged`
    does not fire twice per minimise.
-4. **`CaptureGate.IsReading(observation, options)`** is a small Core helper for step 4.3's "`reading` = evaluate
-   with `PreviewOpen = false`"; behaviour is as specified.
+4. **Reading vs. the Live view.** Step 4.3 evaluates the gate again with `PreviewOpen = false`. A tick that captures
+   only because a Live view is open keeps that evaluation's pause as its state and `PauseReason`, so the status never
+   says "Reading chat" while frames do not reach the pipeline. Such frames do not feed the blank-frame streak.
+   `CaptureGate.IsReading` remains as a tested Core helper for the same rule.
+   `FramesSkipped` counts unchanged frames even when the Live view still OCRs them, plus frames not read because OCR
+   was busy, so the Live view's skip rate (M-CAP-4) reflects the screen and not the forced OCR.
 5. **Extra public members.** `ChatWatcher.Pool` (the soak run reads its counters); `ChatWatcher.StateChanged` is also
    raised when `Hint` appears or clears, so the status line's second line updates. `OcrService` takes an optional
    `TimeProvider` (for its `SingleFlight`). `ScreenCapturer.ScaleFor` wraps `RegionMath.OutputSize` for
@@ -1295,7 +1307,10 @@ and the contract:
    `RegionSelectorWindow.ToScreen(Rect)` is internal so the smoke test can check the DIP-to-physical conversion.
    `MainViewModel.HasRegionHint` drives the hint caption's visibility. `CaptureText` gains `RegionNotSet`,
    `BackendGdi` and the three `Health*` sentences; `CaptureMetrics` exposes `FailingAfter`, `DegradedFor` and
-   `CaptureMetricsSnapshot.Empty`; `RegionMath` exposes `SampleInsetPx` and `RegionResolution.None`.
+   `CaptureMetricsSnapshot.Empty`; `RegionMath` exposes `SampleInsetPx` and `RegionResolution.None`. For stuck OCR
+   (Deviation 1): `SingleFlight.BusyFor`, `OcrService.BusyFor` and `OcrService.Recover()`, Core `StuckOcr`
+   (`IsStuck`, `MaxRecoveries`), and `CaptureMetrics.RecordOcrStuck` with `CaptureMetricsSnapshot.OcrStuck`.
+   `ChatWatcher.DpiUnaware` keeps the REQ-CAP-34 result.
 6. **`HealthText` while stopped** reads `CaptureText.Stopped` rather than "working normally".
 7. **Soak details.** The offline translator is `EchoTranslator` (shared with the smoke test's dedicated watcher)
    rather than an in-file `SoakEchoTranslator`. `--soak <minutes> [log-path]` writes `soak-test.log` (default: the
@@ -1313,6 +1328,18 @@ and the contract:
    `CaptureOptionsTests.cs`.
 10. **Typecheck rule R11** also treats any `.Settings` member access in `ChatWatcher.cs` (outside `using` lines and
     comments) as a settings read, which is stricter than "reads `AppSettings`".
-11. **The Windows-only criteria** (smoke `capture-engine`, the per-palette `settings-capture` screenshots, AC-CAP-23's
+11. **Review fixes.**
+    - `Invalidate()` resets the fingerprint under a lock and bumps an epoch. An OCR pass already in flight stores its
+      hash only if the epoch is unchanged, so a re-read is never lost (REQ-CAP-18).
+    - `RegionChanged` compares with the last region it reported, not with the `_resolution` cache that `Invalidate`
+      clears, so it fires only on a real move (REQ-CAP-7).
+    - The covered check counts every top-level window of the game's process as the game, not only its main window
+      (REQ-CAP-10). `GameWindowTracker.Sample` therefore takes the game's process id.
+    - A stalled old loop generation that wakes after a watchdog restart writes no streak, fingerprint, interval or
+      metrics.
+    - The DPI check result is kept in `ChatWatcher.DpiUnaware`, which `Start` does not reset. `LastError` goes back to
+      `CaptureText.DpiUnaware` after a `Start` or a recovery. `AppHost.CaptureStatus` shows the notice on a line of
+      its own in every state (REQ-CAP-34).
+12. **The Windows-only criteria** (smoke `capture-engine`, the per-palette `settings-capture` screenshots, AC-CAP-23's
     `SMOKE TEST PASSED`) are verified by CI on push; this Linux environment ran the Core tests, the typecheck and the
     policy check.

@@ -120,4 +120,38 @@ public class SingleFlightTests
         for (var i = 0; i < 100 && flight.IsBusy; i++) await TestClock.Settle(5);
         Assert.False(flight.IsBusy);
     }
+
+    [Fact]
+    public async Task BusyFor_measures_the_running_call_even_after_timeout()
+    {
+        var clock = TestClock.Create();
+        var flight = new SingleFlight(clock);
+        Assert.Equal(TimeSpan.Zero, flight.BusyFor);
+        var gate = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var call = flight.RunAsync(_ => gate.Task, Timeout, CancellationToken.None);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(TimeSpan.FromSeconds(1), flight.BusyFor);
+
+        clock.Advance(Timeout);
+        await Assert.ThrowsAsync<TimeoutException>(() => call);
+        clock.Advance(TimeSpan.FromSeconds(3));
+        Assert.Equal(TimeSpan.FromSeconds(8), flight.BusyFor);
+
+        gate.SetResult(0);
+        for (var i = 0; i < 100 && flight.IsBusy; i++) await TestClock.Settle(5);
+        Assert.False(flight.IsBusy);
+        Assert.Equal(TimeSpan.Zero, flight.BusyFor);
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(4000, false)]
+    [InlineData(7999, false)]
+    [InlineData(8000, true)]
+    [InlineData(60000, true)]
+    public void A_call_is_stuck_at_twice_the_timeout(int busyMs, bool stuck)
+    {
+        Assert.Equal(stuck, StuckOcr.IsStuck(TimeSpan.FromMilliseconds(busyMs), Timeout));
+        Assert.False(StuckOcr.IsStuck(TimeSpan.FromMinutes(1), TimeSpan.Zero));
+    }
 }

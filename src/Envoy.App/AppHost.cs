@@ -245,7 +245,10 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     public string GameStatus => _game is null ? "No Age game running" : $"{_game.Profile.Name} detected";
     public string ProviderStatus => _providerStatus;
 
-    /// <summary>The War Room status line, from <see cref="CaptureText"/>; a blank-area hint goes on a second line.</summary>
+    /// <summary>
+    /// The War Room status line, from <see cref="CaptureText"/>; a blank-area hint and the DPI notice (REQ-CAP-34) go on
+    /// lines of their own.
+    /// </summary>
     public string CaptureStatus
     {
         get
@@ -260,7 +263,9 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
                 WatcherState.Error => Watcher.LastError ?? CaptureText.CaptureFailed,
                 _ => CaptureText.Stopped,
             };
-            return Watcher.Hint is { } hint ? status + Environment.NewLine + hint : status;
+            if (Watcher.Hint is { } hint) status += Environment.NewLine + hint;
+            if (Watcher.DpiUnaware && status != CaptureText.DpiUnaware) status += Environment.NewLine + CaptureText.DpiUnaware;
+            return status;
         }
     }
 

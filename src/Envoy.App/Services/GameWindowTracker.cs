@@ -45,9 +45,10 @@ public static class GameWindowTracker
 
     /// <summary>
     /// Who owns the top-level window at each covered-check point of <paramref name="region"/> (REQ-CAP-10): the game
-    /// (checked first), Envoy, or another window.
+    /// (checked first: its main window, or any other top-level window of process <paramref name="gameProcessId"/>, such
+    /// as an owned popup or dialog), Envoy, or another window.
     /// </summary>
-    public static IReadOnlyList<SampleOwner> Sample(ScreenRegion region, IntPtr gameWindow)
+    public static IReadOnlyList<SampleOwner> Sample(ScreenRegion region, IntPtr gameWindow, int gameProcessId)
     {
         ArgumentNullException.ThrowIfNull(region);
         var points = RegionMath.SamplePoints(region);
@@ -65,7 +66,10 @@ public static class GameWindowTracker
             }
             uint pid = 0;
             if (root != IntPtr.Zero) _ = Native.GetWindowThreadProcessId(root, out pid);
-            owners[i] = root != IntPtr.Zero && pid == self ? SampleOwner.Envoy : SampleOwner.Other;
+            owners[i] = root == IntPtr.Zero || pid == 0 ? SampleOwner.Other
+                : gameProcessId > 0 && pid == (uint)gameProcessId ? SampleOwner.Game
+                : pid == self ? SampleOwner.Envoy
+                : SampleOwner.Other;
         }
         return owners;
     }

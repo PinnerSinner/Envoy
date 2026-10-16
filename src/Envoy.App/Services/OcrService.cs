@@ -19,13 +19,23 @@ public sealed class OcrService(TimeProvider? time = null)
 {
     private readonly List<(string Code, OcrEngine Engine)> _engines = [];
     private readonly object _gate = new();
-    private readonly SingleFlight _flight = new(time ?? TimeProvider.System);
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
+    private SingleFlight _flight = new(time ?? TimeProvider.System); // replaced by Recover; guarded by _gate
+    private (string MyLanguage, List<string> Wanted)? _configured;
 
     /// <summary>
     /// True while a watcher OCR pass runs, including one abandoned after its timeout (REQ-CAP-26): the watcher skips OCR
-    /// until it really ends.
+    /// until it really ends, or until <see cref="Recover"/> abandons it.
     /// </summary>
-    public bool IsBusy => _flight.IsBusy;
+    public bool IsBusy => Flight.IsBusy;
+
+    /// <summary>How long the running (or abandoned) watcher OCR pass has been going; zero when idle.</summary>
+    public TimeSpan BusyFor => Flight.BusyFor;
+
+    private SingleFlight Flight
+    {
+        get { lock (_gate) return _flight; }
+    }
 
     public IReadOnlyList<string> ActiveLanguages
     {
@@ -50,7 +60,9 @@ public sealed class OcrService(TimeProvider? time = null)
     /// <summary>Creates one engine per wanted language that's installed. Empty <paramref name="wanted"/> = all installed.</summary>
     public void Configure(string myLanguage, IEnumerable<string> wanted)
     {
-        var wantedSet = new HashSet<string>(wanted.Select(LanguageCatalog.Normalize), StringComparer.OrdinalIgnoreCase);
+        var wantedList = wanted.ToList();
+        lock (_gate) _configured = (myLanguage, wantedList);
+        var wantedSet = new HashSet<string>(wantedList.Select(LanguageCatalog.Normalize), StringComparer.OrdinalIgnoreCase);
         var useAll = wantedSet.Count == 0;
         wantedSet.Add(LanguageCatalog.Normalize(myLanguage));
 
@@ -78,6 +90,22 @@ public sealed class OcrService(TimeProvider? time = null)
     public static uint MaxImageDimension => OcrEngine.MaxImageDimension;
 
     /// <summary>
+    /// Abandons a stuck watcher OCR pass (Risks "Abandoned OCR operations"): a fresh single-flight lets the next pass
+    /// run, on engines recreated from the last <see cref="Configure"/>, so it never shares an engine with the hung call.
+    /// The hung call keeps its own engines and clears only its old single-flight if it ever ends.
+    /// </summary>
+    public void Recover()
+    {
+        (string MyLanguage, List<string> Wanted)? configured;
+        lock (_gate)
+        {
+            _flight = new SingleFlight(_time);
+            configured = _configured;
+        }
+        if (configured is { } c) Configure(c.MyLanguage, c.Wanted);
+    }
+
+    /// <summary>
     /// The watcher's OCR pass (REQ-CAP-24..26): single-flight over all engines and bounded by <paramref name="timeout"/>,
     /// which cancels the WinRT operations. The pooled pixels are wrapped in a length-bounded <c>IBuffer</c> view (no
     /// managed copy) and copied into the bitmap before this returns, so <paramref name="frame"/> may be returned to its
@@ -87,7 +115,7 @@ public sealed class OcrService(TimeProvider? time = null)
     public Task<IReadOnlyList<OcrPass>> RecognizeAsync(FrameBuffer frame, TimeSpan timeout, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(frame);
-        return _flight.RunAsync(token =>
+        return Flight.RunAsync(token =>
         {
             var bitmap = SoftwareBitmap.CreateCopyFromBuffer(frame.Array.AsBuffer(0, frame.Length),
                 BitmapPixelFormat.Bgra8, frame.Width, frame.Height, BitmapAlphaMode.Premultiplied);
