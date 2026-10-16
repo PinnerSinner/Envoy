@@ -141,7 +141,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         _updatesLog = Log.For("Updates");
         UpdatesToken = _updatesCts.Token;
         Updates = new UpdateCoordinator(options.UpdateBackend ?? UpdateBackendFactory.Create(_http, AppVersion, _updatesLog),
-            UpdatePreferences.From(Settings), OnUpdateCheckCompleted, Time, _updatesLog);
+            UpdatePreferences.From(Settings, IsSafeMode), OnUpdateCheckCompleted, Time, _updatesLog);
         Updates.Changed += OnUpdatesChanged;
         // [07a NoticeCenter, skipped in safe mode]
 
@@ -465,7 +465,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Pipeline.Options = BuildChatOptions(); // 5: chat options and format re-resolve (04)
         ConfigureOcr();
         Watcher.Invalidate(); // 6 (05)
-        Updates.Configure(UpdatePreferences.From(Settings)).Forget(_updatesLog, "update channel check"); // 7 (06)
+        Updates.Configure(UpdatePreferences.From(Settings, IsSafeMode), UpdatesToken).Forget(_updatesLog, "update channel check"); // 7 (06)
         ApplyTheme();
         StartupRegistration.Apply(Settings.StartWithWindows);
         ScheduleSave();

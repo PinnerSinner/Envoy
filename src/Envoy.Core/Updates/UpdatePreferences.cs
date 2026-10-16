@@ -10,11 +10,17 @@ public sealed record UpdatePreferences(bool CheckAutomatically, bool AutoDownloa
                                        ReleaseVersion? SkippedVersion, DateTimeOffset? LastCheckUtc)
 {
     /// <summary>Copies the values; an empty or unreadable <c>SkippedVersion</c> becomes null.</summary>
-    public static UpdatePreferences From(AppSettings settings)
+    public static UpdatePreferences From(AppSettings settings) => From(settings, safeMode: false);
+
+    /// <summary>
+    /// As <see cref="From(AppSettings)"/>; in safe mode <see cref="CheckAutomatically"/> is false whatever the setting, so
+    /// nothing automatic (a check, or a download after a manual check) reaches the network (REQ-DIST-13).
+    /// </summary>
+    public static UpdatePreferences From(AppSettings settings, bool safeMode)
     {
         ArgumentNullException.ThrowIfNull(settings);
         var u = settings.Updates ?? new UpdateSettings();
-        return new UpdatePreferences(settings.CheckForUpdates, u.AutoDownload, u.Channel,
+        return new UpdatePreferences(settings.CheckForUpdates && !safeMode, u.AutoDownload, u.Channel,
             ReleaseVersion.TryParse(u.SkippedVersion, out var skipped) ? skipped : null, u.LastCheckUtc);
     }
 }

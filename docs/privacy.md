@@ -6,7 +6,8 @@ it.
 ## What Envoy stores on your PC
 
 Everything lives in one folder, `%APPDATA%\Envoy` (About › **Open settings folder** opens it). Nothing else on your PC
-is changed, apart from the optional "Start with Windows" entry in your user's Run key.
+is changed, apart from the optional "Start with Windows" entry in your user's Run key and, if you used the installer,
+the program and the installer's log (see [Installed copies](#installed-copies)).
 
 | File | What it is |
 | --- | --- |
@@ -30,6 +31,15 @@ is changed, apart from the optional "Start with Windows" entry in your user's Ru
 
 The `.bak` copies hold your API keys encrypted the same way as `settings.json`, so only your Windows account can read
 them.
+
+### Installed copies
+
+If you installed Envoy with `Envoy-win-Setup.exe`, the program itself lives in `%LocalAppData%\Envoy`, and the
+installer and updater (Velopack) keep a technical log in `%LocalAppData%\velopack` (`velopack_Envoy.log`; Envoy's own
+update code adds to it). It records install, update and start-up steps with file paths, which include your Windows
+user name; it never contains settings, keys or chat, and it never leaves your PC. It is not in the data folder, so
+**Delete all Envoy data…** does not remove it: delete it by hand if you want. The portable `Envoy.exe` never creates
+it.
 
 ### Saved translations
 

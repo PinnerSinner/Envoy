@@ -4,10 +4,12 @@ This takes about two minutes and you only do it once.
 
 ## 1. Download and run
 
-Download `Envoy.exe` from the latest [release](../../../releases). It's a single file: no installer and no .NET to
-install. Put it anywhere (a `Tools` folder or the desktop) and double-click it.
+Download **`Envoy-win-Setup.exe`** from the latest [release](../../../releases/latest) and run it. It installs Envoy
+for your Windows account only (no admin rights, no .NET to install), adds it to the Start menu and keeps it up to
+date. Prefer no install? Download the portable `Envoy.exe` from the same page instead: it's a single file you can put
+anywhere (a `Tools` folder or the desktop) and double-click. [Installing & updates](installing.md) compares the two.
 
-> **Windows SmartScreen** may say it "protected your PC" because the exe isn't code-signed yet. Click
+> **Windows SmartScreen** may say it "protected your PC" because the download isn't code-signed yet. Click
 > **More info → Run anyway**. The exe is built by GitHub Actions straight from this repository's source; see
 > [Releasing](releasing.md) to check a download against its build.
 

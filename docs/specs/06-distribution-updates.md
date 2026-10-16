@@ -877,7 +877,10 @@ section; CI = check in the `check` job or a workflow step; M = numbered step in 
   folder still holds `settings.json`, `%LocalAppData%\Envoy` is gone.
 - **M-DIST-3 No apply under another instance / in safe mode:** with an update ready and Envoy running, start Envoy
   from the Start menu: the running instance comes to the front, nothing is applied. Quit, start with Shift held: safe
-  mode starts on the old version, nothing applied; the next normal start applies it.
+  mode starts on the old version, nothing applied; the next normal start applies it. Make the apply fail once (for
+  example, keep a file in `current\` open in another program): Envoy comes back on the old version with **Restart to
+  update** offered and the log says "Started by the updater with an update still pending"; it does not start the
+  updater again by itself (Deviation 27).
 - **M-DIST-4 In game:** AutoDownload on, update available, AoE2 DE (or any detected title) running: About/banner reads
   "…will download after your game"; no `packages\*.partial` appears; after closing the game the download starts
   within one detector cycle (3 s) plus a tick.
@@ -888,7 +891,9 @@ section; CI = check in the `check` job or a workflow step; M = numbered step in 
 - **M-DIST-6 Portable and opt-out:** portable beta.1 with Beta selected offers **Download** and **Get the installer**
   (opens the Setup.exe URL); the exe's timestamp is unchanged after an hour. Untick "Check for updates automatically",
   restart, watch Resource Monitor → Network for 2 minutes: no `api.github.com` connection; **Check for updates** then
-  makes one. Repeat the 2-minute watch in safe mode with the box ticked.
+  makes one. Repeat the 2-minute watch in safe mode with the box ticked. Delete `%LocalAppData%\velopack\velopack.log`
+  if it exists, start the portable exe (and `Envoy.exe --smoke-test`): no `velopack*.log` appears in
+  `%LocalAppData%\velopack` or `%TEMP%` (Deviation 23).
 
 ## Test plan
 
@@ -1170,7 +1175,7 @@ Differences from the text above, with reasons:
 15. **REQ-DIST-30 (COULD)** is built: `ENVOY_UPDATE_FEED` set to an existing, fully qualified, non-UNC local folder
     makes the installed copy use a Velopack `SimpleFileSource`; any other value is ignored with a Warning.
 16. **Docs**: `docs/building.md` gained "build the installer locally"; `README.md`'s documentation table links
-    `docs/installing.md`. `docs/privacy.md` is unchanged (no new data file; 07a adds the data-flow section).
+    `docs/installing.md`. `docs/privacy.md` gained "Installed copies" (Deviation 23); 07a adds the data-flow section.
 17. **Check runs** ("Concurrent calls share one run", refined after review). A call shares the running check only when
     that check is on the same channel and at least as manual; a manual call during an automatic check, or the
     `Configure` check after a channel switch, queues one more check after it, so a manual failure always shows its
@@ -1187,7 +1192,7 @@ Differences from the text above, with reasons:
     `AutoDownload` are on; `Configure` clears `DeferredForGame` when either goes off, so the banner offers Update now.
     A check during a game with automatic checks off sets no `DeferredForGame` (nothing would start it later) and offers
     Update now. Tests `Deferred_download_needs_automatic_checks_on`,
-    `Manual_check_in_game_with_automatic_checks_off_does_not_defer`.
+    `Manual_check_in_game_with_automatic_checks_off_does_not_defer`. The same holds outside a game: see Deviation 25.
 20. **Diagnostics report** "Version:" uses `AppHost.AppVersion` (so a beta reads `1.2.0-beta.1`, contract §3); only
     the log header and crash marker keep the numeric `CurrentVersion`.
 21. **UPD1/UPD2** are stricter: UPD1 also catches a target-typed `UpdateManager m = new(...)` and `: UpdateManager`;
@@ -1195,4 +1200,34 @@ Differences from the text above, with reasons:
 22. **Workflow**: the `ci-screenshots` push is built in a separate `git worktree` under `RUNNER_TEMP`, so the job's
     checkout keeps its tracked files for the folder build and `vpk pack` that follow on `main`; the step fails if the
     checkout lost `src/Envoy.App/Envoy.App.csproj`.
-
+23. **Velopack only for installed copies** (REQ-DIST-10, CLAUDE.md data-folder rule). Velopack 1.2.161's locator opens
+    a log file as soon as it is created (`%LocalAppData%\velopack\velopack.log` on Windows when not installed,
+    `velopack_Envoy.log` when installed; `$TMPDIR/velopack.log` on Linux), and a custom logger or locator only adds
+    sinks to it. So `Program.Main` runs `VelopackApp` only for an installer hook argument (`--veloapp-*`,
+    `--squirrel-*`) or when Core `InstallLayout.LooksInstalled` finds Velopack's layout (`Update.exe` beside the
+    exe's `current` folder), and `VelopackUpdateBackend.TryCreate` returns null before creating an `UpdateManager`
+    otherwise. The portable exe, Debug and `--smoke-test` launches therefore write nothing outside `Host.DataFolder`.
+    An installed copy still shares `velopack_Envoy.log` with Setup.exe and the updater, which write it anyway; it is
+    install machinery like `%LocalAppData%\Envoy`, documented in `docs/privacy.md` ("Installed copies") and
+    `docs/installing.md`, and is not in `DataInventory` (not under the data folder). Replacing Velopack's Windows
+    locator to drop that sink was rejected: it would re-implement Velopack's path discovery, untestable off Windows.
+    Tests `InstallLayoutTests`; M-DIST-6.
+24. **A failed check keeps a ready update** (REQ-DIST-16, 24, refining the state rule "manual check fails → Failed").
+    While the state is `ReadyToRestart`, a failed manual check (About, or the check after a channel switch) keeps
+    `ReadyToRestart` with `Error` set (diagnostics), so **Restart to update** and the tray item stay and a later check
+    of the same version neither downloads again nor offers Update now. Test
+    `Manual_failure_while_ready_keeps_restart_offer`.
+25. **A download after a check needs automatic checks on** (REQ-DIST-13). `AutoDownload` starts a download after a
+    check only while `CheckAutomatically` is on; `UpdatePreferences.From(settings, safeMode)` turns
+    `CheckAutomatically` off in safe mode. With automatic checks off, or in safe mode, a manual check therefore always
+    stops at **Update now**, in a game or not (consistent with Deviation 19). Tests
+    `Manual_check_with_automatic_checks_off_does_not_download`, `Safe_mode_turns_automatic_checks_off`.
+26. **`Configure(prefs, ct)`** takes a token for the check after a channel switch; AppHost passes `UpdatesToken`, so
+    `Dispose` cancels it (contract §4 exit step 3). Test `Configure_check_honours_the_token`.
+27. **No apply loop** (REQ-DIST-12). Velopack's updater starts Envoy with `VELOPACK_RESTART` set after applying, or
+    failing to apply, an update; Velopack's own auto-apply never re-applies in such a process. `Program.Main` reads it
+    before `VelopackApp.Run` clears it (`Program.StartedByUpdater`), and slot 5 passes it to
+    `PendingUpdatePolicy.ShouldApplyAtStartup(…, startedByUpdater)`: a package that failed to apply is offered as
+    **Restart to update** (coordinator start-up) instead of re-running the updater on every start; the next start by
+    the user applies it again. That the updater also sets it after a failed apply is not verified here (Velopack's
+    library relies on it for the same guard); M-DIST-3 confirms it. Test `Process_started_by_the_updater_does_not_apply_again`.

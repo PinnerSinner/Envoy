@@ -98,6 +98,61 @@ public static class UpdateEndpoints
 /// <summary>Start-up slot 5: whether a downloaded update is applied before Envoy starts (REQ-DIST-12 b).</summary>
 public static class PendingUpdatePolicy
 {
+    /// <summary>
+    /// Set by Velopack's updater on the Envoy it starts after applying (or failing to apply) an update. Velopack's own
+    /// auto-apply never re-applies in such a process; neither does slot 5, so a package that fails to apply cannot start
+    /// a loop of updater runs (the next start by the user tries again). <c>VelopackApp.Run</c> clears it, so
+    /// <c>Program.Main</c> reads it first.
+    /// </summary>
+    public const string RestartedByUpdaterVariable = "VELOPACK_RESTART";
+
     public static bool ShouldApplyAtStartup(bool hasPendingPackage, bool safeModeArg, bool shiftHeld)
-        => hasPendingPackage && !safeModeArg && !shiftHeld;
+        => ShouldApplyAtStartup(hasPendingPackage, safeModeArg, shiftHeld, startedByUpdater: false);
+
+    public static bool ShouldApplyAtStartup(bool hasPendingPackage, bool safeModeArg, bool shiftHeld, bool startedByUpdater)
+        => hasPendingPackage && !safeModeArg && !shiftHeld && !startedByUpdater;
+}
+
+/// <summary>
+/// Whether this process is a Velopack-installed Envoy, decided from the file layout alone (REQ-DIST-10). Velopack's
+/// locator opens a log file outside the data folder as soon as it is created, so the portable exe, Debug builds and
+/// <c>--smoke-test</c> never create one: Program.Main runs <c>VelopackApp</c> and <c>VelopackUpdateBackend</c> creates an
+/// <c>UpdateManager</c> only when this says so.
+/// </summary>
+public static class InstallLayout
+{
+    /// <summary>The installer's and updater's hook arguments (Velopack's "fast exit hooks", and the Squirrel ones it still accepts).</summary>
+    public static bool IsInstallerHook(IReadOnlyList<string> args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+        return args.Count > 0 && args[0] is { } first
+            && (first.StartsWith("--veloapp-", StringComparison.OrdinalIgnoreCase) || first.StartsWith("--squirrel-", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Velopack's own two layouts: <c>&lt;root&gt;\current\Envoy.exe</c> with <c>&lt;root&gt;\Update.exe</c> beside
+    /// <c>current</c>, or an exe anywhere below a <c>current</c> folder whose parent holds <c>Update.exe</c>. Reads
+    /// nothing but <paramref name="fileExists"/>; never throws.
+    /// </summary>
+    public static bool LooksInstalled(string? processPath, Func<string, bool> fileExists)
+    {
+        ArgumentNullException.ThrowIfNull(fileExists);
+        if (string.IsNullOrWhiteSpace(processPath)) return false;
+        try
+        {
+            var dir = Path.GetDirectoryName(processPath);
+            if (!string.IsNullOrEmpty(dir) && fileExists(Path.GetFullPath(Path.Combine(dir, "..", "Update.exe")))) return true;
+            var marker = Path.DirectorySeparatorChar + "current" + Path.DirectorySeparatorChar;
+            var at = processPath.LastIndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            return at > 0 && fileExists(Path.Combine(processPath[..at], "Update.exe"));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Program.Main: run <c>VelopackApp</c> for an installer hook or an installed copy, else skip it.</summary>
+    public static bool ShouldRunVelopack(string? processPath, IReadOnlyList<string> args, Func<string, bool> fileExists)
+        => IsInstallerHook(args) || LooksInstalled(processPath, fileExists);
 }

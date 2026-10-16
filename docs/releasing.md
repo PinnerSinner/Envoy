@@ -204,7 +204,10 @@ Run these on a fork (or with throwaway tags) before the first release, after a V
 - **M-DIST-3 No apply under another instance or in safe mode.** With an update ready and Envoy running, start Envoy
   from the Start menu: the running instance comes to the front and nothing is applied. Quit, then start with Shift
   held: safe mode starts on the old version and applies nothing; the next normal start applies it. With an update
-  ready, the tray menu shows "Restart to update to …".
+  ready, the tray menu shows "Restart to update to …". Make one apply fail (for example, keep a file in `current\`
+  open in another program, then **Restart to update**): Envoy comes back on the old version, still offers **Restart
+  to update**, logs "Started by the updater with an update still pending" and does not start the updater again by
+  itself.
 - **M-DIST-4 In game.** Background downloads on, an update available, AoE II: DE (or any detected title) running:
   About and the banner read "… will download after your game", and no `packages\*.partial` file appears under
   `%LocalAppData%\Envoy`. After closing the game the download starts within a few seconds.
@@ -215,5 +218,7 @@ Run these on a fork (or with throwaway tags) before the first release, after a V
 - **M-DIST-6 Portable and opt-out.** The portable beta.1 `Envoy.exe` with Beta selected offers **Download** and **Get
   the installer** (which opens the `Envoy-win-Setup.exe` URL); the exe's timestamp is unchanged after an hour. Untick
   "Check for updates automatically", restart and watch Resource Monitor › Network for 2 minutes: no `api.github.com`
-  connection. **Check for updates** on About then makes one. Repeat the 2-minute watch in safe mode with the box
-  ticked.
+  connection. **Check for updates** on About then makes one; on an installed copy it offers **Update now** and does
+  not download by itself. Repeat the 2-minute watch in safe mode with the box ticked. Finally delete
+  `%LocalAppData%\velopack\velopack.log` if it exists and start the portable exe (and `Envoy.exe --smoke-test`): no
+  `velopack*.log` appears in `%LocalAppData%\velopack` or `%TEMP%`.

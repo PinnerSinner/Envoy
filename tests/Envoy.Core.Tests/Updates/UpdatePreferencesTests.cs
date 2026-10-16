@@ -37,4 +37,16 @@ public class UpdatePreferencesTests
         settings.Updates.SkippedVersion = skipped;
         Assert.Null(UpdatePreferences.From(settings).SkippedVersion);
     }
+
+    [Theory]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, false)]
+    public void Safe_mode_turns_automatic_checks_off(bool setting, bool safeMode, bool expected)
+    {
+        var settings = new AppSettings { CheckForUpdates = setting };
+        var prefs = UpdatePreferences.From(settings, safeMode);
+        Assert.Equal(expected, prefs.CheckAutomatically);
+        Assert.True(settings.CheckForUpdates == setting); // the setting itself is untouched
+    }
 }

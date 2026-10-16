@@ -99,11 +99,15 @@ public partial class App : Application, IShell
         ThreadPool.RegisterWaitForSingleObject(_showSignal, (_, _) => Dispatcher.BeginInvoke(ShowMain), null, Timeout.Infinite, false);
 
         // 5. Pending update apply (06, REQ-DIST-12): only here, after the mutex and before the sentinel; skipped with
-        //    --safe-mode or Shift held. Local only: reads the packages folder, no network. Never blocks start-up.
+        //    --safe-mode or Shift held, and never in a process the updater itself started (a package that failed to
+        //    apply must not loop; the user's next start tries again). Local only: reads the packages folder, no
+        //    network. Never blocks start-up.
         var updatesLog = hub.For("Updates");
         var velo = VelopackUpdateBackend.TryCreate(updatesLog);
+        if (velo is not null && Program.StartedByUpdater && velo.PendingRestart is { } notApplied)
+            updatesLog.Warn("Started by the updater with an update still pending; not applying it again now", null, LogField.Of("version", notApplied));
         if (velo is not null && PendingUpdatePolicy.ShouldApplyAtStartup(velo.PendingRestart is not null,
-                e.Args.Contains(SafeModeDecision.Flag, StringComparer.OrdinalIgnoreCase), shiftHeld))
+                e.Args.Contains(SafeModeDecision.Flag, StringComparer.OrdinalIgnoreCase), shiftHeld, Program.StartedByUpdater))
         {
             try
             {

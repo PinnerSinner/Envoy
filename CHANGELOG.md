@@ -63,7 +63,10 @@ versioning: [SemVer](https://semver.org/).
   background (never during a game) and offers **Restart to update**; a downloaded update is otherwise applied the next
   time Envoy starts (hold Shift to skip that). The portable `Envoy.exe` is still published; it tells you about new
   versions and offers **Download** and **Get the installer**, but never changes itself. See
-  [Installing & updates](docs/installing.md).
+  [Installing & updates](docs/installing.md). With automatic checks off, or in safe mode, a check you start never
+  downloads by itself: it offers **Update now**. A failed check never hides **Restart to update** for an update that
+  is already downloaded, and if an update can't be applied Envoy starts on the old version instead of retrying in a
+  loop.
 - The War Room's update banner shows the new version and its release notes (**What's new**), **Skip** for a version
   you don't want, and after an update says once "Envoy was updated to …".
 - **Update channel** (Appearance › Startup & updates): Stable, or Beta for early builds (GitHub prereleases).
@@ -139,7 +142,8 @@ versioning: [SemVer](https://semver.org/).
   `updates-portable` with `{palette}-update.png`; the release workflow (folder publish, `vpk pack`/`upload`, draft →
   asset assertion → publish, tag-only signing under the `release` environment, winget manifests) and its
   `tools/release/` checks; the diagnostics report has an "Updates" line. The User-Agent's Envoy token now carries the
-  real version.
+  real version. `InstallLayout` keeps the portable exe, Debug builds and `--smoke-test` away from Velopack (whose
+  locator writes a log file outside the data folder).
 - Capture engine (spec 05): `Envoy.Core.Capture` (`CaptureOptions` snapshot, `RegionMath`, `CaptureGate`,
   `AdaptivePollPolicy`, `FramePool`, `FrameProcessing`, `SingleFlight`, `LoopWatchdog`, `CaptureMetrics`,
   `CaptureText`/`CaptureErrors`, `SoakBudget`), `OcrMerger.MergeLines` with row geometry and the `OcrLine`

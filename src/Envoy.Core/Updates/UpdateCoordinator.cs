@@ -84,7 +84,8 @@ public sealed class UpdateCoordinator
     /// Publishes new preferences. <c>LastCheckUtc</c> keeps the later of the stored and the incoming value. Returns a
     /// manual check when the channel changed (REQ-DIST-18), else a completed task.
     /// </summary>
-    public Task Configure(UpdatePreferences prefs)
+    /// <param name="ct">Cancels that check (AppHost passes <c>UpdatesToken</c>, cancelled at exit, contract §4).</param>
+    public Task Configure(UpdatePreferences prefs, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(prefs);
         UpdatePreferences old;
@@ -100,7 +101,7 @@ public sealed class UpdateCoordinator
         if (old.Channel == prefs.Channel) return Task.CompletedTask;
         Update(s => s with { Channel = prefs.Channel });
         _log.Info("Update channel changed", LogField.Of("channel", prefs.Channel));
-        return CheckAsync(manual: true);
+        return CheckAsync(manual: true, ct);
     }
 
     /// <summary>The UI thread reports whether a game is running; a true→false change does not itself download (TickAsync does).</summary>
@@ -276,9 +277,10 @@ public sealed class UpdateCoordinator
             var kind = (ex as UpdateCheckException)?.Kind ?? UpdateErrorKind.Unknown;
             var at = CheckCompleted();
             _log.Warn("Update check failed", ex, LogField.Of("kind", kind), LogField.Of("manual", manual));
-            Update(s => manual
+            // A downloaded package is still on disk: a failed check never hides "Restart to update" (REQ-DIST-16, 24).
+            Update(s => manual && previous.State != UpdateState.ReadyToRestart
                 ? s with { State = UpdateState.Failed, Error = kind, FailedWhileDownloading = false, LastChecked = at }
-                : Restore(s) with { Error = kind, LastChecked = at, LastCheckWasManual = false });
+                : Restore(s) with { Error = kind, LastChecked = at, LastCheckWasManual = manual });
             return false;
         }
 
@@ -311,11 +313,12 @@ public sealed class UpdateCoordinator
             return false;
         }
 
-        var auto = _backend.Kind == InstallKind.Installed && prefs.AutoDownload;
+        // A download nobody clicked is automatic (REQ-DIST-13): it needs automatic checks on (off in safe mode, see
+        // UpdatePreferences.From), so with them off a manual check always stops at Update now, in a game or not. A
+        // deferred download starts on a tick, which needs them on too.
+        var auto = _backend.Kind == InstallKind.Installed && prefs is { AutoDownload: true, CheckAutomatically: true };
         var gameRunning = _gameRunning;
-        // Only a tick starts a deferred download, and a tick needs automatic checks on (REQ-DIST-13): with them off,
-        // a check during a game offers Update now instead of promising a download that would never start.
-        var deferred = auto && gameRunning && prefs.CheckAutomatically;
+        var deferred = auto && gameRunning;
         Update(s => s with
         {
             State = UpdateState.Available, Available = result, Error = null, Percent = 0, DeferredForGame = deferred,

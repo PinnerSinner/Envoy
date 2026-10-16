@@ -17,6 +17,8 @@ Envoy. Both are the same app with the same settings.
 - **Your data.** Settings, API keys (encrypted with Windows DPAPI), your phrases, logs, transcripts and saved
   translations are in the data folder shown on **About** (`%APPDATA%\Envoy` by default). Both kinds of Envoy use the
   same data folder, and updating or uninstalling never touches it. [Privacy](privacy.md) lists every file.
+- **The installer's log.** The installer and updater (Velopack) keep their own log in `%LocalAppData%\velopack`
+  (see [Privacy](privacy.md#installed-copies)). The portable exe never writes one.
 
 ## How updates work
 
@@ -29,7 +31,9 @@ when it starts (at most once an hour) and every 12 hours while it runs.
   **Update now**). When it is ready, the War Room shows **Restart to update** (so does the tray menu).
   Envoy closes, updates and opens again within a few seconds, in the same window state.
 - If you don't restart, the update is applied **the next time Envoy starts**, before it opens. Hold **Shift** while
-  starting Envoy (safe mode) to start without applying it.
+  starting Envoy (safe mode) to start without applying it. If an update can't be applied, Envoy opens on your
+  current version and still offers **Restart to update**; it tries again only when you restart or start it.
+- A failed **Check for updates** never takes away **Restart to update** for an update that is already downloaded.
 - An update is never applied while another Envoy is running, and Envoy never restarts by itself.
 - Turn off **Download updates in the background** to be asked first: the banner then offers **Update now**.
 - **Skip** hides that version from automatic checks. **Check for updates** on About still shows it.
@@ -51,7 +55,8 @@ comes out. About says "On a beta newer than the latest stable release" meanwhile
 ### Turning update checks off
 
 Untick **Check for updates automatically**. Envoy then makes no update request at all until you press **Check for
-updates** on About, which always works (also in safe mode). In safe mode Envoy never checks by itself.
+updates** on About, which always works (also in safe mode). In safe mode Envoy never checks by itself. With automatic
+checks off, or in safe mode, a check you start never downloads by itself: an installed copy offers **Update now**.
 
 Update checks and downloads go only to GitHub (`api.github.com` and the release downloads of
 `github.com/PinnerSinner/Envoy`). They carry nothing but the request and a `User-Agent` naming the Envoy version: no

@@ -53,10 +53,14 @@ public sealed class VelopackUpdateBackend : IUpdateBackend
         }
     }
 
-    /// <summary>Null when this copy isn't Velopack-installed (portable exe, dotnet run, smoke test). Never throws.</summary>
+    /// <summary>
+    /// Null when this copy isn't Velopack-installed (portable exe, dotnet run, smoke test). Never throws. The layout is
+    /// checked first, so a copy that is not installed never creates a Velopack locator (and its log file, REQ-DIST-10).
+    /// </summary>
     public static VelopackUpdateBackend? TryCreate(ILog log)
     {
         ArgumentNullException.ThrowIfNull(log);
+        if (!InstallLayout.LooksInstalled(Environment.ProcessPath, File.Exists)) return null;
         try
         {
             var manager = CreateManager(UpdateChannel.Stable, log);

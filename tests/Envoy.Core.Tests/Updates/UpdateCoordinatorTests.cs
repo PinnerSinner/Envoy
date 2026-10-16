@@ -442,6 +442,59 @@ public class UpdateCoordinatorTests
         Assert.Equal(0, backend.DownloadCalls);
     }
 
+    [Fact]
+    public async Task Manual_check_with_automatic_checks_off_does_not_download()
+    {
+        var backend = new FakeUpdateBackend(InstallKind.Installed).Returns("1.1.0");
+        var c = Create(backend, Prefs(auto: false, autoDownload: true)); // also safe mode (UpdatePreferences.From)
+        await c.CheckAsync(manual: true);
+        await c.BackgroundDownload;
+        Assert.Equal(0, backend.DownloadCalls);
+        Assert.Equal(UpdateState.Available, c.Snapshot.State);
+        Assert.Equal(UpdateAction.UpdateNow, UpdateViewBuilder.Build(c.Snapshot).Primary);
+
+        await c.DownloadAsync(); // Update now still works
+        Assert.Equal(UpdateState.ReadyToRestart, c.Snapshot.State);
+    }
+
+    [Fact]
+    public async Task Manual_failure_while_ready_keeps_restart_offer()
+    {
+        var backend = new FakeUpdateBackend(InstallKind.Installed).Returns("1.1.0");
+        var c = Create(backend);
+        await c.CheckAsync(manual: true);
+        await c.BackgroundDownload;
+        Assert.Equal(UpdateState.ReadyToRestart, c.Snapshot.State);
+        Assert.Equal(1, backend.DownloadCalls);
+
+        backend.Fails(new UpdateCheckException(UpdateErrorKind.Offline)).Returns("1.1.0");
+        await c.CheckAsync(manual: true);
+        Assert.Equal(UpdateState.ReadyToRestart, c.Snapshot.State);
+        Assert.True(c.CanRestartToUpdate);
+        Assert.Equal(UpdateErrorKind.Offline, c.Snapshot.Error);
+        Assert.Equal(ReleaseVersion.Parse("1.1.0"), c.Snapshot.Available?.Version);
+        Assert.Equal(UpdateAction.RestartToUpdate, UpdateViewBuilder.Build(c.Snapshot).Primary);
+
+        await c.CheckAsync(manual: true); // the next check finds the same version: still ready, no second download
+        await c.BackgroundDownload;
+        Assert.Equal(UpdateState.ReadyToRestart, c.Snapshot.State);
+        Assert.Null(c.Snapshot.Error);
+        Assert.Equal(1, backend.DownloadCalls);
+    }
+
+    [Fact]
+    public async Task Configure_check_honours_the_token()
+    {
+        var backend = new FakeUpdateBackend(InstallKind.Portable) { CheckGate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var c = Create(backend);
+        using var cts = new CancellationTokenSource();
+        var check = c.Configure(Prefs(channel: UpdateChannel.Beta), cts.Token);
+        while (backend.CheckCalls == 0) await Task.Delay(5);
+        await cts.CancelAsync(); // AppHost.Dispose cancels UpdatesToken
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => check.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(UpdateState.Idle, c.Snapshot.State);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
