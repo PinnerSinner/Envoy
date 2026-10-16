@@ -115,6 +115,38 @@
 
             <ContentControl Style="{StaticResource OrnateFrame}">
                 <StackPanel>
+                    <TextBlock Text="Understanding chat" Style="{StaticResource Text.H2}" />
+                    <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,8">
+                        How Envoy turns what it reads into messages. Game notices are never translated.
+                    </TextBlock>
+                    <CheckBox Content="Join messages that wrap onto the next line" IsChecked="{Binding Settings.Chat.StitchWrappedLines}"
+                              AutomationProperties.Name="Join messages that wrap onto the next line" />
+                    <CheckBox Content="Hide game notices (lines that aren't a player talking)" IsChecked="{Binding Settings.Chat.HideSystemLines}"
+                              AutomationProperties.Name="Hide game notices (lines that aren't a player talking)" />
+                    <CheckBox Content="Treat lines that start with a player's name but have no ':' as notices" IsChecked="{Binding Settings.Chat.DetectSystemLinesByPlayerName}"
+                              AutomationProperties.Name="Treat lines that start with a player's name but have no ':' as notices" />
+                    <CheckBox Content="Remove stray symbols that OCR reads from icons" IsChecked="{Binding Settings.Chat.CleanSymbols}"
+                              AutomationProperties.Name="Remove stray symbols that OCR reads from icons" />
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Chat format" Style="{StaticResource Text.Label}" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding ChatFormatOptions, Mode=OneWay}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                  SelectedValue="{Binding Settings.Chat.FormatProfile}" AutomationProperties.Name="Chat format" />
+                    </Grid>
+                    <TextBlock Text="Also treat these lines as notices" Style="{StaticResource Text.Label}" Margin="0,8,0,4" />
+                    <TextBox x:Name="SystemLinePatternsBox" Text="{Binding SystemLinePatternsText, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" MinHeight="64"
+                             TextWrapping="Wrap" VerticalContentAlignment="Top" AutomationProperties.Name="Also treat these lines as notices" />
+                    <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0">
+                        One per line. * matches anything, {player} matches a name, and starting a line with re: makes it a regular expression.
+                    </TextBlock>
+                    <TextBlock x:Name="ChatUnderstandingErrors" Text="{Binding ChatUnderstandingStatus, Mode=OneWay}" Style="{StaticResource Text.Caption}"
+                               Foreground="{DynamicResource Danger}" TextWrapping="Wrap" Margin="0,6,0,0"
+                               Visibility="{Binding HasChatUnderstandingErrors, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+            </ContentControl>
+
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
                     <DockPanel>
                         <TextBlock x:Name="PreviewStats" Text="{Binding CapturePreview.Stats}" DockPanel.Dock="Right" Style="{StaticResource Text.Caption}" />
                         <TextBlock Text="Live view" Style="{StaticResource Text.H2}" />
@@ -126,6 +158,13 @@
                         <Image x:Name="PreviewImage" Source="{Binding CapturePreview.Image}" Stretch="Uniform" MaxHeight="240" HorizontalAlignment="Left" RenderOptions.BitmapScalingMode="HighQuality" />
                     </Border>
                     <TextBox x:Name="PreviewText" c:AutoApply.Ignore="True" Text="{Binding CapturePreview.Text, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" Margin="0,8,0,0" VerticalContentAlignment="Top" />
+                    <TextBlock x:Name="PreviewUnderstood" Text="{Binding CapturePreview.UnderstoodText, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    <DockPanel Margin="0,8,0,0" Visibility="{Binding CapturePreview.CanCopy, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <Button x:Name="CopyTestCapture" Content="Copy as test capture" Command="{Binding CapturePreview.CopyAsTestCaptureCommand}"
+                                AutomationProperties.Name="Copy as test capture" DockPanel.Dock="Left" />
+                        <TextBlock Text="{Binding CapturePreview.CopyCaption, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
+                                   VerticalAlignment="Center" Margin="12,0,0,0" />
+                    </DockPanel>
                 </StackPanel>
             </ContentControl>
         </StackPanel>

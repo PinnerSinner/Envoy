@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Envoy.App.Services;
 using Envoy.App.Services.Capture;
 using Envoy.Core.Capture;
+using Envoy.Core.Chat;
 using Envoy.Core.Games;
 using Envoy.Core.Languages;
 
@@ -50,6 +51,55 @@ public sealed partial class MainViewModel
         Notify(nameof(RegionHint));
         Notify(nameof(HasRegionHint));
         Notify(nameof(HasRegion));
+    }
+
+    // ---- Understanding chat (spec 04) ----
+
+    private ChatFormatCatalog? _chatFormatOptionsFrom;
+    private IReadOnlyList<Option> _chatFormatOptions = [];
+
+    /// <summary>The notice patterns, one per line, for the "Also treat these lines as notices" box (REQ-CHAT-40).</summary>
+    public string SystemLinePatternsText
+    {
+        get => string.Join("\n", Settings.Chat.SystemLinePatterns);
+        set
+        {
+            Settings.Chat.SystemLinePatterns = SystemLinePatterns.SplitLines(value);
+            _applier.ApplyNow();
+            Notify();
+            RefreshChatUnderstanding();
+        }
+    }
+
+    /// <summary>Pattern and chat-formats.json problems, one sentence each; "" when there are none.</summary>
+    public string ChatUnderstandingStatus => ChatUnderstandingText.Errors(Host.Pipeline.SystemPatternErrors, Host.ChatFormats.Errors);
+
+    public bool HasChatUnderstandingErrors => ChatUnderstandingStatus.Length > 0;
+
+    /// <summary>"Match the game", then every chat format profile (REQ-CHAT-33). Rebuilt only when the catalog changes.</summary>
+    public IReadOnlyList<Option> ChatFormatOptions
+    {
+        get
+        {
+            if (!ReferenceEquals(_chatFormatOptionsFrom, Host.ChatFormats))
+            {
+                _chatFormatOptionsFrom = Host.ChatFormats;
+                _chatFormatOptions =
+                [
+                    new Option(ChatFormatCatalog.Auto, ChatUnderstandingText.MatchGameFormat),
+                    .. Host.ChatFormats.Profiles.Select(p => new Option(p.Id, p.Name)),
+                ];
+            }
+            return _chatFormatOptions;
+        }
+    }
+
+    /// <summary>Re-reads the card's error line, and the format list if chat-formats.json was reloaded.</summary>
+    private void RefreshChatUnderstanding()
+    {
+        Notify(nameof(ChatUnderstandingStatus));
+        Notify(nameof(HasChatUnderstandingErrors));
+        if (!ReferenceEquals(_chatFormatOptionsFrom, Host.ChatFormats)) Notify(nameof(ChatFormatOptions));
     }
 
     public string OcrSummary => Host.Ocr.ActiveLanguages.Count == 0

@@ -15,9 +15,11 @@ using Envoy.App.Services.Capture;
 using Envoy.App.ViewModels;
 using Envoy.App.Windows;
 using Envoy.Core.Capture;
+using Envoy.Core.Chat;
 using Envoy.Core.Diagnostics;
 using Envoy.Core.Games;
 using Envoy.Core.Notifications;
+using Envoy.Core.Ocr;
 using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
 using Envoy.Core.Translation;
@@ -116,6 +118,10 @@ internal static class SmokeTest
             // ---- 03: display-only provider health for the per-palette rows check ----
             SeedTranslationHealth(host);
             Section("translation-health-seed", sw);
+
+            // ---- 04: stitching, notice patterns and chat formats through the host's wiring ----
+            CheckChatUnderstanding(host);
+            Section("chat-understanding", sw);
 
             // Capture + OCR once on a small screen area (the runner's desktop).
             var image = ScreenCapturer.Capture(new ScreenRegion(0, 0, 320, 120), 2.0);
@@ -243,6 +249,8 @@ internal static class SmokeTest
                 Section($"preview-lease({palette})", sw);
                 await CheckAutoApplyAsync(host, main);
                 Section($"autoapply({palette})", sw);
+                await CheckChatUnderstandingCardAsync(main);
+                Section($"chat-card({palette})", sw);
             }
             Check(main.SafeModeBanner.Visibility == Visibility.Collapsed, "the safe-mode banner shows on a normal host");
             await CheckSafeBannerAsync(safeHost, palette, shots);
@@ -349,6 +357,68 @@ internal static class SmokeTest
         {
             Warn($"provider warm-up failed: {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    // ---------------- 04 checks ----------------
+
+    /// <summary>
+    /// AC-CHAT-17, 25: the pipeline's analysis through AppHost's wiring — stitching on by default, notice patterns
+    /// published by ApplySettings (slot 5) with their errors, hidden notices by default, the Describe formatter, and a user
+    /// chat-formats.json mapped to the current game and picked up by ReloadChatFormats. Logs no chat text.
+    /// </summary>
+    private static void CheckChatUnderstanding(AppHost host)
+    {
+        var sample = OcrLine.FromTexts(["[All] Zhang Wei: this message is long enough that it", "wraps onto a second line", "Kim: ㅋㅋㅋ"], 18, 4);
+        var entries = host.Pipeline.Analyze(sample);
+        Check(entries.Count == 2 && entries[0].Text.EndsWith("second line", StringComparison.Ordinal) && entries[0].LineCount == 2,
+            $"stitching: expected 2 entries with a joined first message, got {entries.Count}");
+        Check(host.Pipeline.Options.HideSystemLines, "game notices are not hidden by default");
+
+        host.Settings.Chat.SystemLinePatterns = ["*resigned*", "re:(["];
+        host.ApplySettings();
+        var notice = host.Pipeline.Analyze(OcrLine.FromTexts(["Bob resigned."], 18, 4));
+        Check(notice.Count == 1 && notice[0].Kind == ChatLineKind.System, "a notice pattern set through ApplySettings did not apply");
+        Check(host.Pipeline.SystemPatternErrors.Count == 1, $"expected 1 pattern error, got {host.Pipeline.SystemPatternErrors.Count}");
+        Check(ChatUnderstandingText.Errors(host.Pipeline.SystemPatternErrors, host.ChatFormats.Errors).Length > 0, "the card's error text is empty");
+        Check(host.Pipeline.Describe(sample).Contains("(2 lines)", StringComparison.Ordinal), "Describe does not show the joined line count");
+        host.Settings.Chat.SystemLinePatterns = [];
+        host.ApplySettings();
+        Check(host.Pipeline.SystemPatternErrors.Count == 0, "pattern errors outlived the patterns");
+
+        // REQ-CHAT-32/34: a user profile with separator '>' mapped to the current game.
+        var game = host.CurrentGameId;
+        File.WriteAllText(host.ChatFormatsPath,
+            "{ \"profiles\": [ { \"id\": \"smoke\", \"name\": \"Smoke\", \"inherits\": \"generic\", \"separators\": [\">\"] } ], "
+            + $"\"games\": {{ \"{game}\": \"smoke\" }} }}");
+        host.ReloadChatFormats();
+        var arrow = host.Pipeline.Analyze(OcrLine.FromTexts(["Bob> hi"], 18));
+        Check(arrow.Count == 1 && arrow[0].Sender == "Bob", "chat-formats.json was not picked up for the current game");
+        Check(host.ChatFormats.Errors.Count == 0, "the smoke chat-formats.json reported errors");
+        File.Delete(host.ChatFormatsPath);
+        host.ReloadChatFormats();
+        Check(host.Pipeline.Analyze(OcrLine.FromTexts(["Bob> hi"], 18)).Single().Sender is null, "the removed chat-formats.json is still in use");
+        Log($"chat understanding: game={game}, profiles={host.ChatFormats.Profiles.Count}");
+    }
+
+    /// <summary>The "Understanding chat" card shows pattern errors in Danger text and hides them once fixed (AC-CHAT-19).</summary>
+    private static async Task CheckChatUnderstandingCardAsync(MainWindow main)
+    {
+        main.Navigate(PageIds.Capture);
+        await Pump();
+        var page = main.PageFor(PageIds.Capture);
+        var box = page.FindName("SystemLinePatternsBox") as TextBox ?? throw new InvalidOperationException("no SystemLinePatternsBox on Reading Chat");
+        var errors = page.FindName("ChatUnderstandingErrors") as TextBlock ?? throw new InvalidOperationException("no ChatUnderstandingErrors on Reading Chat");
+        var vm = main.DataContext as MainViewModel ?? throw new InvalidOperationException("MainWindow has no MainViewModel");
+
+        vm.SystemLinePatternsText = "*resigned*\nre:([";
+        await Pump();
+        Check(errors.Visibility == Visibility.Visible && errors.Text.Contains("Line 2", StringComparison.Ordinal),
+            $"the card does not show the pattern error (visibility {errors.Visibility})");
+        Check(box.Text.Contains("resigned", StringComparison.Ordinal), "the notice box does not show the saved patterns");
+
+        vm.SystemLinePatternsText = "";
+        await Pump();
+        Check(errors.Visibility != Visibility.Visible, "the pattern error is still shown after the patterns were cleared");
     }
 
     // ---------------- 05 checks ----------------
@@ -481,7 +551,7 @@ internal static class SmokeTest
             var captureOptions = CaptureOptions.From(settings);
             var observed = new List<GameWindowInfo?>();
             var frames = new List<CaptureFrame>();
-            var pipeline = new ChatPipeline(new EchoTranslator(TimeSpan.Zero), new ChatPipelineOptions());
+            using var pipeline = new ChatPipeline(new EchoTranslator(TimeSpan.Zero), new ChatPipelineOptions());
             var watcher = new ChatWatcher(host.Ocr, pipeline, () => captureOptions, () => fake, log.For("Capture"), TimeProvider.System, w =>
             {
                 lock (observed) observed.Add(w);

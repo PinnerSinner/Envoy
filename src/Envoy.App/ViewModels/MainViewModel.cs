@@ -46,7 +46,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ];
 
         OcrLanguages = new(LoadOcrLanguages());
-        CapturePreview = new CapturePreviewViewModel(host, System.Windows.Threading.Dispatcher.CurrentDispatcher);
+        CapturePreview = new CapturePreviewViewModel(host, System.Windows.Threading.Dispatcher.CurrentDispatcher, _shell.CopyText);
 
         _phrasePreviewLanguage = LanguageCatalog.Find(host.Pipeline.LastOpponentLanguage) ?? LanguageCatalog.Find("zh-CN");
         RefreshPhrasePreview();
@@ -139,6 +139,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Notify(nameof(UsageText));
         Notify(nameof(OcrSummary));
         Notify(nameof(HotkeyErrors));
+        RefreshChatUnderstanding();
         RefreshTroubleshooting();
     }
 
