@@ -57,7 +57,7 @@ public class ReleaseVersionTests
         string[] order = ["1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta", "1.0.0-beta", "1.0.0-beta.2", "1.0.0-beta.11", "1.0.0-rc.1", "1.0.0"];
         for (var i = 0; i < order.Length - 1; i++)
             Assert.True(ReleaseVersion.Parse(order[i]) < ReleaseVersion.Parse(order[i + 1]), $"{order[i]} < {order[i + 1]}");
-        var shuffled = order.Reverse().Select(ReleaseVersion.Parse).OrderBy(v => v).Select(v => v.ToString());
+        var shuffled = order.AsEnumerable().Reverse().Select(ReleaseVersion.Parse).OrderBy(v => v).Select(v => v.ToString());
         Assert.Equal(order, shuffled);
     }
 
