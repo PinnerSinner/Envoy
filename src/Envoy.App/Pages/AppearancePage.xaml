@@ -31,13 +31,36 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
+            <!-- Startup & updates stays the last group (contract §8.6: Theme → Accessibility → Notifications → Startup & updates). -->
             <ContentControl Style="{StaticResource OrnateFrame}" Margin="0,10,0,14">
                 <StackPanel>
-                    <TextBlock Text="General" Style="{StaticResource Text.H2}" />
-                    <CheckBox Content="Start Envoy when I sign in to Windows" IsChecked="{Binding Settings.StartWithWindows}" />
-                    <CheckBox Content="Tell me when a new version is released" IsChecked="{Binding Settings.CheckForUpdates}" />
+                    <TextBlock Text="Startup &amp; updates" Style="{StaticResource Text.H2}" />
+                    <CheckBox Content="Start Envoy when I sign in to Windows" IsChecked="{Binding Settings.StartWithWindows}"
+                              AutomationProperties.Name="Start Envoy when I sign in to Windows" />
+                    <CheckBox Content="Check for updates automatically" IsChecked="{Binding Settings.CheckForUpdates}"
+                              AutomationProperties.Name="Check for updates automatically" />
+                    <TextBlock Text="Checks go to GitHub only. Off means Envoy makes no update request unless you press Check for updates on About."
+                               Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="26,0,0,6" />
+                    <CheckBox Content="Download updates in the background (never during a game)" IsChecked="{Binding Settings.Updates.AutoDownload}"
+                              IsEnabled="{Binding IsInstalled, Mode=OneWay}" ToolTipService.ShowOnDisabled="True"
+                              AutomationProperties.Name="Download updates in the background" ToolTip="{Binding AutoDownloadTooltip, Mode=OneWay}" />
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Update channel" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                            <TextBlock Text="Switching back to Stable keeps your current build until a newer stable release comes out."
+                                       Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" Width="260" ItemsSource="{Binding UpdateChannels}" DisplayMemberPath="Label"
+                                  SelectedValuePath="Value" SelectedValue="{Binding Settings.Updates.Channel}" AutomationProperties.Name="Update channel" />
+                    </Grid>
+
+                    <TextBlock Text="Data" Style="{StaticResource Text.Label}" FontWeight="SemiBold" Margin="0,10,0,4" />
                     <DockPanel Margin="0,4,0,0">
-                        <Button DockPanel.Dock="Right" Content="Open logs" Command="{Binding OpenLogsCommand}" Padding="10,3" />
+                        <Button DockPanel.Dock="Right" Content="Open logs" Command="{Binding OpenLogsCommand}" Padding="10,3" AutomationProperties.Name="Open logs" />
                         <CheckBox Content="Save chat transcripts on this PC (one file per match)" IsChecked="{Binding Settings.SaveTranscripts}" />
                     </DockPanel>
                 </StackPanel>

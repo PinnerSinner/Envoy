@@ -15,9 +15,6 @@ public sealed partial class MainViewModel
     public RelayCommand ScanAndTranslateCommand { get; }
     public RelayCommand NewMatchCommand { get; }
 
-    /// <summary>Opens the release page. Always enabled: the banner is only visible when an update exists. 06 replaces it.</summary>
-    public RelayCommand DownloadUpdateCommand { get; }
-
     /// <summary>Applies pending edits, then translates the "Try it" text. Ignores clicks while one is running.</summary>
     public AsyncRelayCommand TestTranslateCommand { get; }
 
@@ -35,11 +32,6 @@ public sealed partial class MainViewModel
     public RelayCommand<string> OpenLinkCommand { get; }
 
     public RelayCommand QuitCommand { get; }
-
-    private void DownloadUpdate()
-    {
-        if (Host.Update is { } u) _shell.OpenUrl(u.PageUrl);
-    }
 
     private async Task TestTranslateAsync()
     {

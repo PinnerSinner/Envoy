@@ -6,7 +6,18 @@
         <StackPanel MaxWidth="760">
             <Image Source="pack://application:,,,/Envoy;component/Assets/envoy.png" Width="96" Height="96" HorizontalAlignment="Left" Margin="0,0,0,12" />
             <TextBlock Text="Envoy" Style="{StaticResource Text.H1}" FontFamily="{StaticResource Font.Decorative}" FontSize="30" />
-            <TextBlock Text="{Binding Version, StringFormat='Version {0}'}" Style="{StaticResource Text.Caption}" Margin="0,0,0,14" />
+            <!-- ===== Version & updates (REQ-DIST-13, 25) ===== -->
+            <StackPanel x:Name="VersionFrame" Margin="0,0,0,14">
+                <TextBlock Style="{StaticResource Text.Caption}">
+                    <Run Text="{Binding Version, Mode=OneWay, StringFormat='Version {0}'}" /><Run Text=" · " /><Run Text="{Binding InstallKindText, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding ChannelText, Mode=OneWay}" />
+                </TextBlock>
+                <DockPanel Margin="0,6,0,0">
+                    <Button DockPanel.Dock="Left" Content="Check for updates" Command="{Binding CheckForUpdatesCommand}" Padding="10,3"
+                            AutomationProperties.Name="Check for updates" Margin="0,0,10,0" />
+                    <TextBlock Text="{Binding Host.UpdateView.StatusLine, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
+                               VerticalAlignment="Center" />
+                </DockPanel>
+            </StackPanel>
             <Control Style="{StaticResource Flourish}" />
             <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap" Margin="0,0,0,12">
                 Envoy is an unofficial fan tool. It is not affiliated with or endorsed by Microsoft, Xbox Game Studios, World's Edge,

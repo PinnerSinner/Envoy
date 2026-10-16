@@ -1,6 +1,7 @@
 <UserControl x:Class="Envoy.App.Pages.WarRoomPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:Envoy.App.Controls">
     <ScrollViewer Padding="32,24">
         <StackPanel MaxWidth="900">
             <TextBlock Text="War Room" Style="{StaticResource Text.H1}" />
@@ -10,11 +11,32 @@
                 in game to reply in your opponent's language.
             </TextBlock>
 
-            <Border Visibility="{Binding Host.HasUpdate, Converter={StaticResource BoolToVisibility}}" Background="{DynamicResource Accent.Gradient}"
-                    Padding="16,10" Margin="0,0,0,16">
+            <!-- Slot 2 (contract §8.6): the update banner (spec 06). It also hosts the one-time "Envoy was updated to …" notice. -->
+            <Border x:Name="UpdateBanner" Background="{DynamicResource Accent.Gradient}" Padding="16,10" Margin="0,0,0,16"
+                    Visibility="{Binding Host.UpdateView.ShowBanner, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                 <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="Download" Command="{Binding DownloadUpdateCommand}" />
-                    <TextBlock Text="{Binding Host.UpdateText}" Foreground="{DynamicResource Text.OnAccent}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,0,0,0">
+                        <Button Content="{Binding Host.UpdateView.PrimaryLabel, Mode=OneWay}" Command="{Binding UpdatePrimaryCommand}"
+                                AutomationProperties.Name="{Binding Host.UpdateView.PrimaryLabel, Mode=OneWay}"
+                                Visibility="{Binding Host.UpdateView.HasPrimary, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+                        <Button Style="{StaticResource Button.Ghost}" Content="{Binding Host.UpdateView.SecondaryLabel, Mode=OneWay}"
+                                Command="{Binding UpdateSecondaryCommand}" Margin="8,0,0,0"
+                                AutomationProperties.Name="{Binding Host.UpdateView.SecondaryLabel, Mode=OneWay}"
+                                Visibility="{Binding Host.UpdateView.HasSecondary, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+                        <Button Style="{StaticResource Button.Chip}" Content="Skip" Command="{Binding SkipUpdateCommand}" Margin="8,0,0,0"
+                                AutomationProperties.Name="Skip this version" ToolTip="Don't offer this version again unless I check myself"
+                                Visibility="{Binding Host.UpdateView.CanSkip, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="UpdateHeadline" Text="{Binding Host.UpdateView.Headline, Mode=OneWay}" Foreground="{DynamicResource Text.OnAccent}"
+                                   FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <StackPanel Visibility="{Binding Host.UpdateView.HasNotes, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                            <ToggleButton x:Name="UpdateNotesToggle" Content="What's new" Style="{StaticResource Button.Base}" c:AutoApply.Ignore="True"
+                                          AutomationProperties.Name="Show what's new" HorizontalAlignment="Left" Padding="10,2" Margin="0,6,0,0" />
+                            <TextBlock Text="{Binding Host.UpdateView.Notes, Mode=OneWay}" Foreground="{DynamicResource Text.OnAccent}" TextWrapping="Wrap"
+                                       Margin="0,6,0,0" Visibility="{Binding IsChecked, ElementName=UpdateNotesToggle, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                    </StackPanel>
                 </DockPanel>
             </Border>
 

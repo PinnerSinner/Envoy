@@ -44,4 +44,12 @@ public interface IShell
 
     /// <summary>Shows a file selected in Explorer.</summary>
     void RevealFile(string path);
+
+    // 06
+
+    /// <summary>
+    /// When an installed update is ready: exits normally (settings saved) and lets Velopack's updater apply it and start
+    /// Envoy again in the same window state. Does nothing otherwise.
+    /// </summary>
+    void RestartToUpdate();
 }

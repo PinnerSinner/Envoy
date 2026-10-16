@@ -1,6 +1,7 @@
 """Mechanical checks for the UI-structure rules of specs 01 and 02 (stdlib only).
 
-Usage: check_ui_rules.py <src/Envoy.App dir>. Prints `path:line: UIF-Rn message` per violation and exits 1 if any.
+Usage: check_ui_rules.py <src/Envoy.App dir>. Prints `path:line: UIF-Rn message` (or `UPDn message`) per violation and
+exits 1 if any.
 
 R1  Pages/*.xaml has no event-handler attribute (the gen_stubs matcher)               REQ-UIF-7
 R2  Pages/*.xaml.cs contains no RoutedEventArgs and no `DataContext =`                REQ-UIF-7, REQ-UIF-2
@@ -15,6 +16,9 @@ R10 Windows/ComposeWindow.xaml.cs uses no DialogService; App.xaml.cs calls
     DialogService.ShowWarning at most once (the crash-loop message)                     REQ-REL-19
 R11 Services/ChatWatcher.cs passes only CancellationToken.None to ProcessAsync( and never
     reads AppSettings or `.Settings` outside its usings (it reads the CaptureOptions snapshot)  REQ-CAP-42
+UPD1 `new UpdateManager(` only in Services/VelopackUpdateBackend.cs; VelopackFlowSource and
+    ApplyUpdatesAndRestart nowhere (also scanned in Envoy.Core)                          REQ-DIST-14, 12
+UPD2 `VelopackApp.Build()` only in Program.cs, which calls SetAutoApplyOnStartup(false)   REQ-DIST-10, 12
 
 R8 also scans the sibling Envoy.Core folder (`<app dir>/../Envoy.Core`) when it exists.
 """
@@ -45,6 +49,12 @@ REQUIRED_FILES = (
 )
 
 WATCHER = "Services/ChatWatcher.cs"
+VELOPACK_BACKEND = "Services/VelopackUpdateBackend.cs"
+PROGRAM = "Program.cs"
+NEW_UPDATE_MANAGER = re.compile(r"\bnew\s+(?:Velopack\s*\.\s*)?UpdateManager\s*\(")
+VELOPACK_BANNED = re.compile(r"\bVelopackFlowSource\b|\bApplyUpdatesAndRestart\b")
+VELOPACK_BUILD = re.compile(r"\bVelopackApp\s*\.\s*Build\s*\(")
+AUTO_APPLY_OFF = re.compile(r"\.\s*SetAutoApplyOnStartup\s*\(\s*false\s*\)")
 PROCESS_ASYNC = re.compile(r"\bProcessAsync\s*\(")
 WATCHER_SETTINGS = re.compile(r"\bAppSettings\b|\.Settings\b")
 APPDATA = re.compile(r"\bSpecialFolder\.ApplicationData\b|APPDATA")
@@ -92,7 +102,9 @@ def check(root):
     problems = []
 
     def report(path, line, rule, message):
-        problems.append(f"{_rel(root, path)}:{line}: UIF-{rule} {message}")
+        # Spec 06's rules carry their own prefix (UPD1, UPD2); the others are UIF-Rn.
+        prefix = "" if rule.startswith("UPD") else "UIF-"
+        problems.append(f"{_rel(root, path)}:{line}: {prefix}{rule} {message}")
 
     pages = os.path.join(root, "Pages")
     for path in sorted(glob.glob(os.path.join(pages, "*.xaml"))):
@@ -190,7 +202,34 @@ def check(root):
             if not line.lstrip().startswith("using ") and WATCHER_SETTINGS.search(line):
                 report(watcher, n, "R11", "the watcher reads settings only through the CaptureOptions snapshot (contract §7)")
 
+    _check_velopack(root, report)
     return problems
+
+
+def _check_velopack(root, report):
+    """UPD1 and UPD2 (spec 06): one place creates the update manager, one place runs Velopack, auto-apply stays off."""
+    backend = os.path.normpath(os.path.join(root, *VELOPACK_BACKEND.split("/")))
+    program = os.path.normpath(os.path.join(root, PROGRAM))
+    sources = list(_app_sources(root))
+    core = os.path.join(os.path.dirname(os.path.abspath(root)), "Envoy.Core")
+    if os.path.isdir(core):
+        sources += [p for p in sorted(glob.glob(os.path.join(core, "**", "*.cs"), recursive=True))
+                    if not {"obj", "bin"} & set(os.path.relpath(p, core).split(os.sep))]
+    for path in sources:
+        here = os.path.normpath(path)
+        for n, line in _code_lines(_read(path)):
+            if NEW_UPDATE_MANAGER.search(line) and here != backend:
+                report(path, n, "UPD1", "only Services/VelopackUpdateBackend.cs creates an UpdateManager")
+            m = VELOPACK_BANNED.search(line)
+            if m:
+                report(path, n, "UPD1", f"{m.group(0)} is never used (no hosted update service; updates apply through the updater after exit)")
+            if VELOPACK_BUILD.search(line) and here != program:
+                report(path, n, "UPD2", "VelopackApp runs only in Program.Main, before any WPF object exists")
+    if os.path.exists(program):
+        text = _read(program)
+        code = "\n".join(line for _, line in _code_lines(text))
+        if VELOPACK_BUILD.search(code) and not AUTO_APPLY_OFF.search(code):
+            report(program, 1, "UPD2", "Program.Main must call SetAutoApplyOnStartup(false): updates apply at start-up slot 5, after the mutex")
 
 
 def _call_args(text, open_paren):

@@ -1,4 +1,5 @@
-"""Tests for check_ui_rules.py (REQ-UIF-17, specs 02 and 05): a clean tree passes and each rule R1-R11 reports its own violation.
+"""Tests for check_ui_rules.py (REQ-UIF-17, specs 02, 05 and 06): a clean tree passes and each rule R1-R11, UPD1 and UPD2
+reports its own violation.
 The mini trees are built in a temp directory from check_ui_rules.REQUIRED_FILES, so they track the real file list."""
 import os
 import shutil
@@ -212,6 +213,47 @@ namespace Envoy.App.Services; class ChatWatcher
             with self.subTest(snippet=snippet):
                 self.write("Services/ChatWatcher.cs", self.WATCHER_OK.replace("var o = options();", snippet))
                 self.assertOnly("R11", "Services/ChatWatcher.cs:7")
+
+
+    # ---- spec 06 ----
+
+    PROGRAM_OK = ("internal static class Program { static void Main() { VelopackApp.Build()\n"
+                  "    .SetAutoApplyOnStartup(false)\n    .Run(); } }\n")
+
+    def assertUpd(self, rule, path_fragment):
+        problems = check_ui_rules.check(self.root)
+        self.assertTrue(problems, f"expected a {rule} violation")
+        for p in problems:
+            self.assertRegex(p, rf"^[^:]+:\d+: {rule} ")
+            self.assertIn(path_fragment, p)
+
+    def test_upd_velopack_in_its_places_is_fine(self):
+        self.write("Program.cs", self.PROGRAM_OK)
+        self.write("Services/VelopackUpdateBackend.cs", "class B { object M() => new UpdateManager(source, options); }\n")
+        self.write_core("Updates/Notes.cs", "// ApplyUpdatesAndRestart in a comment is fine.\nclass N { }\n")
+        self.assertEqual([], check_ui_rules.check(self.root))
+
+    def test_upd1_update_manager_elsewhere(self):
+        self.write("AppHost.cs", "class H { object M() => new Velopack.UpdateManager(source); }\n")
+        self.assertUpd("UPD1", "AppHost.cs")
+
+    def test_upd1_flow_source_or_apply_and_restart(self):
+        self.write("Services/VelopackUpdateBackend.cs", "class B { void M() { mgr.ApplyUpdatesAndRestart(x); } }\n")
+        self.assertUpd("UPD1", "VelopackUpdateBackend.cs")
+        self.write("Services/VelopackUpdateBackend.cs", "class B { }\n")
+        self.write_core("Updates/Flow.cs", "class F { object S => new VelopackFlowSource(); }\n")
+        self.assertUpd("UPD1", "Flow.cs")
+
+    def test_upd2_velopack_app_outside_program(self):
+        self.write("Program.cs", self.PROGRAM_OK)
+        self.write("App.xaml.cs", "class A { void M() { VelopackApp.Build().Run(); } }\n")
+        self.assertUpd("UPD2", "App.xaml.cs")
+
+    def test_upd2_program_without_auto_apply_off(self):
+        self.write("Program.cs", "class P { static void Main() { VelopackApp.Build()\n    .SetAutoApplyOnStartup(true).Run(); } }\n")
+        self.assertUpd("UPD2", "Program.cs")
+        self.write("Program.cs", "class P { static void Main() { VelopackApp.Build()\n    // .SetAutoApplyOnStartup(false)\n    .Run(); } }\n")
+        self.assertUpd("UPD2", "Program.cs")
 
 
 if __name__ == "__main__":

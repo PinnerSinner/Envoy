@@ -12,6 +12,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>Envoy</AssemblyName>
     <RootNamespace>Envoy.App</RootNamespace>
+    <!-- Program.Main runs Velopack before any WPF object exists (spec 06); App.xaml's generated Main is not used. -->
+    <StartupObject>Envoy.App.Program</StartupObject>
     <ApplicationIcon>Assets\envoy.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Product>Envoy</Product>
@@ -47,6 +49,9 @@
 
   <ItemGroup>
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <!-- Installer and updates (spec 06). Pinned to the same version as `vpk` in .config/dotnet-tools.json and the
+         typecheck project; tools/release/check_velopack_pin.sh fails CI when the three disagree. -->
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
   <ItemGroup>

@@ -24,6 +24,7 @@
     <Compile Remove="fixtures/**" />
     <Compile Include="../../src/Envoy.App/**/*.cs" Exclude="../../src/Envoy.App/obj/**;../../src/Envoy.App/bin/**" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
     <ProjectReference Include="../../src/Envoy.Core/Envoy.Core.csproj" />
   </ItemGroup>
 </Project>

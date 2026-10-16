@@ -11,12 +11,13 @@ using Envoy.Core.Hotkeys;
 using Envoy.Core.Languages;
 using Envoy.Core.Security;
 using Envoy.Core.Settings;
+using Envoy.Core.Updates;
 using Forms = System.Windows.Forms;
 
 namespace Envoy.App;
 
 /// <summary>
-/// Start-up, tray, hotkeys and exit. <see cref="OnStartup"/> and <see cref="ExitApp(RestartFlags?, bool)"/> follow the
+/// Start-up, tray, hotkeys and exit. <see cref="OnStartup"/> and <see cref="ExitApp(RestartFlags?, bool, bool)"/> follow the
 /// order in contract §4; later areas fill the slots marked <c>[NN …]</c> in their own step.
 /// </summary>
 public partial class App : Application, IShell
@@ -28,6 +29,7 @@ public partial class App : Application, IShell
     private Mutex? _instanceMutex;
     private EventWaitHandle? _showSignal;
     private Forms.NotifyIcon? _tray;
+    private Forms.ToolStripMenuItem? _restartToUpdateItem;
     private HotkeyService? _hotkeys;
     private MainWindow? _main;
     private OverlayWindow? _overlay;
@@ -55,7 +57,7 @@ public partial class App : Application, IShell
         var shiftHeld = Native.IsShiftDown();
         base.OnStartup(e);
 
-        // 1. [06 Program.Main runs Velopack before WPF]
+        // 1. Program.Main has already run VelopackApp (06): install/uninstall hooks exit there; auto-apply is off.
 
         // 2. Log bootstrap and the global handlers. The smoke test adds its own file sink on its temp data folder.
         var smoke = e.Args.Contains("--smoke-test");
@@ -96,7 +98,28 @@ public partial class App : Application, IShell
         _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, InstanceName + ".Show");
         ThreadPool.RegisterWaitForSingleObject(_showSignal, (_, _) => Dispatcher.BeginInvoke(ShowMain), null, Timeout.Infinite, false);
 
-        // 5. [06 pending update apply: skipped with --safe-mode or Shift held; runs before the sentinel]
+        // 5. Pending update apply (06, REQ-DIST-12): only here, after the mutex and before the sentinel; skipped with
+        //    --safe-mode or Shift held. Local only: reads the packages folder, no network. Never blocks start-up.
+        var updatesLog = hub.For("Updates");
+        var velo = VelopackUpdateBackend.TryCreate(updatesLog);
+        if (velo is not null && PendingUpdatePolicy.ShouldApplyAtStartup(velo.PendingRestart is not null,
+                e.Args.Contains(SafeModeDecision.Flag, StringComparer.OrdinalIgnoreCase), shiftHeld))
+        {
+            try
+            {
+                var flags = e.Args.Contains("--minimized") ? RestartFlags.Minimized : RestartFlags.None;
+                updatesLog.Info("Applying downloaded update", LogField.Of("version", velo.PendingRestart));
+                velo.LaunchUpdaterAfterExit(LaunchTarget.RestartArguments(flags));
+                hub.Dispose();
+                ReleaseInstanceMutex();
+                Shutdown();
+                return;
+            }
+            catch (UpdateCheckException ex)
+            {
+                updatesLog.Warn("Couldn't start the updater; starting normally", ex);
+            }
+        }
 
         // 6. Safe-mode decision, then the start-up sentinel.
         _sentinel = new StartupSentinel(Path.Combine(_dataFolder!, SessionFileName));
@@ -104,7 +127,8 @@ public partial class App : Application, IShell
         var safe = SafeModeDecision.Decide(e.Args, shiftHeld, history.UnfinishedStarts, SafeModeDecision.AutoThreshold);
 
         // 7. AppHost.
-        Host = new AppHost(SettingsStore.DefaultPath, Dispatcher, new AppHostOptions { Log = hub, RecentLog = recent, SafeMode = safe });
+        Host = new AppHost(SettingsStore.DefaultPath, Dispatcher,
+            new AppHostOptions { Log = hub, RecentLog = recent, SafeMode = safe, UpdateBackend = velo });
         LogBootstrap.WriteHeader(hub, safe, Host.SettingsLoad);
         var plan = StartupPlan.For(safe, e.Args.Contains("--minimized"), Host.Settings.FirstRunCompleted,
             Host.Settings.StartCapturingAutomatically);
@@ -117,8 +141,10 @@ public partial class App : Application, IShell
         _handlers.BeforeCrashLoopExit = PrepareCrashLoopExit;
         Host.ProblemReported += _toasts.Show;
 
-        // 9. Start (no automatic capture in safe mode). [06 Updates.StartAsync unless safe]
+        // 9. Start (no automatic capture in safe mode), then automatic update checks unless in safe mode (06). The
+        //    coordinator exists either way, so About's "Check for updates" works in safe mode too.
         Host.Start();
+        if (plan.AutoCheckUpdates) Host.StartUpdates();
 
         // 10. Overlay and hotkeys, unless in safe mode.
         if (plan.CreateOverlay)
@@ -200,7 +226,7 @@ public partial class App : Application, IShell
     }
 
     /// <summary>
-    /// The crash-loop exit (REQ-REL-15) skips <see cref="ExitApp(RestartFlags?, bool)"/>: hide what would otherwise
+    /// The crash-loop exit (REQ-REL-15) skips <see cref="ExitApp(RestartFlags?, bool, bool)"/>: hide what would otherwise
     /// outlive the process (tray icon, toasts) and stop hotkeys. The session stays unclean on purpose, so the next start
     /// reports the crash.
     /// </summary>
@@ -278,9 +304,9 @@ public partial class App : Application, IShell
     /// <summary>
     /// The exit sequence (contract §4): hide and unregister, save unless suppressed, dispose the host, end the
     /// session, close notifications and tray, close the log, optionally wipe the data folder, release the mutex,
-    /// optionally restart, shut down.
+    /// optionally restart (through Velopack's updater when <paramref name="applyUpdate"/>), shut down.
     /// </summary>
-    private void ExitApp(RestartFlags? restart, bool wipeData = false)
+    private void ExitApp(RestartFlags? restart, bool wipeData = false, bool applyUpdate = false)
     {
         if (_exiting) return;
         _exiting = true;
@@ -296,7 +322,7 @@ public partial class App : Application, IShell
         _main?.PrepareForAppExit();
         if (!Host.SaveSuppressed) Host.SaveNow();
 
-        // 3. Dispose the host. [06 cancels the update CTS] [03 saves the cache unless suppressed]
+        // 3. Dispose the host: cancels the update token (06) and saves the cache unless suppressed (03).
         Host.Dispose();
 
         // 4. End the session cleanly.
@@ -304,11 +330,14 @@ public partial class App : Application, IShell
 
         // 5. Notifications and tray. [07a notifier]
         _toasts?.CloseAll();
+        Host.PropertyChanged -= OnHostPropertyChanged;
+        _restartToUpdateItem = null;
         _tray?.Dispose();
         _tray = null;
 
         // 6. Close the log: the last thing that writes envoy.log.
-        _log.Info("Envoy exiting", LogField.Of("restart", restart?.ToString() ?? "no"), LogField.Of("wipeData", wipeData));
+        _log.Info("Envoy exiting", LogField.Of("restart", restart?.ToString() ?? "no"), LogField.Of("wipeData", wipeData),
+            LogField.Of("applyUpdate", applyUpdate));
         _hub?.Flush();
         _hub?.Dispose();
 
@@ -320,6 +349,33 @@ public partial class App : Application, IShell
         }
 
         // 7. Release the mutex so the restarted copy can start.
+        ReleaseInstanceMutex();
+
+        // 8. Restart: through Velopack's updater for "Restart to update" (it waits for this process to exit), else
+        //    directly. The log is closed, so an updater failure falls back to a plain restart, whose slot 5 retries the
+        //    apply and logs it.
+        if (applyUpdate)
+        {
+            try
+            {
+                Host.Updates.RestartToUpdate(LaunchTarget.RestartArguments(restart ?? RestartFlags.None));
+            }
+            catch (Exception ex) when (ex is UpdateCheckException or InvalidOperationException)
+            {
+                ShellLauncher.RestartSelf(restart ?? RestartFlags.None);
+            }
+        }
+        else if (restart is { } flags)
+        {
+            ShellLauncher.RestartSelf(flags);
+        }
+
+        // 9. Shut down.
+        Shutdown();
+    }
+
+    private void ReleaseInstanceMutex()
+    {
         try
         {
             _instanceMutex?.ReleaseMutex();
@@ -332,12 +388,6 @@ public partial class App : Application, IShell
         _instanceMutex = null;
         _showSignal?.Dispose();
         _showSignal = null;
-
-        // 8. Restart. [06: or UpdateCoordinator.RestartToUpdate]
-        if (restart is { } flags) ShellLauncher.RestartSelf(flags);
-
-        // 9. Shut down.
-        Shutdown();
     }
 
     /// <summary>Every hotkey action with its configured combination and what it does.</summary>
@@ -392,6 +442,14 @@ public partial class App : Application, IShell
         menu.Items.Add("Select chat area", null, (_, _) => SelectRegion());
         menu.Items.Add("Pause / resume reading", null, (_, _) => Host.ToggleCapture());
         if (!safeMode) menu.Items.Add("Show / hide overlay", null, (_, _) => ToggleOverlay());
+        // REQ-DIST-24: shown only while an installed update is ready.
+        _restartToUpdateItem = new Forms.ToolStripMenuItem("", null, (_, _) => UpdateActions.Run(UpdateAction.RestartToUpdate, Host, this, Log("Updates")))
+        {
+            Visible = false,
+        };
+        menu.Items.Add(_restartToUpdateItem);
+        Host.PropertyChanged += OnHostPropertyChanged;
+        SyncRestartToUpdateItem();
 #if DEBUG
         // Manual steps M5 and M8 (docs/specs/02-reliability-observability.md): debug builds only.
         menu.Items.Add(new Forms.ToolStripSeparator());
@@ -403,6 +461,19 @@ public partial class App : Application, IShell
         menu.Items.Add("Exit", null, (_, _) => ExitApp());
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => ShowMain();
+    }
+
+    private void OnHostPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppHost.UpdateView)) SyncRestartToUpdateItem();
+    }
+
+    private void SyncRestartToUpdateItem()
+    {
+        if (_restartToUpdateItem is null) return;
+        var ready = Host.Updates.CanRestartToUpdate && Host.Updates.Snapshot.Available is not null;
+        _restartToUpdateItem.Visible = ready;
+        if (ready) _restartToUpdateItem.Text = UpdateText.TrayRestartItem(Host.Updates.Snapshot.Available!.Version);
     }
 
     /// <inheritdoc />
@@ -479,4 +550,14 @@ public partial class App : Application, IShell
 
     /// <inheritdoc />
     public void RevealFile(string path) => _ = ShellLauncher.RevealFile(path);
+
+    // ---- 06 ----
+
+    /// <inheritdoc />
+    public void RestartToUpdate()
+    {
+        if (!Host.Updates.CanRestartToUpdate) return;
+        _log.Info("Restarting to update", LogField.Of("version", Host.Updates.Snapshot.Available?.Version));
+        ExitApp(_main is { IsVisible: true } ? RestartFlags.None : RestartFlags.Minimized, applyUpdate: true);
+    }
 }

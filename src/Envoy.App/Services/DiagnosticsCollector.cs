@@ -6,6 +6,7 @@ using Envoy.Core.Diagnostics;
 using Envoy.Core.Hotkeys;
 using Envoy.Core.Settings;
 using Envoy.Core.Translation;
+using Envoy.Core.Updates;
 using Forms = System.Windows.Forms;
 
 namespace Envoy.App.Services;
@@ -40,6 +41,7 @@ internal static class DiagnosticsCollector
             LastCrash = CrashMarker.TryRead(host.CrashMarkerPath),
             Uptime = host.Uptime,
             DroppedLogWrites = host.Log.DroppedWrites,
+            Updates = UpdateDiagnostics.Line(host.Updates.Snapshot),
         };
     }
 

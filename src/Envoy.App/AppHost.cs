@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Net.Http;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Threading;
@@ -37,8 +38,20 @@ public sealed record AppHostOptions
     /// <summary>null → the settings file's folder.</summary>
     public string? DataFolder { get; init; }
 
+    /// <summary>null → <see cref="UpdateBackendFactory.Create"/>: Velopack when installed, else GitHub (notify only). 06.</summary>
+    public IUpdateBackend? UpdateBackend { get; init; }
+
     /// <summary>null → <see cref="TimeProvider.System"/>; passed to every timed Core type.</summary>
     public TimeProvider? TimeProvider { get; init; }
+}
+
+/// <summary>Picks the update backend once (contract §5: the network types stay in this file).</summary>
+internal static class UpdateBackendFactory
+{
+    /// <summary>A Velopack-installed copy gets <see cref="VelopackUpdateBackend"/>; anything else (portable exe, dotnet run) GitHub, notify only.</summary>
+    public static IUpdateBackend Create(HttpClient http, ReleaseVersion current, ILog log) =>
+        (IUpdateBackend?)VelopackUpdateBackend.TryCreate(log)
+        ?? new GitHubReleaseBackend(new UpdateChecker(http, UpdateEndpoints.Repository), current);
 }
 
 /// <summary>
@@ -62,13 +75,17 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     private readonly DispatcherTimer _gameTimer;
     private readonly DispatcherTimer _windowTimer;
     private readonly DispatcherTimer _saveTimer;
+    private readonly DispatcherTimer _updateTimer;
+    private readonly CancellationTokenSource _updatesCts = new();
+    private readonly ILog _updatesLog;
     private ITranslator _translator;
     private ITranslator _composeTranslator;
     private IReadOnlyList<string> _activeProviderIds = [];
     private volatile RunningGame? _game; // written on the UI thread, read by the capture loop
     private CaptureOptions _captureOptions;
     private string _providerStatus = "";
-    private UpdateInfo? _update;
+    private bool _gameWasRunning;
+    private bool _updatesStarted;
     private bool _disposed;
 
     public AppHost(string settingsPath, Dispatcher ui, AppHostOptions? options = null)
@@ -102,7 +119,8 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         // 4: TranslatorFactory (03). Each attempt has its own timeout; HttpClient.Timeout is only a backstop now.
         Usage.Restore(Settings.Usage);
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Envoy/0.1");
+        // Browser-like (the keyless providers depend on it); only the Envoy token carries the version (contract §3).
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgents.Default(AppVersion));
         _factory = new TranslatorFactory(_http, Usage, TranslationRuntime);
         (_translator, _composeTranslator) = BuildTranslator();
 
@@ -118,7 +136,14 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Watcher = new ChatWatcher(Ocr, Pipeline, () => CaptureOptions, () => _game, _captureLog, Time, PublishGameWindow);
         Watcher.RegionChanged += OnWatcherRegionChanged;
         Transcript = new TranscriptWriter(LogsFolder);
-        // [06 UpdateCoordinator] [07a NoticeCenter, skipped in safe mode]
+        // 8: UpdateCoordinator (06). It reads the immutable UpdatePreferences snapshot; its background events and the
+        //    last-check callback are marshalled to the UI thread here (contract §2.5, §7).
+        _updatesLog = Log.For("Updates");
+        UpdatesToken = _updatesCts.Token;
+        Updates = new UpdateCoordinator(options.UpdateBackend ?? UpdateBackendFactory.Create(_http, AppVersion, _updatesLog),
+            UpdatePreferences.From(Settings), OnUpdateCheckCompleted, Time, _updatesLog);
+        Updates.Changed += OnUpdatesChanged;
+        // [07a NoticeCenter, skipped in safe mode]
 
         Pipeline.MessageReceived += OnPipelineMessageReceived;
         Pipeline.MessageUpdated += OnPipelineMessageUpdated;
@@ -134,6 +159,18 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         // The game window is published every second even while capture is stopped (contract §2.4).
         _windowTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => RefreshGameWindow(), _ui) { IsEnabled = false };
         _saveTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(600), DispatcherPriority.Background, (_, _) => SaveNow(), _ui) { IsEnabled = false };
+        // Periodic update checks (REQ-DIST-21) and deferred downloads; started by StartUpdates, never in safe mode.
+        _updateTimer = new DispatcherTimer(TimeSpan.FromMinutes(30), DispatcherPriority.Background,
+            (_, _) => Updates.TickAsync(UpdatesToken).Forget(_updatesLog, "update tick"), _ui) { IsEnabled = false };
+
+        // The one-time "Envoy was updated to …" notice (REQ-DIST-23): the version that last ran is older than this one.
+        if (ReleaseVersion.TryParse(Settings.Updates.LastRunVersion, out var lastRun) && lastRun < AppVersion) JustUpdatedTo = AppVersion;
+        if (Settings.Updates.LastRunVersion != AppVersion.ToString())
+        {
+            Settings.Updates.LastRunVersion = AppVersion.ToString();
+            ScheduleSave();
+        }
+        _updateView = UpdateViewBuilder.Build(Updates.Snapshot, JustUpdatedTo);
     }
 
     /// <summary>The folder holding every Envoy file (REQ-REL-44); see <see cref="DataInventory"/>.</summary>
@@ -172,9 +209,28 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     public event Action<ProblemReport>? ProblemReported;
 
     /// <summary>GitHub "owner/repo" checked for new releases.</summary>
-    public const string ReleaseRepository = "PinnerSinner/envoy";
+    public const string ReleaseRepository = UpdateEndpoints.Repository;
 
+    /// <summary>The numeric assembly version (log header, crash marker). User-visible text uses <see cref="AppVersion"/>.</summary>
     public static Version CurrentVersion => typeof(AppHost).Assembly.GetName().Version ?? new Version(0, 1, 0);
+
+    /// <summary>The release version with any prerelease suffix, from the informational version (REQ-DIST-19, contract §3).</summary>
+    public static ReleaseVersion AppVersion { get; } = ReleaseVersion.FromInformational(
+        typeof(AppHost).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
+        typeof(AppHost).Assembly.GetName().Version);
+
+    /// <summary>Update state and policy (contract §2.5). Its <c>Changed</c> event is raised on a background thread; bind <see cref="UpdateView"/>.</summary>
+    public UpdateCoordinator Updates { get; }
+
+    /// <summary>Cancelled by <see cref="Dispose"/>: aborts an in-flight check or download (contract §4 exit step 3).</summary>
+    public CancellationToken UpdatesToken { get; }
+
+    /// <summary>The War Room banner and About status line; rebuilt on the UI thread after every update-state change.</summary>
+    public UpdateView UpdateView => _updateView;
+    private UpdateView _updateView;
+
+    /// <summary>This version, when it is newer than the one that ran last (REQ-DIST-23); null once dismissed.</summary>
+    public ReleaseVersion? JustUpdatedTo { get; private set; }
 
     public AppSettings Settings { get; }
     public UsageTracker Usage { get; } = new();
@@ -207,9 +263,6 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
 
     /// <summary>Created on first use so machines without audio never pay for it.</summary>
     public SpeechService Speech => _speech ??= new SpeechService(Log.For("Speech"));
-    public UpdateInfo? Update => _update;
-    public bool HasUpdate => _update is not null;
-    public string UpdateText => _update is null ? "" : $"Envoy {_update.Tag} is available — you have v{CurrentVersion.ToString(3)}.";
 
     /// <summary>Players seen this match, for the dashboard.</summary>
     public ObservableCollection<PlayerInfo> Players { get; } = [];
@@ -279,7 +332,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         }
     }
 
-    /// <summary>Starts the game timer and, unless in safe mode, automatic capture and the update check.</summary>
+    /// <summary>Starts the game timer and, unless in safe mode, automatic capture. Update checks start in <see cref="StartUpdates"/>.</summary>
     public void Start()
     {
         RefreshGame();
@@ -289,7 +342,33 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         RefreshGameWindow();
         if (!IsSafeMode && Settings.StartCapturingAutomatically) Watcher.Start();
         Notify(nameof(CaptureStatus));
-        if (!IsSafeMode && Settings.CheckForUpdates) CheckForUpdatesAsync().Forget(_log, "update check");
+    }
+
+    /// <summary>
+    /// Start-up slot 9 (never in safe mode): the start-up update check, the 30-minute tick, and (REQ-DIST-26) the "start
+    /// at sign-in" value rewritten to this exe, so moving from the portable exe to the installer keeps it working.
+    /// </summary>
+    public void StartUpdates()
+    {
+        _updatesStarted = true;
+        Updates.StartAsync(UpdatesToken).Forget(_updatesLog, "update start");
+        _updateTimer.Start();
+        if (Settings.StartWithWindows) StartupRegistration.Apply(true);
+    }
+
+    /// <summary>"Skip this version" (REQ-DIST-22): hidden from automatic checks from now on.</summary>
+    public void SkipUpdate()
+    {
+        if (Updates.SkipAvailableVersion() is not { } skipped) return;
+        Settings.Updates.SkippedVersion = skipped.ToString();
+        ScheduleSave();
+    }
+
+    /// <summary>Dismisses the one-time "Envoy was updated" notice.</summary>
+    public void DismissJustUpdated()
+    {
+        JustUpdatedTo = null;
+        RefreshUpdateView();
     }
 
     /// <summary>
@@ -328,23 +407,6 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Log.MinimumLevel = d.VerboseLogging ? LogLevel.Debug : LogLevel.Info;
         Log.IncludeSensitive = d.LogChatText;
         Log.Redactor.SetSecrets(SettingsRedaction.SecretValues(Settings));
-    }
-
-    public async Task CheckForUpdatesAsync()
-    {
-        try
-        {
-            var info = await new UpdateChecker(_http, ReleaseRepository).CheckAsync(CurrentVersion);
-            _update = info;
-            Notify(nameof(Update));
-            Notify(nameof(HasUpdate));
-            Notify(nameof(UpdateText));
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
-        {
-            // Offline or GitHub unavailable: try again next start.
-            _log.Info("Update check failed", LogField.Of("error", ex.GetType().Name));
-        }
     }
 
     /// <summary>Starts fresh for a new game: forgets players and seen lines, starts a new transcript file.</summary>
@@ -403,6 +465,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Pipeline.Options = BuildChatOptions(); // 5: chat options and format re-resolve (04)
         ConfigureOcr();
         Watcher.Invalidate(); // 6 (05)
+        Updates.Configure(UpdatePreferences.From(Settings)).Forget(_updatesLog, "update channel check"); // 7 (06)
         ApplyTheme();
         StartupRegistration.Apply(Settings.StartWithWindows);
         ScheduleSave();
@@ -477,7 +540,39 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     {
         if (_disposed || Equals(GameWindow, info)) return;
         GameWindow = info;
+        PushGameRunning();
         GameWindowChanged?.Invoke();
+    });
+
+    /// <summary>
+    /// Tells the coordinator whether a game runs (process or window, contract §2.4). When the last one is gone, a tick
+    /// starts a download that waited for the game (RefreshGame position 3). UI thread.
+    /// </summary>
+    private void PushGameRunning()
+    {
+        var running = _game is not null || GameWindow is not null;
+        Updates.SetGameRunning(running);
+        // Only after StartUpdates: in safe mode nothing automatic may reach the network (REQ-DIST-13).
+        if (_gameWasRunning && !running && _updatesStarted) Updates.TickAsync(UpdatesToken).Forget(_updatesLog, "update tick");
+        _gameWasRunning = running;
+    }
+
+    // Raised on a background thread by the coordinator; rebuilt on the UI thread. Dispose unsubscribes it.
+    private void OnUpdatesChanged() => _ui.BeginInvoke(RefreshUpdateView);
+
+    private void RefreshUpdateView()
+    {
+        if (_disposed) return;
+        _updateView = UpdateViewBuilder.Build(Updates.Snapshot, JustUpdatedTo);
+        Notify(nameof(UpdateView));
+    }
+
+    /// <summary>After every completed check (any thread): remember when, on the UI thread (contract §7).</summary>
+    private void OnUpdateCheckCompleted(DateTimeOffset at) => _ui.BeginInvoke(() =>
+    {
+        if (_disposed || SaveSuppressed) return;
+        Settings.Updates.LastCheckUtc = at;
+        ScheduleSave();
     });
 
     /// <summary>The 1 s window timer (contract §2.4): probe while a game runs, clear when it is gone.</summary>
@@ -629,7 +724,9 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         if (_game is not null) _log.Info("Game detected", LogField.Of("game", _game.Profile.Name));
         else _log.Info("Game closed");
         Pipeline.Options = BuildChatOptions(); // 2: format re-resolve for the new game (REQ-CHAT-34)
-        // [06 Updates.TickAsync on close] [07a Notices.TakeDeferred]
+        // 3: a download that waited for the game starts once it closes (06, REQ-DIST-16).
+        PushGameRunning();
+        // [07a Notices.TakeDeferred]
         if (_game is not null && before is null) NewMatch();
         Notify(nameof(Game));
         Notify(nameof(GameStatus));
@@ -649,6 +746,9 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Watcher.StateChanged -= OnWatcherStateChanged;
         Watcher.RegionChanged -= OnWatcherRegionChanged;
         TranslationRuntime.ProviderHealthChanged -= OnProviderHealthChanged;
+        Updates.Changed -= OnUpdatesChanged;
+        _updatesCts.Cancel(); // aborts an in-flight download; Velopack removes the partial file next time (contract §4)
+        _updateTimer.Stop();
         _gameTimer.Stop();
         _windowTimer.Stop();
         Watcher.Dispose();
@@ -658,6 +758,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         _translationLogging.Dispose();
         TranslationRuntime.Dispose(); // saves remembered translations unless persistence is suppressed (contract §4)
         _http.Dispose();
+        _updatesCts.Dispose();
         Log.Flush();
         if (_ownsLog) Log.Dispose();
     }

@@ -24,6 +24,7 @@ using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
 using Envoy.Core.Translation;
 using Envoy.Core.Translation.Resilience;
+using Envoy.Core.Updates;
 
 namespace Envoy.App;
 
@@ -92,6 +93,7 @@ internal static class SmokeTest
         string? root = null;
         AppHost? host = null;
         AppHost? safeHost = null;
+        AppHost? portableHost = null;
         RollingFileSink? file = null;
         try
         {
@@ -100,7 +102,9 @@ internal static class SmokeTest
             root = Path.Combine(Path.GetTempPath(), $"envoy-smoke-{Guid.NewGuid():N}");
             var data = Path.Combine(root, "data");
             var settingsPath = Path.Combine(data, "settings.json");
-            host = new AppHost(settingsPath, app.Dispatcher, new AppHostOptions { DataFolder = data, Log = log, RecentLog = recent });
+            // 06: a scripted update backend, so the update banner states render without any network.
+            var updates = new SmokeUpdateBackend(InstallKind.Installed);
+            host = new AppHost(settingsPath, app.Dispatcher, new AppHostOptions { DataFolder = data, Log = log, RecentLog = recent, UpdateBackend = updates });
             App.Host = host;
             // The file sink goes on right before the header, so the header is envoy.log's first line (log-tail checks it).
             file = new RollingFileSink(host.LogsFolder);
@@ -154,6 +158,12 @@ internal static class SmokeTest
             CheckHandlers(app);
             Section("handlers", sw);
 
+            // ---- 06: the main host stops at Available (no background download); one Portable host, reused ----
+            host.Settings.Updates.AutoDownload = false;
+            host.ApplySettings();
+            portableHost = await CheckPortableUpdatesAsync(app, root, log, recent);
+            Section("updates-portable", sw);
+
             // Binding errors fail the run. Refresh() turns WPF tracing on in release builds; set the level after it.
             PresentationTraceSources.Refresh();
             PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error;
@@ -162,12 +172,14 @@ internal static class SmokeTest
             var first = true;
             foreach (var palette in ThemeManager.PaletteIds)
             {
-                await RunPaletteAsync(host, safeHost, settingsPath, palette, first, shots);
+                await RunPaletteAsync(host, safeHost, updates, settingsPath, palette, first, shots);
                 first = false;
             }
 
             // ================= 3. Teardown =================
             sw.Restart();
+            portableHost.Dispose();
+            portableHost = null;
             safeHost.Dispose();
             safeHost = null;
             host.Dispose();
@@ -198,6 +210,8 @@ internal static class SmokeTest
         }
         finally
         {
+            try { portableHost?.Dispose(); }
+            catch (Exception ex) { Warn($"portable host dispose failed: {ex.Message}"); }
             try { safeHost?.Dispose(); }
             catch (Exception ex) { Warn($"safe host dispose failed: {ex.Message}"); }
             try { host?.Dispose(); }
@@ -215,7 +229,8 @@ internal static class SmokeTest
         app.Shutdown(exitCode);
     }
 
-    private static async Task RunPaletteAsync(AppHost host, AppHost safeHost, string settingsPath, string palette, bool first, string? shots)
+    private static async Task RunPaletteAsync(AppHost host, AppHost safeHost, SmokeUpdateBackend updates, string settingsPath, string palette,
+                                              bool first, string? shots)
     {
         var paletteTime = Stopwatch.StartNew();
         var sw = Stopwatch.StartNew();
@@ -260,6 +275,8 @@ internal static class SmokeTest
             var rows = await CheckHealthRowsAsync(host, main);
             Log($"[smoke] translation-health-rows ok elapsed_ms={sw.ElapsedMilliseconds} rows={rows} palette={palette}");
             sw.Restart();
+            await CheckUpdateBannerAsync(host, updates, main, palette, shots);
+            Section($"updates({palette})", sw);
 
             // ---- close ----
             if (first)
@@ -645,6 +662,116 @@ internal static class SmokeTest
         return expected;
     }
 
+    // ---------------- 06 checks ----------------
+
+    /// <summary>
+    /// One Portable host on its own data folder (kept until teardown): a manual check offers Download (release page) and
+    /// Get the installer, never an in-place update (REQ-DIST-15, AC-DIST-9).
+    /// </summary>
+    private static async Task<AppHost> CheckPortableUpdatesAsync(App app, string root, LogHub log, MemoryLogSink recent)
+    {
+        var data = Path.Combine(root, "portable-data");
+        var portable = new AppHost(Path.Combine(data, "settings.json"), app.Dispatcher,
+            new AppHostOptions { DataFolder = data, Log = log, RecentLog = recent, UpdateBackend = new SmokeUpdateBackend(InstallKind.Portable) });
+        Check(portable.DataFolder.StartsWith(root, StringComparison.OrdinalIgnoreCase), "the portable host's data folder is outside the smoke root");
+        await portable.Updates.CheckAsync(manual: true);
+        var view = UpdateViewBuilder.Build(portable.Updates.Snapshot);
+        Check(portable.Updates.Snapshot.State == UpdateState.Available, $"the portable check ended in {portable.Updates.Snapshot.State}");
+        Check(view.ShowBanner && view.Primary == UpdateAction.OpenReleasePage && view.Secondary == UpdateAction.GetInstaller,
+            $"the portable banner offers {view.Primary} / {view.Secondary}, expected OpenReleasePage / GetInstaller");
+        await portable.Updates.DownloadAsync();
+        Check(portable.Updates.Snapshot.State == UpdateState.Available, "a portable copy started a download");
+        Check(!portable.Updates.CanRestartToUpdate, "a portable copy offers Restart to update");
+        return portable;
+    }
+
+    /// <summary>
+    /// The War Room update banner in Failed, Available, Downloading and ReadyToRestart (REQ-DIST-27, AC-DIST-9), inside
+    /// the palette's binding-error window. Each palette offers a newer version than the last one made ready.
+    /// </summary>
+    private static async Task CheckUpdateBannerAsync(AppHost host, SmokeUpdateBackend updates, MainWindow main, string palette, string? shots)
+    {
+        var index = ThemeManager.PaletteIds.ToList().IndexOf(palette);
+        updates.NextVersion = new ReleaseVersion(9, 9, Math.Max(0, index));
+        updates.ResetDownloadGate();
+        main.Navigate(PageIds.Dashboard);
+        var page = (WarRoomPage)main.PageFor(PageIds.Dashboard);
+
+        // 1. A failed manual check: Retry.
+        updates.FailNextCheck = true;
+        await host.Updates.CheckAsync(manual: true);
+        await Pump();
+        Check(host.Updates.Snapshot.State == UpdateState.Failed, $"a failed manual check ended in {host.Updates.Snapshot.State}");
+        Check(page.UpdateBanner.IsVisible, "the update banner is not visible after a failed manual check");
+        Check(host.UpdateView.Primary == UpdateAction.Retry, $"the failed banner offers {host.UpdateView.Primary}, not Retry");
+
+        // 2. Available (installed, background download off): Update now.
+        await host.Updates.CheckAsync(manual: true);
+        await Pump();
+        Check(host.UpdateView.Primary == UpdateAction.UpdateNow, $"the available banner offers {host.UpdateView.Primary}, not Update now");
+        Check(page.UpdateHeadline.Text == host.UpdateView.Headline, $"the banner headline reads '{page.UpdateHeadline.Text}'");
+
+        // 3. Downloading at 50 %, then ready: Restart to update.
+        var download = host.Updates.DownloadAsync();
+        var wait = Stopwatch.StartNew();
+        while (host.Updates.Snapshot.Percent < 50 && wait.Elapsed < TimeSpan.FromSeconds(10)) await Task.Delay(20);
+        await Pump();
+        Check(host.Updates.Snapshot.State == UpdateState.Downloading, $"the download is in {host.Updates.Snapshot.State}, not Downloading");
+        Check(page.UpdateHeadline.Text.Contains("50%", StringComparison.Ordinal), $"the downloading headline reads '{page.UpdateHeadline.Text}'");
+        updates.OpenDownloadGate();
+        await download;
+        await Pump();
+        Check(host.Updates.Snapshot.State == UpdateState.ReadyToRestart, $"the download ended in {host.Updates.Snapshot.State}");
+        Check(host.UpdateView.Primary == UpdateAction.RestartToUpdate, $"the ready banner offers {host.UpdateView.Primary}, not Restart to update");
+        Check(page.UpdateBanner.IsVisible && page.UpdateHeadline.Text == host.UpdateView.Headline, "the ready banner is not shown");
+
+        // 4. The War Room with the ready banner.
+        if (shots is not null) Save(main, Path.Combine(shots, $"{palette}-update.png"));
+    }
+
+    /// <summary>
+    /// A scripted <see cref="IUpdateBackend"/> for the smoke test: no network, never restarts. The download reports 0 and
+    /// 50 %, waits for <see cref="OpenDownloadGate"/>, then reports 100 %.
+    /// </summary>
+    private sealed class SmokeUpdateBackend(InstallKind kind) : IUpdateBackend
+    {
+        private TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public InstallKind Kind { get; } = kind;
+        public ReleaseVersion CurrentVersion { get; } = AppHost.AppVersion;
+        public ReleaseVersion NextVersion { get; set; } = new(9, 9, 0);
+        public bool FailNextCheck { get; set; }
+        public ReleaseVersion? PendingRestart => null;
+
+        public void ResetDownloadGate() => _gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void OpenDownloadGate() => _gate.TrySetResult();
+
+        public Task<AvailableUpdate?> CheckAsync(UpdateChannel channel, CancellationToken ct)
+        {
+            if (FailNextCheck)
+            {
+                FailNextCheck = false;
+                return Task.FromException<AvailableUpdate?>(new UpdateCheckException(UpdateErrorKind.Offline));
+            }
+            var v = NextVersion;
+            var download = $"{UpdateEndpoints.ReleasesUrl}/download/v{v}/";
+            return Task.FromResult<AvailableUpdate?>(new AvailableUpdate(v, "## Added\n- **Smoke test** release notes with a [link](docs/installing.md).",
+                UpdateEndpoints.ReleasePage(v), download + "Envoy.exe", download + "Envoy-win-Setup.exe"));
+        }
+
+        public async Task DownloadAsync(AvailableUpdate update, IProgress<int> progress, CancellationToken ct)
+        {
+            progress.Report(0);
+            progress.Report(50);
+            await _gate.Task.WaitAsync(TimeSpan.FromSeconds(30), ct);
+            progress.Report(100);
+        }
+
+        public void LaunchUpdaterAfterExit(IReadOnlyList<string> restartArgs) =>
+            throw new InvalidOperationException("The smoke test must never restart to update.");
+    }
+
     // ---------------- 02 checks ----------------
 
     /// <summary>A second host in safe mode on its own data folder: Start() must not start capture (REQ-REL-40).</summary>
@@ -669,6 +796,7 @@ internal static class SmokeTest
         Check(text.Length <= DiagnosticsReport.MaxClipboardChars, $"the diagnostics report has {text.Length} characters");
         foreach (var section in DiagnosticsReport.Sections)
             Check(text.Contains("### " + section, StringComparison.Ordinal), $"the diagnostics report has no {section} section");
+        Check(text.Contains("Updates: Installed, channel Stable", StringComparison.Ordinal), "the diagnostics report has no Updates line (REQ-DIST-31)");
 
         var zip = Path.Combine(root, "diag.zip");
         DiagnosticsCollector.ExportBundle(host, zip);

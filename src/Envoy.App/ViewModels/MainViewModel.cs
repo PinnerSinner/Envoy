@@ -14,7 +14,7 @@ namespace Envoy.App.ViewModels;
 /// <summary>
 /// The single view model behind MainWindow and every page in <c>Pages/</c>. Split into partial files by page:
 /// <c>.Translation</c>, <c>.ReadingChat</c>, <c>.Phrasebook</c>, <c>.Diagnostics</c> (About › Troubleshooting and the
-/// safe-mode banner) and <c>.Actions</c> (the commands). App-level actions go
+/// safe-mode banner), <c>.Updates</c> (the update banner and settings) and <c>.Actions</c> (the commands). App-level actions go
 /// through <see cref="IShell"/>.
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject, IDisposable
@@ -59,7 +59,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OpenReplyBoxCommand = new RelayCommand(_shell.OpenCompose);
         ScanAndTranslateCommand = new RelayCommand(_shell.ScanAndTranslate);
         NewMatchCommand = new RelayCommand(Host.NewMatch);
-        DownloadUpdateCommand = new RelayCommand(DownloadUpdate);
         TestTranslateCommand = new AsyncRelayCommand(TestTranslateAsync, ReportCommandError);
         InstallOcrCommand = new RelayCommand<string>(InstallOcr);
         TestVoiceCommand = new RelayCommand(TestVoice);
@@ -83,6 +82,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RetryProviderCommand = new RelayCommand<string>(RetryProvider);
         ClearTranslationCacheCommand = new RelayCommand(ClearTranslationCache);
         AttachTranslationHealth();
+
+        // Update banner, Appearance › Startup & updates and About › Version & updates (MainViewModel.Updates.cs).
+        UpdatePrimaryCommand = new RelayCommand(() => RunUpdateAction(Host.UpdateView.Primary));
+        UpdateSecondaryCommand = new RelayCommand(() => RunUpdateAction(Host.UpdateView.Secondary));
+        SkipUpdateCommand = new RelayCommand(Host.SkipUpdate);
+        CheckForUpdatesCommand = new AsyncRelayCommand(() => Host.Updates.CheckAsync(manual: true, Host.UpdatesToken), ReportCommandError);
+        AttachUpdates();
     }
 
     public AppHost Host { get; }
@@ -131,7 +137,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     // ---- About page ----
     public string DataFolder => Host.DataFolder;
 
-    public string Version => typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "dev";
+    /// <summary>The release version with any prerelease suffix (REQ-DIST-19).</summary>
+    public string Version => AppHost.AppVersion.ToString();
 
     public void RefreshStatus()
     {
@@ -192,6 +199,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Host.RegionMoved -= OnRegionMoved;
         Host.GameWindowChanged -= OnRegionMoved;
         DetachTranslationHealth();
+        DetachUpdates();
         CapturePreview.Dispose();
     }
 }
