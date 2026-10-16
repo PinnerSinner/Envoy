@@ -33,9 +33,25 @@ public sealed class VelopackUpdateBackend : IUpdateBackend
 
     public ReleaseVersion CurrentVersion { get; }
 
-    /// <summary>The version of a downloaded, not yet applied package. Reads the local packages folder only.</summary>
-    public ReleaseVersion? PendingRestart =>
-        _local.UpdatePendingRestart is { } asset && ReleaseVersion.TryParse(asset.Version.ToNormalizedString(), out var v) ? v : null;
+    /// <summary>
+    /// The version of a downloaded, not yet applied package. Reads the local packages folder only; never throws (start-up
+    /// slot 5 reads it before anything else is running).
+    /// </summary>
+    public ReleaseVersion? PendingRestart
+    {
+        get
+        {
+            try
+            {
+                return _local.UpdatePendingRestart is { } asset && ReleaseVersion.TryParse(asset.Version.ToNormalizedString(), out var v) ? v : null;
+            }
+            catch (Exception ex)
+            {
+                _log.Warn("Couldn't read the downloaded update", ex);
+                return null;
+            }
+        }
+    }
 
     /// <summary>Null when this copy isn't Velopack-installed (portable exe, dotnet run, smoke test). Never throws.</summary>
     public static VelopackUpdateBackend? TryCreate(ILog log)
