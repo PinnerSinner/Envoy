@@ -124,20 +124,30 @@ jobs:
           if-no-files-found: ignore
 
       # Keeps the latest UI renders on an orphan branch so docs (and agents without artifact access) can use them.
+      # Built in a separate worktree: the job's own checkout must keep every tracked file for the steps after this one
+      # (the folder build and vpk pack on main need src/ and .config/).
       - name: Publish screenshots branch
         if: github.ref == 'refs/heads/main' && hashFiles('screenshots/*.png') != ''
         shell: pwsh
         run: |
-          $tmp = Join-Path $env:RUNNER_TEMP "shots"
-          Copy-Item screenshots $tmp -Recurse
+          $shots = Join-Path $PWD "screenshots"
+          $wt = Join-Path $env:RUNNER_TEMP "ci-screenshots"
+          git worktree add -q --detach $wt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Push-Location $wt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -q --orphan ci-screenshots
           git rm -rfq .
-          Copy-Item "$tmp/*.png" .
+          Copy-Item "$shots/*.png" .
           git add *.png
           git commit -qm "UI screenshots for ${{ github.sha }}"
           git push -qf origin ci-screenshots
+          $code = $LASTEXITCODE
+          Pop-Location
+          git worktree remove --force $wt
+          if (-not (Test-Path src/Envoy.App/Envoy.App.csproj)) { Write-Error "The screenshots step changed the job's checkout"; exit 1 }
+          exit $code
 
       # ---- Signing: v* tags only, in the release environment (REQ-DIST-8). Runs after the smoke test, so the signed
       #      bytes differ from the smoke-tested ones only by the signature. ----
