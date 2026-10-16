@@ -39,6 +39,20 @@ public sealed class SafeModeTests : IDisposable
     }
 
     [Fact]
+    public void Safe_mode_disables_automatic_update_checks()
+    {
+        Assert.False(StartupPlan.For(SafeModeReason.ShiftHeld, false, true, true).AutoCheckUpdates);
+        Assert.False(StartupPlan.For(SafeModeReason.CommandLine, true, true, false).AutoCheckUpdates);
+    }
+
+    [Fact]
+    public void Normal_start_enables_automatic_update_checks()
+    {
+        Assert.True(StartupPlan.For(null, false, true, true).AutoCheckUpdates);
+        Assert.True(StartupPlan.For(null, true, true, false).AutoCheckUpdates);
+    }
+
+    [Fact]
     public void Startup_sentinel_counts_unfinished_starts()
     {
         var path = Path.Combine(_folder, "session.json");

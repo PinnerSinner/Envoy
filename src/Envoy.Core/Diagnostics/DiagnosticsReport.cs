@@ -51,6 +51,9 @@ public sealed record DiagnosticsSnapshot
     public CrashMarker? LastCrash { get; init; }
     public TimeSpan Uptime { get; init; }
     public long DroppedLogWrites { get; init; }
+
+    /// <summary>Install kind, channel, state, last check and last background error kind (06, REQ-DIST-31); null → not shown.</summary>
+    public string? Updates { get; init; }
 }
 
 /// <summary>
@@ -85,6 +88,7 @@ public static class DiagnosticsReport
         Line("Runtime: " + snapshot.Runtime);
         Line("Uptime: " + snapshot.Uptime.ToString(@"d\.hh\:mm\:ss", inv));
         Line("Safe mode: " + (snapshot.SafeMode is { } safe ? "on (" + safe + ")" : "off"));
+        if (!string.IsNullOrEmpty(snapshot.Updates)) Line("Updates: " + snapshot.Updates);
         Line("Dropped log writes: " + snapshot.DroppedLogWrites.ToString(inv));
 
         Section("Windows");

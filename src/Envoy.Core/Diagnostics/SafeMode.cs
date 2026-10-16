@@ -117,6 +117,12 @@ public sealed class StartupSentinel(string path, TimeProvider? clock = null)
 public sealed record StartupPlan(bool CreateOverlay, bool RegisterHotkeys, bool AutoStartCapture, bool ShowMainWindow, bool SafeMode)
 {
     /// <summary>
+    /// Start-up slot 9 starts automatic update checks (06): never in safe mode, where only the About page's manual
+    /// "Check for updates" makes a request (REQ-DIST-13).
+    /// </summary>
+    public bool AutoCheckUpdates => !SafeMode;
+
+    /// <summary>
     /// Safe mode: no overlay, no hotkeys, no automatic capture, MainWindow always shown. Otherwise overlay and hotkeys
     /// on, capture per <paramref name="startCapturingAutomatically"/>, and MainWindow unless started minimized after
     /// the first run.

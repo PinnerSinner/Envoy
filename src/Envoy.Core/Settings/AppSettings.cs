@@ -41,8 +41,14 @@ public sealed class AppSettings
     public bool StartCapturingAutomatically { get; set; } = true;
     public bool FirstRunCompleted { get; set; }
 
-    /// <summary>Check GitHub Releases for a newer Envoy on start-up (no data is sent besides the request itself).</summary>
+    /// <summary>
+    /// Check GitHub Releases for a newer Envoy automatically (no data is sent besides the request itself). The master
+    /// switch for every automatic update request; "Check for updates" on About always works (REQ-DIST-13).
+    /// </summary>
     public bool CheckForUpdates { get; set; } = true;
+
+    /// <summary>Update channel, background download and bookkeeping (spec 06). <see cref="CheckForUpdates"/> stays the master switch.</summary>
+    public UpdateSettings Updates { get; set; } = new();
 
     /// <summary>Write a plain-text transcript of each session to the logs folder.</summary>
     public bool SaveTranscripts { get; set; }
@@ -63,6 +69,25 @@ public sealed class AppSettings
     public HotkeySettings Hotkeys { get; set; } = new();
     public DiagnosticsSettings Diagnostics { get; set; } = new();
     public UsageSnapshot? Usage { get; set; }
+}
+
+/// <summary>How Envoy updates itself (spec 06). Holds no names, chat text or positions, so it needs no marker.</summary>
+public sealed class UpdateSettings
+{
+    /// <summary>Stable: releases only. Beta: GitHub prereleases too (REQ-DIST-18).</summary>
+    public Envoy.Core.Updates.UpdateChannel Channel { get; set; } = Envoy.Core.Updates.UpdateChannel.Stable;
+
+    /// <summary>Installed copies download updates in the background (never during a game).</summary>
+    public bool AutoDownload { get; set; } = true;
+
+    /// <summary>Version the user chose to skip ("" = none). Automatic checks ignore it (REQ-DIST-22).</summary>
+    public string SkippedVersion { get; set; } = "";
+
+    /// <summary>When the last update check finished. Written only on the UI thread (via Dispatcher.BeginInvoke).</summary>
+    public DateTimeOffset? LastCheckUtc { get; set; }
+
+    /// <summary>Version that last ran; drives the one-time "Envoy was updated to …" notice (REQ-DIST-23).</summary>
+    public string LastRunVersion { get; set; } = "";
 }
 
 /// <summary>Logging and problem pop-ups (About › Troubleshooting).</summary>

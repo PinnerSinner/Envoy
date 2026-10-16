@@ -1,5 +1,7 @@
+using System.Net;
 using Envoy.Core.Chat;
 using Envoy.Core.Pipeline;
+using Envoy.Core.Tests.Translation.Fakes;
 using Envoy.Core.Translation;
 using Envoy.Core.Updates;
 using Microsoft.Extensions.Time.Testing;
@@ -181,4 +183,184 @@ public class UpdateCheckerTests
 
     [Fact]
     public void Rejects_garbage_tags() => Assert.False(UpdateChecker.TryParseVersion("latest", out _));
+
+    // ---- spec 06: channels, asset picking, typed errors ----
+
+    private const string Repo = "PinnerSinner/Envoy";
+    private const string Base = "https://github.com/PinnerSinner/Envoy/releases";
+
+    private static string ReleaseJson(string tag, bool prerelease = false, bool draft = false, string? page = null,
+                                      string? installerUrl = null, bool setupFirst = false)
+    {
+        var portable = $$"""{"name":"Envoy.exe","browser_download_url":"{{Base}}/download/{{tag}}/Envoy.exe"}""";
+        var setup = $$"""{"name":"Envoy-win-Setup.exe","browser_download_url":"{{installerUrl ?? $"{Base}/download/{tag}/Envoy-win-Setup.exe"}}"}""";
+        var nupkg = $$"""{"name":"Envoy-{{tag.TrimStart('v')}}-full.nupkg","browser_download_url":"{{Base}}/download/{{tag}}/x.nupkg"}""";
+        var assets = setupFirst ? $"{setup},{nupkg},{portable}" : $"{portable},{setup},{nupkg}";
+        return $$"""
+            {"tag_name":"{{tag}}","html_url":"{{page ?? $"{Base}/tag/{tag}"}}","draft":{{(draft ? "true" : "false")}},
+             "prerelease":{{(prerelease ? "true" : "false")}},"body":"Notes for {{tag}}","assets":[{{assets}}]}
+            """;
+    }
+
+    [Fact]
+    public void Parse_prefers_portable_exe_over_setup()
+    {
+        var info = UpdateChecker.Parse(ReleaseJson("v1.0.0", setupFirst: true))!;
+        Assert.Equal($"{Base}/download/v1.0.0/Envoy.exe", info.DownloadUrl);
+        Assert.Equal($"{Base}/download/v1.0.0/Envoy-win-Setup.exe", info.InstallerUrl);
+
+        // Without an asset named exactly Envoy.exe, the first exe that isn't a Setup.exe.
+        var other = UpdateChecker.Parse(ReleaseJson("v1.0.0", setupFirst: true).Replace("\"Envoy.exe\"", "\"Envoy-portable.exe\"", StringComparison.Ordinal))!;
+        Assert.EndsWith("/Envoy.exe", other.DownloadUrl); // the URL is unchanged; only the name differs
+        var setupOnly = UpdateChecker.Parse($$"""
+            {"tag_name":"v1.0.0","html_url":"{{Base}}/tag/v1.0.0","draft":false,"prerelease":false,
+             "assets":[{"name":"Envoy-win-Setup.exe","browser_download_url":"{{Base}}/download/v1.0.0/Envoy-win-Setup.exe"}]}
+            """)!;
+        Assert.Null(setupOnly.DownloadUrl);
+        Assert.NotNull(setupOnly.InstallerUrl);
+    }
+
+    [Fact]
+    public void Parse_with_prereleases_included_returns_prerelease()
+    {
+        var json = ReleaseJson("v1.1.0-beta.1", prerelease: true);
+        Assert.Null(UpdateChecker.Parse(json));
+        var info = UpdateChecker.Parse(json, includePrereleases: true)!;
+        Assert.True(info.IsPrerelease);
+        Assert.Equal("1.1.0-beta.1", info.SemVer!.ToString());
+        Assert.Null(UpdateChecker.Parse(ReleaseJson("v1.1.0", draft: true), includePrereleases: true));
+    }
+
+    [Fact]
+    public void Parse_drops_untrusted_installer_url()
+    {
+        var info = UpdateChecker.Parse(ReleaseJson("v1.0.0", installerUrl: "https://evil.example/Envoy-win-Setup.exe"))!;
+        Assert.Null(info.InstallerUrl);
+        Assert.NotNull(info.DownloadUrl);
+    }
+
+    [Fact]
+    public void PickLatest_stable_ignores_prereleases_and_drafts()
+    {
+        var list = $"[{ReleaseJson("v2.0.0-beta.1", prerelease: true)},{ReleaseJson("v3.0.0", draft: true)},{ReleaseJson("v1.5.0")},{ReleaseJson("v1.4.0")}]";
+        Assert.Equal("1.5.0", UpdateChecker.PickLatest(list, UpdateChannel.Stable)!.SemVer!.ToString());
+    }
+
+    [Fact]
+    public void PickLatest_beta_picks_highest_semver_not_newest_published()
+    {
+        // Newest published first: a 1.4.1 hotfix published after 1.5.0-beta.2.
+        var list = $"[{ReleaseJson("v1.4.1")},{ReleaseJson("v1.5.0-beta.10", prerelease: true)},{ReleaseJson("v1.5.0-beta.2", prerelease: true)}]";
+        Assert.Equal("1.5.0-beta.10", UpdateChecker.PickLatest(list, UpdateChannel.Beta)!.SemVer!.ToString());
+    }
+
+    [Fact]
+    public void PickLatest_skips_untrusted_html_url()
+    {
+        var list = $"[{ReleaseJson("v9.0.0", page: "https://evil.example/o/r/releases/tag/v9.0.0")},{ReleaseJson("v1.0.0")}]";
+        Assert.Equal("1.0.0", UpdateChecker.PickLatest(list, UpdateChannel.Beta)!.SemVer!.ToString());
+    }
+
+    [Fact]
+    public async Task Check_stable_calls_latest_endpoint_with_minimal_headers()
+    {
+        var handler = new FakeHttpHandler().Respond(HttpStatusCode.OK, ReleaseJson("v1.0.0"));
+        using var http = handler.Client();
+        var info = await new UpdateChecker(http, Repo).CheckAsync(ReleaseVersion.Parse("0.9.0-beta.1"), UpdateChannel.Stable);
+        Assert.Equal("1.0.0", info!.SemVer!.ToString());
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, request.Method);
+        Assert.Equal("https://api.github.com/repos/PinnerSinner/Envoy/releases/latest", request.Uri.ToString());
+        Assert.Equal(["Accept", "User-Agent"], request.Headers.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal("Envoy/0.9.0-beta.1", request.Headers["User-Agent"]);
+        Assert.Equal("application/vnd.github+json", request.Headers["Accept"]);
+        Assert.Null(request.Body);
+    }
+
+    [Fact]
+    public async Task Check_beta_calls_list_endpoint()
+    {
+        var list = $"[{ReleaseJson("v1.1.0-beta.1", prerelease: true)},{ReleaseJson("v1.0.0")}]";
+        var handler = new FakeHttpHandler().Respond(HttpStatusCode.OK, list);
+        using var http = handler.Client();
+        var info = await new UpdateChecker(http, Repo).CheckAsync(ReleaseVersion.Parse("1.0.0"), UpdateChannel.Beta);
+        Assert.Equal("1.1.0-beta.1", info!.SemVer!.ToString());
+        Assert.Equal("https://api.github.com/repos/PinnerSinner/Envoy/releases?per_page=10", Assert.Single(handler.Requests).Uri.ToString());
+    }
+
+    [Theory]
+    [InlineData("v1.0.0", "1.0.0", false)]
+    [InlineData("v1.0.0", "1.0.1", false)]
+    [InlineData("v1.0.0", "1.0.0-beta.3", true)]
+    [InlineData("v0.4.0", "0.4.0-beta.2", true)]
+    [InlineData("v0.4.1", "0.4.0", true)]
+    public async Task Check_returns_null_when_not_newer(string tag, string current, bool offered)
+    {
+        using var http = new FakeHttpHandler().Respond(HttpStatusCode.OK, ReleaseJson(tag)).Client();
+        var info = await new UpdateChecker(http, Repo).CheckAsync(ReleaseVersion.Parse(current), UpdateChannel.Stable);
+        Assert.Equal(offered, info is not null);
+    }
+
+    [Fact]
+    public async Task Check_404_returns_null()
+    {
+        using var http = new FakeHttpHandler().Respond(HttpStatusCode.NotFound, "{\"message\":\"Not Found\"}").Client();
+        Assert.Null(await new UpdateChecker(http, Repo).CheckAsync(ReleaseVersion.Parse("1.0.0"), UpdateChannel.Stable));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    public async Task Check_403_and_429_throw_RateLimited(HttpStatusCode status)
+    {
+        using var http = new FakeHttpHandler().Respond(status, "{\"message\":\"API rate limit exceeded\"}").Client();
+        var ex = await Assert.ThrowsAsync<UpdateCheckException>(() => new UpdateChecker(http, Repo).CheckAsync(ReleaseVersion.Parse("1.0.0"), UpdateChannel.Beta));
+        Assert.Equal(UpdateErrorKind.RateLimited, ex.Kind);
+        Assert.DoesNotContain("rate limit", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.OK, "<html>not json</html>")]
+    [InlineData(HttpStatusCode.OK, "{\"no_tag\":1}")]
+    [InlineData(HttpStatusCode.InternalServerError, "oops")]
+    public async Task Check_bad_json_throws_BadResponse(HttpStatusCode status, string body)
+    {
+        using var http = new FakeHttpHandler().Respond(status, body).Client();
+        var ex = await Assert.ThrowsAsync<UpdateCheckException>(() => new UpdateChecker(http, Repo).CheckAsync(ReleaseVersion.Parse("1.0.0"), UpdateChannel.Stable));
+        Assert.Equal(UpdateErrorKind.BadResponse, ex.Kind);
+    }
+
+    [Fact]
+    public async Task Check_network_error_throws_Offline()
+    {
+        using var http = new FakeHttpHandler().Throw(new HttpRequestException("No such host is known.")).Client();
+        var ex = await Assert.ThrowsAsync<UpdateCheckException>(() => new UpdateChecker(http, Repo).CheckAsync(ReleaseVersion.Parse("1.0.0"), UpdateChannel.Stable));
+        Assert.Equal(UpdateErrorKind.Offline, ex.Kind);
+
+        using var slow = new FakeHttpHandler().Throw(new TaskCanceledException("timeout")).Client();
+        Assert.Equal(UpdateErrorKind.Offline, (await Assert.ThrowsAsync<UpdateCheckException>(
+            () => new UpdateChecker(slow, Repo).CheckAsync(ReleaseVersion.Parse("1.0.0"), UpdateChannel.Stable))).Kind);
+    }
+
+    [Fact]
+    public async Task Check_honours_cancellation()
+    {
+        using var http = new FakeHttpHandler().Hang().Client();
+        using var cts = new CancellationTokenSource();
+        var check = new UpdateChecker(http, Repo).CheckAsync(ReleaseVersion.Parse("1.0.0"), UpdateChannel.Stable, cts.Token);
+        await cts.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => check);
+    }
+
+    [Fact]
+    public async Task Check_drops_untrusted_installer_and_foreign_release()
+    {
+        using var http = new FakeHttpHandler().Respond(HttpStatusCode.OK, ReleaseJson("v2.0.0", installerUrl: "https://github.com/other/repo/releases/download/v2.0.0/Envoy-win-Setup.exe")).Client();
+        var info = await new UpdateChecker(http, Repo).CheckAsync(ReleaseVersion.Parse("1.0.0"), UpdateChannel.Stable);
+        Assert.Null(info!.InstallerUrl);
+        Assert.NotNull(info.DownloadUrl);
+
+        using var foreign = new FakeHttpHandler().Respond(HttpStatusCode.OK, ReleaseJson("v2.0.0", page: "https://github.com/other/repo/releases/tag/v2.0.0")).Client();
+        Assert.Null(await new UpdateChecker(foreign, Repo).CheckAsync(ReleaseVersion.Parse("1.0.0"), UpdateChannel.Stable));
+    }
 }
