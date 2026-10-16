@@ -697,6 +697,13 @@ internal static class SmokeTest
         main.Navigate(PageIds.Dashboard);
         var page = (WarRoomPage)main.PageFor(PageIds.Dashboard);
 
+        // 0. A manual check offers this palette's newer version, replacing the last palette's ready update, so the failed
+        // check below starts from Available (a failed check while an update is ready keeps ReadyToRestart, see 5.).
+        await host.Updates.CheckAsync(manual: true);
+        await Pump();
+        Check(host.Updates.Snapshot is { State: UpdateState.Available } first && first.Available?.Version == updates.NextVersion,
+            $"the first manual check ended in {host.Updates.Snapshot.State} offering {host.Updates.Snapshot.Available?.Version}");
+
         // 1. A failed manual check: Retry.
         updates.FailNextCheck = true;
         await host.Updates.CheckAsync(manual: true);
@@ -725,7 +732,14 @@ internal static class SmokeTest
         Check(host.UpdateView.Primary == UpdateAction.RestartToUpdate, $"the ready banner offers {host.UpdateView.Primary}, not Restart to update");
         Check(page.UpdateBanner.IsVisible && page.UpdateHeadline.Text == host.UpdateView.Headline, "the ready banner is not shown");
 
-        // 4. The War Room with the ready banner.
+        // 5. A failed manual check keeps Restart to update (REQ-DIST-16).
+        updates.FailNextCheck = true;
+        await host.Updates.CheckAsync(manual: true);
+        await Pump();
+        Check(host.Updates.Snapshot.State == UpdateState.ReadyToRestart, $"a failed check after the download ended in {host.Updates.Snapshot.State}");
+        Check(host.UpdateView.Primary == UpdateAction.RestartToUpdate, $"after a failed check the ready banner offers {host.UpdateView.Primary}");
+
+        // 6. The War Room with the ready banner.
         if (shots is not null) Save(main, Path.Combine(shots, $"{palette}-update.png"));
     }
 
