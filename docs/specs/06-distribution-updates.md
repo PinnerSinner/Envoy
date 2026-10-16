@@ -352,7 +352,7 @@ public sealed class UpdateCoordinator
     /// <summary>Not called in safe mode. PendingRestart != null → ReadyToRestart without network. Else, if
     /// CheckAutomatically and (LastCheckUtc null or older than StartupMinInterval) → CheckAsync(manual: false).</summary>
     public Task StartAsync(CancellationToken ct = default);
-    /// <summary>manual=false is a no-op when CheckAutomatically is false. Concurrent calls share one run.</summary>
+    /// <summary>manual=false is a no-op when CheckAutomatically is false. Concurrent calls share one run (refined: Deviation 17).</summary>
     public Task CheckAsync(bool manual, CancellationToken ct = default);
     /// <summary>"Update now" / "Retry" after a failed download. Installed + Available/Failed only.</summary>
     public Task DownloadAsync(CancellationToken ct = default);
@@ -1171,4 +1171,28 @@ Differences from the text above, with reasons:
     makes the installed copy use a Velopack `SimpleFileSource`; any other value is ignored with a Warning.
 16. **Docs**: `docs/building.md` gained "build the installer locally"; `README.md`'s documentation table links
     `docs/installing.md`. `docs/privacy.md` is unchanged (no new data file; 07a adds the data-flow section).
+17. **Check runs** ("Concurrent calls share one run", refined after review). A call shares the running check only when
+    that check is on the same channel and at least as manual; a manual call during an automatic check, or the
+    `Configure` check after a channel switch, queues one more check after it, so a manual failure always shows its
+    sentence and Retry (REQ-DIST-20) and the new channel is always checked (REQ-DIST-18). The check task ends when the
+    check does: an automatic download it starts runs on its own (logged with `Forget`), so About's command is not busy
+    for the download. Tests `Manual_check_during_automatic_check_runs_again_and_shows_failure`,
+    `Channel_change_during_a_check_checks_the_new_channel`, `Check_task_ends_before_the_background_download`.
+18. **An automatic re-check keeps an offer.** While the state is `Available` or `ReadyToRestart`, an automatic check
+    does not enter `Checking` (the banner, the tray's Restart item and `Changed` subscribers see no flicker); a silent
+    failure or a same-version result leaves the offer as it is, and "Skip this version" pressed during that check is
+    respected (the skipped version is re-read after the network call). A manual check still shows `Checking`. Test
+    `Automatic_recheck_keeps_the_offer_visible`.
+19. **A deferred download is automatic** (REQ-DIST-13). It starts on a tick only while both `CheckForUpdates` and
+    `AutoDownload` are on; `Configure` clears `DeferredForGame` when either goes off, so the banner offers Update now.
+    A check during a game with automatic checks off sets no `DeferredForGame` (nothing would start it later) and offers
+    Update now. Tests `Deferred_download_needs_automatic_checks_on`,
+    `Manual_check_in_game_with_automatic_checks_off_does_not_defer`.
+20. **Diagnostics report** "Version:" uses `AppHost.AppVersion` (so a beta reads `1.2.0-beta.1`, contract §3); only
+    the log header and crash marker keep the numeric `CurrentVersion`.
+21. **UPD1/UPD2** are stricter: UPD1 also catches a target-typed `UpdateManager m = new(...)` and `: UpdateManager`;
+    UPD2 fails when `Program.cs` is missing or does not run `VelopackApp.Build()`…`.Run()`.
+22. **Workflow**: the `ci-screenshots` push is built in a separate `git worktree` under `RUNNER_TEMP`, so the job's
+    checkout keeps its tracked files for the folder build and `vpk pack` that follow on `main`; the step fails if the
+    checkout lost `src/Envoy.App/Envoy.App.csproj`.
 

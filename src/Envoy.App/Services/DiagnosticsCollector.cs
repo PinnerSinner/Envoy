@@ -20,7 +20,7 @@ internal static class DiagnosticsCollector
         var settings = host.Settings;
         return new DiagnosticsSnapshot
         {
-            AppVersion = AppHost.CurrentVersion.ToString(),
+            AppVersion = AppHost.AppVersion.ToString(),
             InformationalVersion = typeof(AppHost).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
             Runtime = RuntimeInformation.FrameworkDescription,
             OsDescription = RuntimeInformation.OSDescription,

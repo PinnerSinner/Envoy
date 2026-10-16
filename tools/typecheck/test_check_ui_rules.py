@@ -44,6 +44,9 @@ public partial class {name} : System.Windows.Controls.UserControl
 }}
 """
 
+PROGRAM_OK = ("internal static class Program { static void Main() { VelopackApp.Build()\n"
+              "    .SetAutoApplyOnStartup(false)\n    .Run(); } }\n")
+
 MAIN_WINDOW = """<Window x:Class="Envoy.App.Windows.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
@@ -66,6 +69,7 @@ class CheckUiRulesTests(unittest.TestCase):
                 content = "namespace Envoy.App;\n// MessageBox in a comment is fine.\n"
             self.write(rel, content)
         self.write("Windows/MainWindow.xaml", MAIN_WINDOW)
+        self.write("Program.cs", PROGRAM_OK)
         self.write("Services/DialogService.cs", "class DialogService { void X() => System.Windows.MessageBox.Show(\"\"); }\n")
         self.write("ViewModels/MainViewModel.cs", "class MainViewModel { IShell? _shell; }\n")
 
@@ -217,8 +221,7 @@ namespace Envoy.App.Services; class ChatWatcher
 
     # ---- spec 06 ----
 
-    PROGRAM_OK = ("internal static class Program { static void Main() { VelopackApp.Build()\n"
-                  "    .SetAutoApplyOnStartup(false)\n    .Run(); } }\n")
+    PROGRAM_OK = PROGRAM_OK
 
     def assertUpd(self, rule, path_fragment):
         problems = check_ui_rules.check(self.root)
@@ -237,6 +240,16 @@ namespace Envoy.App.Services; class ChatWatcher
         self.write("AppHost.cs", "class H { object M() => new Velopack.UpdateManager(source); }\n")
         self.assertUpd("UPD1", "AppHost.cs")
 
+    def test_upd1_target_typed_or_subclassed_update_manager(self):
+        self.write("AppHost.cs", "class H { void M() { UpdateManager mgr = new(source, options); } }\n")
+        self.assertUpd("UPD1", "AppHost.cs")
+        self.write("AppHost.cs", "class H { void M() { Velopack.UpdateManager? mgr = new (source); } }\n")
+        self.assertUpd("UPD1", "AppHost.cs")
+        self.write("AppHost.cs", "sealed class MyManager(UpdateSource s) : UpdateManager(s) { }\n")
+        self.assertUpd("UPD1", "AppHost.cs")
+        self.write("AppHost.cs", "class H { UpdateManager? _m; object M(bool b) => b ? null : UpdateManager.Default; }\n")
+        self.assertEqual([], check_ui_rules.check(self.root))
+
     def test_upd1_flow_source_or_apply_and_restart(self):
         self.write("Services/VelopackUpdateBackend.cs", "class B { void M() { mgr.ApplyUpdatesAndRestart(x); } }\n")
         self.assertUpd("UPD1", "VelopackUpdateBackend.cs")
@@ -253,6 +266,16 @@ namespace Envoy.App.Services; class ChatWatcher
         self.write("Program.cs", "class P { static void Main() { VelopackApp.Build()\n    .SetAutoApplyOnStartup(true).Run(); } }\n")
         self.assertUpd("UPD2", "Program.cs")
         self.write("Program.cs", "class P { static void Main() { VelopackApp.Build()\n    // .SetAutoApplyOnStartup(false)\n    .Run(); } }\n")
+        self.assertUpd("UPD2", "Program.cs")
+
+    def test_upd2_program_must_run_velopack(self):
+        self.write("Program.cs", "class P { static void Main() { new App().Run(); } }\n")
+        self.assertUpd("UPD2", "Program.cs")
+        self.write("Program.cs", "class P { static void Main() {\n    // VelopackApp.Build().SetAutoApplyOnStartup(false).Run();\n    new App().Run(); } }\n")
+        self.assertUpd("UPD2", "Program.cs")
+        self.write("Program.cs", "class P { static void Main() { var b = VelopackApp.Build().SetAutoApplyOnStartup(false); } }\n")
+        self.assertUpd("UPD2", "Program.cs")
+        os.remove(os.path.join(self.root, "Program.cs"))
         self.assertUpd("UPD2", "Program.cs")
 
 

@@ -46,6 +46,9 @@ public sealed class UpdateCoordinator
     private UpdatePreferences _prefs;
     private UpdateSnapshot _snapshot;
     private Task? _checkRun;
+    private bool _checkRunManual;
+    private UpdateChannel _checkRunChannel;
+    private Task? _backgroundDownload;
     private volatile bool _gameRunning;
 
     /// <param name="lastCheckChanged">
@@ -91,6 +94,9 @@ public sealed class UpdateCoordinator
             var merged = prefs with { LastCheckUtc = Later(old.LastCheckUtc, prefs.LastCheckUtc) };
             Volatile.Write(ref _prefs, merged);
         }
+        // A download waiting for the game is automatic: it no longer starts once either switch is off (REQ-DIST-13, 16).
+        if (!prefs.CheckAutomatically || !prefs.AutoDownload)
+            Update(s => s.DeferredForGame ? s with { DeferredForGame = false } : s);
         if (old.Channel == prefs.Channel) return Task.CompletedTask;
         Update(s => s with { Channel = prefs.Channel });
         _log.Info("Update channel changed", LogField.Of("channel", prefs.Channel));
@@ -135,17 +141,38 @@ public sealed class UpdateCoordinator
 
     /// <summary>
     /// Checks for an update. An automatic check (<paramref name="manual"/> false) does nothing while automatic checks
-    /// are off. Concurrent calls share one run.
+    /// are off. A call shares the running check when that check is on the same channel and at least as manual; a manual
+    /// call during an automatic check, or a call after a channel change, queues one more check after it (so a manual
+    /// failure is always shown, REQ-DIST-20, and the new channel is always checked, REQ-DIST-18). The task ends when the
+    /// check does; an automatic download it starts runs on its own.
     /// </summary>
     public Task CheckAsync(bool manual, CancellationToken ct = default)
     {
+        var channel = Preferences.Channel;
         if (!manual && !Preferences.CheckAutomatically) return Task.CompletedTask;
         lock (_runLock)
         {
-            if (_checkRun is { IsCompleted: false } running) return running;
-            var run = Task.Run(() => CheckRunAsync(manual, ct), CancellationToken.None);
+            var running = _checkRun is { IsCompleted: false } r ? r : null;
+            if (running is not null && (_checkRunManual || !manual) && _checkRunChannel == channel) return running;
+            var run = Task.Run(async () =>
+            {
+                // The follow-up starts after the running check ends (whatever its outcome), so its result is the last word.
+                if (running is not null) await Task.WhenAny(running).ConfigureAwait(false);
+                await CheckRunAsync(manual, ct).ConfigureAwait(false);
+            }, CancellationToken.None);
             _checkRun = run;
+            _checkRunManual = manual;
+            _checkRunChannel = channel;
             return run;
+        }
+    }
+
+    /// <summary>The last automatic download started by a check or a tick (tests await it); a completed task when none.</summary>
+    internal Task BackgroundDownload
+    {
+        get
+        {
+            lock (_runLock) return _backgroundDownload ?? Task.CompletedTask;
         }
     }
 
@@ -161,8 +188,9 @@ public sealed class UpdateCoordinator
         var s = Snapshot;
         var prefs = Preferences;
         if (s.State is UpdateState.Checking or UpdateState.Downloading) return Task.CompletedTask;
-        if (s is { DeferredForGame: true, State: UpdateState.Available, Kind: InstallKind.Installed } && !_gameRunning && prefs.AutoDownload)
-            return DownloadCoreAsync(manual: false, ct);
+        if (s is { DeferredForGame: true, State: UpdateState.Available, Kind: InstallKind.Installed } && !_gameRunning
+            && prefs is { AutoDownload: true, CheckAutomatically: true })
+            return StartBackgroundDownload(ct);
         if (!prefs.CheckAutomatically) return Task.CompletedTask;
         if (prefs.LastCheckUtc is { } last && _time.GetUtcNow() - last < PeriodicInterval) return Task.CompletedTask;
         return CheckAsync(manual: false, ct);
@@ -212,7 +240,15 @@ public sealed class UpdateCoordinator
         {
             _gate.Release();
         }
-        if (startDownload) await DownloadCoreAsync(manual: false, ct).ConfigureAwait(false);
+        // Not awaited: the check (and a command awaiting it) ends when the check does (REQ-DIST-16).
+        if (startDownload) StartBackgroundDownload(ct).Forget(_log, "background update download");
+    }
+
+    private Task StartBackgroundDownload(CancellationToken ct)
+    {
+        var download = DownloadCoreAsync(manual: false, ct);
+        lock (_runLock) _backgroundDownload = download;
+        return download;
     }
 
     /// <summary>Runs one check under the gate. True when an automatic download should start.</summary>
@@ -220,7 +256,11 @@ public sealed class UpdateCoordinator
     {
         var previous = Snapshot;
         var prefs = Preferences;
-        Update(s => s with { State = UpdateState.Checking, LastCheckWasManual = manual });
+        // An automatic re-check leaves an offer (banner, tray item) in place instead of showing "Checking…" (REQ-DIST-16, 24).
+        var keepOffer = !manual && previous.State is UpdateState.Available or UpdateState.ReadyToRestart;
+        if (!keepOffer) Update(s => s with { State = UpdateState.Checking, LastCheckWasManual = manual });
+        // The state before the check: the snapshot as it is now when it was never replaced by Checking (Skip may have run).
+        UpdateSnapshot Restore(UpdateSnapshot s) => keepOffer ? s : previous with { Channel = s.Channel };
         AvailableUpdate? result;
         try
         {
@@ -228,7 +268,7 @@ public sealed class UpdateCoordinator
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            Update(s => previous with { Channel = s.Channel });
+            Update(Restore);
             throw;
         }
         catch (Exception ex)
@@ -238,7 +278,7 @@ public sealed class UpdateCoordinator
             _log.Warn("Update check failed", ex, LogField.Of("kind", kind), LogField.Of("manual", manual));
             Update(s => manual
                 ? s with { State = UpdateState.Failed, Error = kind, FailedWhileDownloading = false, LastChecked = at }
-                : previous with { Error = kind, LastChecked = at, LastCheckWasManual = false, Channel = s.Channel });
+                : Restore(s) with { Error = kind, LastChecked = at, LastCheckWasManual = false });
             return false;
         }
 
@@ -248,7 +288,7 @@ public sealed class UpdateCoordinator
         var pending = previous.State == UpdateState.ReadyToRestart ? previous.Available?.Version ?? SafePendingRestart() : null;
         if (pending is not null && (result is null || result.Version <= pending))
         {
-            Update(s => previous with { LastChecked = checkedAt, LastCheckWasManual = manual, Error = null, Channel = s.Channel });
+            Update(s => Restore(s) with { LastChecked = checkedAt, LastCheckWasManual = manual, Error = null });
             return false;
         }
         if (result is null || result.Version <= current)
@@ -260,7 +300,8 @@ public sealed class UpdateCoordinator
             });
             return false;
         }
-        if (!manual && prefs.SkippedVersion is { } skipped && skipped == result.Version)
+        // Re-read: "Skip this version" can run while an automatic re-check keeps the banner up.
+        if (!manual && Preferences.SkippedVersion is { } skipped && skipped == result.Version)
         {
             Update(s => s with
             {
@@ -271,13 +312,16 @@ public sealed class UpdateCoordinator
         }
 
         var auto = _backend.Kind == InstallKind.Installed && prefs.AutoDownload;
-        var deferred = auto && _gameRunning;
+        var gameRunning = _gameRunning;
+        // Only a tick starts a deferred download, and a tick needs automatic checks on (REQ-DIST-13): with them off,
+        // a check during a game offers Update now instead of promising a download that would never start.
+        var deferred = auto && gameRunning && prefs.CheckAutomatically;
         Update(s => s with
         {
             State = UpdateState.Available, Available = result, Error = null, Percent = 0, DeferredForGame = deferred,
             FailedWhileDownloading = false, LastChecked = checkedAt,
         });
-        return auto && !deferred;
+        return auto && !gameRunning;
     }
 
     private async Task DownloadCoreAsync(bool manual, CancellationToken ct)

@@ -159,6 +159,7 @@ public class UpdateCoordinatorTests
         var backend = new FakeUpdateBackend(InstallKind.Installed).Returns("1.1.0");
         var c = Create(backend);
         await c.CheckAsync(manual: false);
+        await c.BackgroundDownload;
         Assert.Equal(UpdateState.ReadyToRestart, c.Snapshot.State);
         Assert.Equal(1, backend.DownloadCalls);
         Assert.Equal(100, c.Snapshot.Percent);
@@ -216,6 +217,7 @@ public class UpdateCoordinatorTests
         c.SetGameRunning(true);
         backend.DownloadGate!.SetResult();
         await run;
+        await c.BackgroundDownload;
         Assert.Equal(UpdateState.ReadyToRestart, c.Snapshot.State);
     }
 
@@ -323,6 +325,7 @@ public class UpdateCoordinatorTests
         var backend = new FakeUpdateBackend(InstallKind.Installed) { DownloadError = new UpdateCheckException(UpdateErrorKind.Offline) }.Returns("1.1.0");
         var c = Create(backend);
         await c.CheckAsync(manual: false);
+        await c.BackgroundDownload;
         Assert.Equal(UpdateState.Available, c.Snapshot.State);
         Assert.Equal(UpdateErrorKind.Offline, c.Snapshot.Error);
         Assert.DoesNotContain(UpdateState.Failed, _states);
@@ -348,14 +351,127 @@ public class UpdateCoordinatorTests
     {
         var backend = new FakeUpdateBackend(InstallKind.Portable) { CheckGate = new(TaskCreationOptions.RunContinuationsAsynchronously) }.Returns("1.1.0");
         var c = Create(backend);
-        var a = c.CheckAsync(manual: false);
-        var b = c.CheckAsync(manual: true);
+        var a = c.CheckAsync(manual: true);
+        var b = c.CheckAsync(manual: false); // an automatic call shares a manual run
+        var d = c.CheckAsync(manual: true);
         Assert.Same(a, b);
+        Assert.Same(a, d);
         backend.CheckGate!.SetResult();
         await Task.WhenAll(a, b);
         Assert.Equal(1, backend.CheckCalls);
         await c.CheckAsync(manual: true); // a later call runs again
         Assert.Equal(2, backend.CheckCalls);
+    }
+
+    [Fact]
+    public async Task Manual_check_during_automatic_check_runs_again_and_shows_failure()
+    {
+        var backend = new FakeUpdateBackend(InstallKind.Portable) { CheckGate = new(TaskCreationOptions.RunContinuationsAsynchronously) }
+            .Fails(new UpdateCheckException(UpdateErrorKind.Offline));
+        var c = Create(backend);
+        var automatic = c.CheckAsync(manual: false);
+        Assert.Same(automatic, c.CheckAsync(manual: false));
+        var manual = c.CheckAsync(manual: true);
+        Assert.NotSame(automatic, manual);
+        Assert.Same(manual, c.CheckAsync(manual: true)); // the queued manual check is shared
+        backend.CheckGate!.SetResult();
+        await Task.WhenAll(automatic, manual);
+        Assert.Equal(2, backend.CheckCalls);
+        Assert.Equal(UpdateState.Failed, c.Snapshot.State);
+        Assert.Equal(UpdateErrorKind.Offline, c.Snapshot.Error);
+        Assert.True(c.Snapshot.LastCheckWasManual);
+    }
+
+    [Fact]
+    public async Task Channel_change_during_a_check_checks_the_new_channel()
+    {
+        var backend = new FakeUpdateBackend(InstallKind.Portable) { CheckGate = new(TaskCreationOptions.RunContinuationsAsynchronously) }
+            .Returns("1.1.0-beta.1");
+        var c = Create(backend);
+        var first = c.CheckAsync(manual: true);
+        while (backend.CheckCalls == 0) await Task.Delay(5);
+        var second = c.Configure(Prefs(channel: UpdateChannel.Beta));
+        Assert.NotSame(first, second);
+        backend.CheckGate!.SetResult();
+        await Task.WhenAll(first, second);
+        Assert.Equal([UpdateChannel.Stable, UpdateChannel.Beta], backend.Channels);
+        Assert.Equal(UpdateChannel.Beta, c.Snapshot.Channel);
+    }
+
+    [Fact]
+    public async Task Check_task_ends_before_the_background_download()
+    {
+        var backend = new FakeUpdateBackend(InstallKind.Installed) { DownloadGate = new(TaskCreationOptions.RunContinuationsAsynchronously) }.Returns("1.1.0");
+        var c = Create(backend);
+        await c.CheckAsync(manual: true).WaitAsync(TimeSpan.FromSeconds(10)); // a command awaiting it is not busy for the download
+        await backend.DownloadStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(UpdateState.Downloading, c.Snapshot.State);
+        backend.DownloadGate!.SetResult();
+        await c.BackgroundDownload;
+        Assert.Equal(UpdateState.ReadyToRestart, c.Snapshot.State);
+    }
+
+    [Fact]
+    public async Task Deferred_download_needs_automatic_checks_on()
+    {
+        var backend = new FakeUpdateBackend(InstallKind.Installed).Returns("1.1.0");
+        var c = Create(backend);
+        c.SetGameRunning(true);
+        await c.CheckAsync(manual: false);
+        Assert.True(c.Snapshot.DeferredForGame);
+
+        await c.Configure(Prefs(auto: false)); // the master switch goes off while the download waits
+        Assert.False(c.Snapshot.DeferredForGame); // the banner offers Update now instead
+        c.SetGameRunning(false);
+        await c.TickAsync();
+        Assert.Equal(0, backend.DownloadCalls);
+        Assert.Equal(UpdateState.Available, c.Snapshot.State);
+    }
+
+    [Fact]
+    public async Task Manual_check_in_game_with_automatic_checks_off_does_not_defer()
+    {
+        var backend = new FakeUpdateBackend(InstallKind.Installed).Returns("1.1.0");
+        var c = Create(backend, Prefs(auto: false));
+        c.SetGameRunning(true);
+        await c.CheckAsync(manual: true);
+        Assert.Equal(UpdateState.Available, c.Snapshot.State);
+        Assert.False(c.Snapshot.DeferredForGame);
+        c.SetGameRunning(false);
+        await c.TickAsync();
+        Assert.Equal(0, backend.DownloadCalls);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Automatic_recheck_keeps_the_offer_visible(bool ready)
+    {
+        var backend = new FakeUpdateBackend(InstallKind.Installed).Returns("1.1.0");
+        var c = Create(backend, Prefs(autoDownload: ready));
+        await c.CheckAsync(manual: false);
+        await c.BackgroundDownload;
+        var offered = ready ? UpdateState.ReadyToRestart : UpdateState.Available;
+        Assert.Equal(offered, c.Snapshot.State);
+
+        backend.CheckGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        backend.Fails(new UpdateCheckException(UpdateErrorKind.Offline)).Returns("1.1.0");
+        lock (_states) _states.Clear();
+        _time.Advance(TimeSpan.FromHours(13));
+        var tick = c.TickAsync();
+        while (backend.CheckCalls < 2) await Task.Delay(5);
+        Assert.Equal(offered, c.Snapshot.State); // the banner and tray item stay during the check
+        Assert.Equal(ready, c.CanRestartToUpdate);
+        backend.CheckGate.SetResult();
+        await tick;
+        Assert.Equal(offered, c.Snapshot.State); // a silent failure keeps the offer
+        Assert.Equal(UpdateErrorKind.Offline, c.Snapshot.Error);
+
+        _time.Advance(TimeSpan.FromHours(13));
+        await c.TickAsync(); // a successful re-check of the same version keeps it too
+        Assert.Equal(offered, c.Snapshot.State);
+        lock (_states) Assert.All(_states, s => Assert.Equal(offered, s));
+        Assert.Equal(ready ? 1 : 0, backend.DownloadCalls);
     }
 
     [Theory]
@@ -479,6 +595,7 @@ public class UpdateCoordinatorTests
         var c = Create(backend);
         using var cts = new CancellationTokenSource();
         await c.CheckAsync(manual: false, cts.Token);
+        await c.BackgroundDownload;
         await cts.CancelAsync(); // AppHost.Dispose cancels the update token before ExitApp step 8
         c.RestartToUpdate([]);
         Assert.Single(backend.Launches);

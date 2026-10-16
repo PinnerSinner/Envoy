@@ -16,9 +16,11 @@ R10 Windows/ComposeWindow.xaml.cs uses no DialogService; App.xaml.cs calls
     DialogService.ShowWarning at most once (the crash-loop message)                     REQ-REL-19
 R11 Services/ChatWatcher.cs passes only CancellationToken.None to ProcessAsync( and never
     reads AppSettings or `.Settings` outside its usings (it reads the CaptureOptions snapshot)  REQ-CAP-42
-UPD1 `new UpdateManager(` only in Services/VelopackUpdateBackend.cs; VelopackFlowSource and
-    ApplyUpdatesAndRestart nowhere (also scanned in Envoy.Core)                          REQ-DIST-14, 12
-UPD2 `VelopackApp.Build()` only in Program.cs, which calls SetAutoApplyOnStartup(false)   REQ-DIST-10, 12
+UPD1 `new UpdateManager(`, `UpdateManager m = new(` and `: UpdateManager` only in
+    Services/VelopackUpdateBackend.cs; VelopackFlowSource and ApplyUpdatesAndRestart nowhere
+    (also scanned in Envoy.Core)                                                          REQ-DIST-14, 12
+UPD2 `VelopackApp.Build()` only in Program.cs, which must exist and call VelopackApp.Build(),
+    SetAutoApplyOnStartup(false) and .Run()                                               REQ-DIST-10, 12
 
 R8 also scans the sibling Envoy.Core folder (`<app dir>/../Envoy.Core`) when it exists.
 """
@@ -51,9 +53,15 @@ REQUIRED_FILES = (
 WATCHER = "Services/ChatWatcher.cs"
 VELOPACK_BACKEND = "Services/VelopackUpdateBackend.cs"
 PROGRAM = "Program.cs"
-NEW_UPDATE_MANAGER = re.compile(r"\bnew\s+(?:Velopack\s*\.\s*)?UpdateManager\s*\(")
+_UPDATE_MANAGER = r"(?:Velopack\s*\.\s*)?UpdateManager"
+# `new UpdateManager(`, a target-typed `UpdateManager m = new(` and a subclass `: UpdateManager` (not `: UpdateManager.X`).
+NEW_UPDATE_MANAGER = re.compile(
+    rf"\bnew\s+{_UPDATE_MANAGER}\s*\("
+    rf"|\b{_UPDATE_MANAGER}\s*\??\s+@?\w+\s*=\s*new\s*\("
+    rf"|:\s*{_UPDATE_MANAGER}\b(?!\s*[.?])")
 VELOPACK_BANNED = re.compile(r"\bVelopackFlowSource\b|\bApplyUpdatesAndRestart\b")
 VELOPACK_BUILD = re.compile(r"\bVelopackApp\s*\.\s*Build\s*\(")
+VELOPACK_RUN = re.compile(r"\.\s*Run\s*\(")
 AUTO_APPLY_OFF = re.compile(r"\.\s*SetAutoApplyOnStartup\s*\(\s*false\s*\)")
 PROCESS_ASYNC = re.compile(r"\bProcessAsync\s*\(")
 WATCHER_SETTINGS = re.compile(r"\bAppSettings\b|\.Settings\b")
@@ -225,11 +233,16 @@ def _check_velopack(root, report):
                 report(path, n, "UPD1", f"{m.group(0)} is never used (no hosted update service; updates apply through the updater after exit)")
             if VELOPACK_BUILD.search(line) and here != program:
                 report(path, n, "UPD2", "VelopackApp runs only in Program.Main, before any WPF object exists")
-    if os.path.exists(program):
-        text = _read(program)
-        code = "\n".join(line for _, line in _code_lines(text))
-        if VELOPACK_BUILD.search(code) and not AUTO_APPLY_OFF.search(code):
-            report(program, 1, "UPD2", "Program.Main must call SetAutoApplyOnStartup(false): updates apply at start-up slot 5, after the mutex")
+    # Without Program.Main running Velopack, Setup.exe's hooks never run; only `vpk pack` would notice, on main or a tag.
+    if not os.path.isfile(program):
+        report(program, 0, "UPD2", "Program.cs is missing: Program.Main must run VelopackApp.Build()...Run()")
+        return
+    code = "\n".join(line for _, line in _code_lines(_read(program)))
+    build = VELOPACK_BUILD.search(code)
+    if not build or not VELOPACK_RUN.search(code, build.end()):
+        report(program, 1, "UPD2", "Program.Main must run VelopackApp.Build()...Run() before any WPF object exists")
+    elif not AUTO_APPLY_OFF.search(code, build.end()):
+        report(program, 1, "UPD2", "Program.Main must call SetAutoApplyOnStartup(false): updates apply at start-up slot 5, after the mutex")
 
 
 def _call_args(text, open_paren):

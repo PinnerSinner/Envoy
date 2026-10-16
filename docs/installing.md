@@ -25,7 +25,8 @@ when it starts (at most once an hour) and every 12 hours while it runs.
 
 - **Installed copies** download the update in the background, as a small difference to your version when one is
   available, and check it against the release's checksum. **The download never starts while a game is running**; it
-  waits until the game closes. When it is ready, the War Room shows **Restart to update** (so does the tray menu).
+  waits until the game closes (only while **Check for updates automatically** is on; otherwise the banner offers
+  **Update now**). When it is ready, the War Room shows **Restart to update** (so does the tray menu).
   Envoy closes, updates and opens again within a few seconds, in the same window state.
 - If you don't restart, the update is applied **the next time Envoy starts**, before it opens. Hold **Shift** while
   starting Envoy (safe mode) to start without applying it.

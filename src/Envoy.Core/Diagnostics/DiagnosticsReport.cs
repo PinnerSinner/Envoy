@@ -17,7 +17,7 @@ public sealed record HotkeyLine(string ActionName, string Combo, string Status);
 /// <summary>Everything the report shows besides the settings and the log. Built by the App's DiagnosticsCollector.</summary>
 public sealed record DiagnosticsSnapshot
 {
-    /// <summary><c>AppHost.CurrentVersion</c>.</summary>
+    /// <summary><c>AppHost.AppVersion</c> (SemVer, so a beta reads "1.2.0-beta.1"; contract §3).</summary>
     public required string AppVersion { get; init; }
     public string? InformationalVersion { get; init; }
     public required string Runtime { get; init; }
