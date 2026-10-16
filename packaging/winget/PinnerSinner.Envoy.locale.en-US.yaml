@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: PinnerSinner.Envoy
+PackageVersion: {{version}}
+PackageLocale: en-US
+Publisher: Envoy contributors
+PublisherUrl: https://github.com/PinnerSinner
+PublisherSupportUrl: https://github.com/PinnerSinner/Envoy/issues
+PackageName: Envoy
+PackageUrl: https://github.com/PinnerSinner/Envoy
+License: MIT
+LicenseUrl: https://github.com/PinnerSinner/Envoy/blob/main/LICENSE
+ShortDescription: Live chat translation for Age of Empires and Age of Mythology.
+Description: >-
+  Envoy reads the game's chat from your screen, translates it into your language and shows it in an overlay, and
+  translates your replies back. It never reads game memory or modifies the game. Unofficial fan tool.
+Tags:
+  - age-of-empires
+  - age-of-mythology
+  - chat
+  - translation
+  - translator
+  - ocr
+ReleaseNotesUrl: {{release_notes_url}}
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

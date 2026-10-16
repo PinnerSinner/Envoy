@@ -27,10 +27,27 @@ jobs:
         run: dotnet test tests/Envoy.Core.Tests/Envoy.Core.Tests.csproj -c Release
       - name: Type-check Windows app
         run: tools/typecheck/typecheck.sh
+      # Spec 06: one Velopack version everywhere, signing only in tag builds, the release asset assertion and the
+      # release-notes / winget renderers, each with its own self-test.
+      - name: Release tooling checks
+        run: |
+          tools/release/check_velopack_pin.sh
+          tools/release/check_velopack_pin.sh --self-test
+          python3 tools/release/check_signing_scope.py
+          python3 tools/release/check_signing_scope.py --self-test
+          python3 tools/release/check_release_assets.py --self-test
+          python3 tools/release/changelog_notes.py --self-test
+          python3 tools/release/render_winget.py --self-test
 
   windows:
     runs-on: windows-latest
     needs: check
+    # Tag builds run under the protected `release` environment (required reviewers); only it holds the signing secrets
+    # as environment secrets. Untagged runs get no environment and cannot read them (REQ-DIST-8,
+    # tools/release/check_signing_scope.py).
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -49,6 +66,24 @@ jobs:
           # Assembly versions must be numeric; strip any prerelease suffix for them.
           "numeric=$(($v -split '[-+]')[0])" >> $env:GITHUB_OUTPUT
           "prerelease=$($v.Contains('-').ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          # The Velopack package version: the tag, or "<csproj Version>-ci.<run>" for pushes to main (REQ-DIST-4).
+          $csproj = (Select-Xml -Path src/Envoy.App/Envoy.App.csproj -XPath "//Version" | Select-Object -First 1).Node.InnerText
+          $pack = if ($tagged) { $v } else { "$csproj-ci.${{ github.run_number }}" }
+          "pack=$pack" >> $env:GITHUB_OUTPUT
+          $packEnabled = $tagged -or ("${{ github.event_name }}" -eq "push" -and "${{ github.ref }}" -eq "refs/heads/main")
+          "pack_enabled=$($packEnabled.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+
+      # Tags: the tag's CHANGELOG.md section; a stable tag without one fails here, before anything is built or uploaded.
+      - name: Release notes
+        shell: pwsh
+        run: |
+          if ("${{ steps.version.outputs.tagged }}" -eq "true") {
+            python tools/release/changelog_notes.py CHANGELOG.md "${{ steps.version.outputs.value }}" --out notes.md
+            if ($LASTEXITCODE -ne 0) { Write-Error "CHANGELOG.md has no section for ${{ steps.version.outputs.value }}"; exit 1 }
+          } else {
+            "Envoy ${{ steps.version.outputs.pack }}: an automatic build of ${{ github.sha }}." | Out-File -Encoding utf8 notes.md
+          }
+          Get-Content notes.md
 
       - name: Publish single-file exe
         shell: pwsh
@@ -104,7 +139,34 @@ jobs:
           git commit -qm "UI screenshots for ${{ github.sha }}"
           git push -qf origin ci-screenshots
 
-      # Code signing would go here (e.g. SignPath or Azure Trusted Signing) once a certificate is available.
+      # ---- Signing: v* tags only, in the release environment (REQ-DIST-8). Runs after the smoke test, so the signed
+      #      bytes differ from the smoke-tested ones only by the signature. ----
+      - name: Unsigned build notice
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        shell: pwsh
+        run: Write-Output "::notice::Unsigned build (not a v* tag)"
+
+      - name: Signing setup
+        id: sign
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          ENVOY_SIGN_PFX_BASE64: ${{ secrets.ENVOY_SIGN_PFX_BASE64 }}
+        run: |
+          if ([string]::IsNullOrEmpty($env:ENVOY_SIGN_PFX_BASE64)) {
+            Write-Output "::notice::Code signing skipped (no certificate in the release environment)"
+            "signing=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          [IO.File]::WriteAllBytes((Join-Path $env:RUNNER_TEMP "envoy-sign.pfx"), [Convert]::FromBase64String($env:ENVOY_SIGN_PFX_BASE64))
+          "signing=true" >> $env:GITHUB_OUTPUT
+
+      - name: Sign portable exe
+        if: steps.sign.outputs.signing == 'true'
+        shell: pwsh
+        env:
+          ENVOY_SIGN_PFX_PASSWORD: ${{ secrets.ENVOY_SIGN_PFX_PASSWORD }}
+        run: pwsh -NoProfile -File tools/release/sign.ps1 publish/Envoy.exe
 
       - name: Checksum
         shell: pwsh
@@ -113,6 +175,69 @@ jobs:
           "$hash  Envoy.exe" | Out-File -Encoding ascii publish/Envoy.exe.sha256
           Get-Content publish/Envoy.exe.sha256
 
+      # ---- The Velopack installer: tags and pushes to main (REQ-DIST-1, 4). A folder build, so deltas stay small. ----
+      - name: Publish folder build
+        if: steps.version.outputs.pack_enabled == 'true'
+        shell: pwsh
+        run: |
+          $a = @("publish", "src/Envoy.App/Envoy.App.csproj", "-c", "Release", "-o", "publish-velo", "-p:PublishSingleFile=false",
+                 "-p:InformationalVersion=${{ steps.version.outputs.pack }}")
+          if ("${{ steps.version.outputs.tagged }}" -eq "true") { $a += "-p:Version=${{ steps.version.outputs.numeric }}" }
+          dotnet @a
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Restore .NET tools (vpk)
+        if: steps.version.outputs.pack_enabled == 'true'
+        run: dotnet tool restore
+
+      # The previous release's full package, so vpk can build a delta. Stable tags look at stable releases only.
+      - name: Previous release for deltas
+        id: previous
+        if: startsWith(github.ref, 'refs/tags/v')
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $a = @("vpk", "download", "github", "--repoUrl", "https://github.com/${{ github.repository }}", "--channel", "win",
+                 "--token", "${{ secrets.GITHUB_TOKEN }}", "-o", "Releases")
+          if ("${{ steps.version.outputs.prerelease }}" -eq "true") { $a += "--pre" }
+          dotnet @a
+          $has = [bool](Get-ChildItem Releases -Filter "*-full.nupkg" -ErrorAction SilentlyContinue)
+          "has_previous=$($has.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+
+      - name: vpk pack (signed)
+        if: steps.sign.outputs.signing == 'true'
+        shell: pwsh
+        env:
+          ENVOY_SIGN_PFX_PASSWORD: ${{ secrets.ENVOY_SIGN_PFX_PASSWORD }}
+        run: |
+          dotnet vpk pack --packId Envoy --packVersion "${{ steps.version.outputs.pack }}" --packDir publish-velo --mainExe Envoy.exe `
+            --packTitle Envoy --packAuthors "Envoy contributors" --icon src/Envoy.App/Assets/envoy.ico --releaseNotes notes.md `
+            --channel win --runtime win-x64 --noPortable --shortcuts StartMenuRoot --delta BestSpeed -o Releases `
+            --signTemplate "pwsh -NoProfile -File tools/release/sign.ps1 {{file}}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: vpk pack
+        if: steps.version.outputs.pack_enabled == 'true' && steps.sign.outputs.signing != 'true'
+        shell: pwsh
+        run: |
+          $delta = if ("${{ steps.version.outputs.tagged }}" -eq "true") { "BestSpeed" } else { "None" }
+          dotnet vpk pack --packId Envoy --packVersion "${{ steps.version.outputs.pack }}" --packDir publish-velo --mainExe Envoy.exe `
+            --packTitle Envoy --packAuthors "Envoy contributors" --icon src/Envoy.App/Assets/envoy.ico --releaseNotes notes.md `
+            --channel win --runtime win-x64 --noPortable --shortcuts StartMenuRoot --delta $delta -o Releases
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: SHA256SUMS.txt
+        id: sums
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $exe = (Get-FileHash publish/Envoy.exe -Algorithm SHA256).Hash.ToLower()
+          $setup = (Get-FileHash Releases/Envoy-win-Setup.exe -Algorithm SHA256).Hash.ToLower()
+          # sha256sum format with LF line ends, so `sha256sum -c SHA256SUMS.txt` works anywhere.
+          [IO.File]::WriteAllText((Join-Path $PWD "SHA256SUMS.txt"), "$exe  Envoy.exe`n$setup  Envoy-win-Setup.exe`n")
+          Get-Content SHA256SUMS.txt
+          "setup_sha256=$setup" >> $env:GITHUB_OUTPUT
+
       - uses: actions/upload-artifact@v4
         with:
           name: Envoy-${{ steps.version.outputs.value }}-win-x64
@@ -120,12 +245,57 @@ jobs:
             publish/Envoy.exe
             publish/Envoy.exe.sha256
 
+      - uses: actions/upload-artifact@v4
+        if: steps.version.outputs.pack_enabled == 'true'
+        with:
+          name: Envoy-${{ steps.version.outputs.pack }}-setup
+          path: |
+            Releases/Envoy-win-Setup.exe
+            SHA256SUMS.txt
+          if-no-files-found: error
+
+      # ---- The release (tags only): a draft until every asset is uploaded and asserted (REQ-DIST-2, 3, 5, 7). ----
       - name: GitHub release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $repo = "${{ github.repository }}"
+          $pre = "${{ steps.version.outputs.prerelease }}" -eq "true"
+          $delta = if ("${{ steps.previous.outputs.has_previous }}" -eq "true") { "true" } else { "false" }
+          $a = @("vpk", "upload", "github", "--repoUrl", "https://github.com/$repo", "--token", "${{ secrets.GITHUB_TOKEN }}",
+                 "--channel", "win", "-o", "Releases", "--tag", $tag, "--releaseName", "Envoy $tag",
+                 "--targetCommitish", "${{ github.sha }}", "--merge")
+          if ($pre) { $a += "--pre" }
+          dotnet @a
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          gh release upload $tag publish/Envoy.exe publish/Envoy.exe.sha256 SHA256SUMS.txt --clobber --repo $repo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/release/check_release_assets.py --repo $repo --tag $tag --version "${{ steps.version.outputs.pack }}" `
+            --delta $delta --exe publish/Envoy.exe --setup Releases/Envoy-win-Setup.exe --sums SHA256SUMS.txt
+          if ($LASTEXITCODE -ne 0) { Write-Error "The draft release's assets are wrong; it stays a draft."; exit 1 }
+          $body = (Get-Content notes.md -Raw) + "`n`n" + (Get-Content tools/release/release-footer.md -Raw)
+          [IO.File]::WriteAllText((Join-Path $PWD "release-body.md"), $body)
+          $edit = @("release", "edit", $tag, "--repo", $repo, "--notes-file", "release-body.md", "--draft=false")
+          if ($pre) { $edit += "--prerelease" }
+          gh @edit
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # winget manifests for stable tags (REQ-DIST-28); submitted by hand (docs/releasing.md).
+      - name: winget manifests
+        if: startsWith(github.ref, 'refs/tags/v') && steps.version.outputs.prerelease != 'true'
+        shell: pwsh
+        run: |
+          python tools/release/render_winget.py --version "${{ steps.version.outputs.value }}" `
+            --installer-url "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Envoy-win-Setup.exe" `
+            --sha256 "${{ steps.sums.outputs.setup_sha256 }}" --out winget
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v') && steps.version.outputs.prerelease != 'true'
         with:
-          files: |
-            publish/Envoy.exe
-            publish/Envoy.exe.sha256
-          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
-          generate_release_notes: true
+          name: winget-manifests
+          path: winget/
+          if-no-files-found: error

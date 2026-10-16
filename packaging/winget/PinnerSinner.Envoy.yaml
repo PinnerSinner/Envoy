@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.6.0.schema.json
+# Rendered by tools/release/render_winget.py on stable tags (spec 06, REQ-DIST-28). Submitted by hand: docs/releasing.md.
+PackageIdentifier: PinnerSinner.Envoy
+PackageVersion: {{version}}
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.6.0
