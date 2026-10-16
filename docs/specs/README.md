@@ -42,7 +42,7 @@ MUST counts are the requirements whose level is MUST. Folded and removed rows ar
 | 2 | [08a-quality-gates.md](08a-quality-gates.md) | Analyzers, `BannedSymbols.txt`, the policy check, `Security/*` (`ShellLauncher`, `OutgoingText`, `SendTargetGuard`, `ReleaseUrlPolicy`, `PhraseLimits`) | Implemented | 14 | 2 | 1 |
 | 3 | [02-reliability-observability.md](02-reliability-observability.md) | Logging, global handlers, problem toasts and the notification throttle, diagnostics, settings durability, safe mode, data inventory and "Delete all Envoy data", start-up and exit skeleton | Implemented | 20 | 16 | 2 |
 | 4 | [03-translation-resilience.md](03-translation-resilience.md) | Error kinds, retry, circuit breaker, throttling, provider health, lasting cache (lands as PR A, then PR B) | Implemented | 16 | 10 | 1 |
-| 5 | [05-capture-engine.md](05-capture-engine.md) | `ChatWatcher` rewrite: window-relative regions, adaptive polling, OCR timeouts, watchdog, `GameWindowTracker`, `MergeLines` | Proposed | 19 | 19 | 2 |
+| 5 | [05-capture-engine.md](05-capture-engine.md) | `ChatWatcher` rewrite: window-relative regions, adaptive polling, OCR timeouts, watchdog, `GameWindowTracker`, `MergeLines` | Implemented | 19 | 19 | 2 |
 | 6 | [04-chat-understanding.md](04-chat-understanding.md) | Wrapped lines, game notices, dedupe, cleaning, the pending-message lifecycle, "Understood as" | Proposed | 17 | 18 | 1 |
 | 7 | [06-distribution-updates.md](06-distribution-updates.md) | Velopack installer, in-app updates, channels, tag-only signing, winget | Proposed | 17 | 11 | 1 |
 | 8 | [07a-onboarding-notices.md](07a-onboarding-notices.md) | Setup guide, privacy disclosure and translation gate, advisory notices, tray balloons, War Room layout | Proposed | 12 | 8 | 0 |

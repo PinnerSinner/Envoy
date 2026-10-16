@@ -1,6 +1,7 @@
 # Capture Engine: window-relative, adaptive, self-healing chat capture
 
-Status: Proposed (revised against `00-integration.md`)
+Status: Implemented — revised against `00-integration.md` (binding). Landed as step 5, after 01, 08a, 02 and 03. See
+[Deviations](#deviations).
 
 Area: `05-capture-engine`, step 5 of the implementation order. It may assume everything delivered by 01
 (ui-foundation), 08a (quality-gates), 02 (reliability-observability) and 03 (translation-resilience), and nothing from
@@ -1265,3 +1266,53 @@ These changes were made against `00-integration.md` and the set critique.
   `FramePool` counters. The manual M-steps were renumbered as M-CAP-1…7 for `docs/releasing.md`.
 - **Adaptive polling default.** The spec now states explicitly that `AdaptivePolling = true` changes today's
   fixed-interval behaviour, as contract §7 allows (critique minor).
+
+---
+
+## Deviations
+
+Every MUST and SHOULD is built. REQ-CAP-6 and REQ-CAP-37 (both COULD) are not, as planned. Differences from this spec
+and the contract:
+
+1. **COULDs not built.** There is no `WgcCaptureBackend` (REQ-CAP-37), so `dwmapi!DwmGetWindowAttribute` is not
+   allowlisted, `CaptureBackendFactory.Available()` lists GDI only and the "Capture method" row stays collapsed. There
+   is no one-time derivation of relative regions from v0.1 absolute ones (REQ-CAP-6). The SHOULD follow-up in Risks
+   (recreate the OCR engines after 3 timeouts in a row) is not built either; toggling capture still recreates them.
+2. **`SetRegion` probes the window itself.** It calls `GameWindowTracker.Observe(_game, …)` at the moment of
+   selection instead of reading the cached `AppHost.GameWindow`, which can be up to 1 s old. A minimised window gives
+   no relative region. When the new area lies outside the game's client area, `SetRegion` also **removes**
+   `WindowRegions[gameId]`, so a stale relative region cannot override the fixed position the user just chose. It
+   logs the selection (size only, `[Location]` rules) under `Capture`.
+3. **Minimised game keeps its last client rect.** While the window is minimised (its client rect is meaningless),
+   the tick resolves the region against the last client rect it saw, so the region does not jump and `RegionChanged`
+   does not fire twice per minimise.
+4. **`CaptureGate.IsReading(observation, options)`** is a small Core helper for step 4.3's "`reading` = evaluate
+   with `PreviewOpen = false`"; behaviour is as specified.
+5. **Extra public members.** `ChatWatcher.Pool` (the soak run reads its counters); `ChatWatcher.StateChanged` is also
+   raised when `Hint` appears or clears, so the status line's second line updates. `OcrService` takes an optional
+   `TimeProvider` (for its `SingleFlight`). `ScreenCapturer.ScaleFor` wraps `RegionMath.OutputSize` for
+   `LookupWindow`, which also shows `CaptureText.ScreenUnreadable` for a `CaptureException`.
+   `RegionSelectorWindow.ToScreen(Rect)` is internal so the smoke test can check the DIP-to-physical conversion.
+   `MainViewModel.HasRegionHint` drives the hint caption's visibility. `CaptureText` gains `RegionNotSet`,
+   `BackendGdi` and the three `Health*` sentences; `CaptureMetrics` exposes `FailingAfter`, `DegradedFor` and
+   `CaptureMetricsSnapshot.Empty`; `RegionMath` exposes `SampleInsetPx` and `RegionResolution.None`.
+6. **`HealthText` while stopped** reads `CaptureText.Stopped` rather than "working normally".
+7. **Soak details.** The offline translator is `EchoTranslator` (shared with the smoke test's dedicated watcher)
+   rather than an in-file `SoakEchoTranslator`. `--soak <minutes> [log-path]` writes `soak-test.log` (default: the
+   current directory), like the smoke test's log, and nothing under `%APPDATA%`. It uses `SetRegion` on a fresh temp
+   host, so the region is stored as `Regions["any"]` exactly as in the design.
+8. **Smoke allocation figure** uses `GC.GetAllocatedBytesForCurrentThread()` around 20 synchronous capture +
+   fingerprint + preprocess frames; it warns, never fails (AC-CAP-19). The dedicated smoke watcher uses
+   `TimeProvider.System`.
+9. **Extra tests** beyond the plan: `Reading_when_everything_is_fine`, `Swapping_options_reclamps_current`,
+   `Health_has_text_for_every_state`, `StallAfter_can_change_while_running`,
+   `Null_entries_from_a_hand_edited_file_are_skipped`, `Caller_cancellation_cancels_the_work`,
+   `ResolveForGame_reports_a_different_client_size`, `ResolveForGame_any_game_uses_the_any_region` and
+   `Intersect_and_Contains`. The `CaptureText`/`CaptureErrors`/`SoakBudget` tests live in `CaptureMetricsTests.cs`,
+   and `BlankFramesTests`/`FramePoolTests` in `FrameProcessingTests.cs`; `CaptureSettingsTests` is in
+   `CaptureOptionsTests.cs`.
+10. **Typecheck rule R11** also treats any `.Settings` member access in `ChatWatcher.cs` (outside `using` lines and
+    comments) as a settings read, which is stricter than "reads `AppSettings`".
+11. **The Windows-only criteria** (smoke `capture-engine`, the per-palette `settings-capture` screenshots, AC-CAP-23's
+    `SMOKE TEST PASSED`) are verified by CI on push; this Linux environment ran the Core tests, the typecheck and the
+    policy check.

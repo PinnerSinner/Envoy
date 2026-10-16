@@ -95,3 +95,22 @@ ordered pass). Each uses any supported title in a skirmish against AI.
   gone. Turn it on again, translate, then About › **Delete all Envoy data…**: after the restart the file is absent.
 - **M-TRR-4** In a live match, or with the demo feed, send a burst of 8 or more chat lines. All are translated, and the
   War Room status never shows Google as unavailable from the burst alone.
+
+### Capture engine (05)
+
+- **M-CAP-1** In AoE II: DE windowed or borderless, minimise the game. Within 2 s the War Room shows "Paused while the
+  game is minimised." and Task Manager shows Envoy below 1% CPU. Restore it: "Reading chat" returns within 2 s. Drag
+  a browser over the chat: the status shows the covered text. Move the browser away: reading resumes.
+- **M-CAP-2** Use two monitors, the primary at 150% and the secondary at 100%, then swap them. Select the chat area on
+  each monitor. The Live view shows exactly the dragged area, within 1 px at 4× zoom, and reopening the selector draws
+  the rectangle in the same place.
+- **M-CAP-3** Drag a windowed game 300 px. The captured area follows, and the overlay anchored "Above chat" follows
+  within about 1 s. Then move the game to the other-DPI monitor.
+- **M-CAP-4** In a quiet match the Live view shows `every 1.5 s` with a skip rate of at least 90%. When a friend
+  types, it shows `every 0.3 s`. Then lock the PC (Win+L) for 20 s and unlock it: the status returns to "Reading chat"
+  within 6 s without toggling.
+- **M-CAP-5** Use exclusive fullscreen where the game offers it, or select an all-black area. The blank-area hint
+  appears within 5 frames.
+- **M-CAP-6** Run `Envoy.exe --soak 120`. It exits 0, and `soak-test.log` shows no metric growing by more than 20%.
+- **M-CAP-7** Alt-tab to a browser on a second monitor with the game still visible and "Pause when the game isn't the
+  active window" off. Chat is still read.

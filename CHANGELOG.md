@@ -33,6 +33,19 @@ versioning: [SemVer](https://semver.org/).
 - **Remember translations between sessions** (off by default): keeps the translation cache in
   `translation-cache.json` (2,000 entries, 30 days, original lines stored only as a one-way fingerprint), with
   **Clear saved translations**. See [Remembering translations](docs/translation-providers.md#remembering-translations).
+- **The chat area follows the game window.** Select it while the game runs and Envoy keeps reading the right place
+  when you move the window, resize it or move it to another monitor (Reading Chat says "follows the … window", and
+  asks you to select it again if the game's size changed). An area chosen without a game stays a fixed screen
+  position, and existing settings keep working unchanged.
+- **Automatic pauses.** Reading pauses while the game is minimised, while another window covers the chat area (can be
+  turned off), and optionally while the game isn't the active window; the status says why. Nothing on your desktop or
+  in a browser is read and sent for translation in the meantime.
+- **Adaptive reading speed** (Reading Chat › Fine tuning, on by default): checks every 0.3 s while the chat is moving
+  and slows to 1.5 s while it's quiet ("Fastest check" and "Slowest check"); turn it off for the old fixed interval.
+- The Live view shows how reading is going and its capture and OCR times, skip rate, check interval and capture method.
+- A hint when the chat area is blank, which usually means the game runs in exclusive fullscreen.
+- `Envoy.exe --soak <minutes>`: a pre-release endurance run on a synthetic chat window that fails if Envoy's memory,
+  handles or drawing objects keep growing.
 
 ### Changed
 - **Translation never hangs.** A slow provider used to leave a line on "translating…" forever and the fallback was
@@ -61,6 +74,16 @@ versioning: [SemVer](https://semver.org/).
   and a reply is capped at 1000 characters.
 - `phrases.json` limits: files over 1 MiB are ignored, at most 500 user phrases load, phrases without an `id` are
   skipped, and long ids, categories, icons and texts are shortened. See [the phrasebook docs](docs/phrasebook.md#limits).
+- **Chat reading heals itself.** Text recognition that takes longer than 4 s is abandoned instead of stopping chat
+  reading for the session; failures slow the checks down (up to every 5 s) and the first good frame recovers; a stuck
+  loop is restarted, and only after more than three restarts in five minutes does Envoy stop and say "Chat reading
+  stopped responding". Status and error lines are plain sentences, never raw error text, and "Paused" now reads "Chat
+  reading is off".
+- Stopping or restarting chat reading no longer leaves lines stuck on "translating…".
+- Less CPU and memory while gaming: unchanged frames skip all image processing, pixel buffers are reused, and the
+  screen-copy surfaces are kept between frames.
+- Selecting the chat area and placing the overlay are exact on every monitor, including mixed scaling (for example a
+  150% laptop next to a 100% monitor).
 
 ### Security
 - Links, files and folders are opened only through one launcher that accepts web links, Windows Settings pages and
@@ -68,6 +91,12 @@ versioning: [SemVer](https://semver.org/).
   Envoy's own repository, so a spoofed update response can't open a local program or a network share.
 
 ### Internal
+- Capture engine (spec 05): `Envoy.Core.Capture` (`CaptureOptions` snapshot, `RegionMath`, `CaptureGate`,
+  `AdaptivePollPolicy`, `FramePool`, `FrameProcessing`, `SingleFlight`, `LoopWatchdog`, `CaptureMetrics`,
+  `CaptureText`/`CaptureErrors`, `SoakBudget`), `OcrMerger.MergeLines` with row geometry and the `OcrLine`
+  `ProcessAsync` overload; `ChatWatcher` rewritten around the contract §2.7 tick with `ICaptureBackend`/
+  `GdiCaptureBackend`, `GameWindowTracker` and `AppHost.GameWindow`/`GameWindowChanged`; ten user32 window queries
+  (plus `GetGuiResources` for the soak run) allowlisted; typecheck rule R11; smoke section `capture-engine`.
 - Translation resilience (spec 03): `TranslationErrorKind`/`TranslationErrorText`, `ProviderHttp`, the
   `Translation/Resilience/` building blocks (`RetryPolicy`, `CircuitBreaker`, `TokenBucket`, `ResilientTranslator`,
   `ProviderHealthRegistry`), `TranslationRuntime` (long-lived state, owned by `AppHost`, configured from an immutable

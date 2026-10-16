@@ -39,15 +39,36 @@ happens again, copy diagnostics into a bug report; the report includes the last 
    - *Chat area not set*: click **Select chat area**.
    - *Waiting for a game to start*: Envoy only reads while an Age game is running. Turn this off under
      **Reading Chat → Fine tuning** if your game isn't detected, or pick the game manually under **Reading Chat → Game**.
-   - *Paused*: press `Ctrl+Shift+P` or click **Pause / resume reading**.
-2. **Does it see the text?** Open **Reading Chat → Live view**.
-   - **Black image:** the game is in exclusive fullscreen. Switch it to *Borderless window*.
+   - *Chat reading is off*: press `Ctrl+Shift+P` or click **Pause / resume reading**.
+   - *Paused while the game is minimised.*: reading resumes by itself within a second of restoring the game.
+   - *Paused because another window covers the chat area.*: move the other window (a browser, Discord…) off the
+     chat. If nothing visible covers it, an invisible window such as a recorder or a vendor overlay may; untick
+     **Reading Chat → Fine tuning → Pause while another window covers the chat area**.
+   - *Paused while the game isn't the active window.*: you turned on **Pause when the game isn't the active window**;
+     click the game, or turn the option off.
+   - *The chat area is off-screen.*: a monitor was unplugged or rearranged. Select the chat area again.
+   - *Text recognition took too long* or *Reading the chat area failed*: Envoy keeps retrying and slows down while
+     it fails. *Envoy can't read the screen right now* is normal while Windows is locked or a UAC prompt is open.
+   - *Chat reading stopped responding*: turn chat reading off and on (`Ctrl+Shift+P` twice). If it keeps happening,
+     **Copy diagnostics** and report it.
+2. **Does it see the text?** Open **Reading Chat → Live view**. Its header shows how reading is going and the
+   capture and OCR times, skip rate and current check interval.
+   - **Black image**, or *The chat area is blank…* under the status: the game is in exclusive fullscreen, which can't
+     be read. Switch it to *Borderless window* (or *Windowed*), or select the chat area again if it really is empty.
    - **Text visible but nothing read:** install the OCR language (see [OCR languages](ocr-languages.md)), or raise
      *Enlarge before reading*.
 3. **Is translation failing?** Go to **Translation → Try it**. If it shows an error, follow it. Common causes are a
    wrong key, a used-up quota or no internet. The **Provider health** card on the same page shows what each provider
    is doing; after fixing the cause, press **Retry now** on its row (see
    [When a provider fails](translation-providers.md#when-a-provider-fails)).
+
+## The chat area is in the wrong place
+
+When a game is detected while you select the chat area, Envoy stores it relative to the game window, and the
+Reading Chat page says it *follows the game window* (naming the game). Moving the game window then moves the chat
+area with it. If the game's size changed since you chose the area, Envoy scales it and shows *The game's size changed
+since you chose the chat area…*: select it again if the Live view looks wrong. An area chosen while no game was
+running stays at a *fixed screen position*.
 
 ## The overlay doesn't show
 
@@ -83,7 +104,10 @@ couldn't register under **Hotkeys**. Pick a different combination there.
 
 ## High CPU use
 
-- Raise **Reading Chat → Check for new messages every** to 1,000–1,500 ms.
+- Envoy adapts how often it checks: fast while the chat is moving, every 1.5 s while it's quiet. Raise
+  **Reading Chat → Fine tuning → Slowest check** (or turn off **Adapt reading speed to chat activity** and raise
+  **Check for new messages every**) to check less often.
+- Reading pauses by itself while the game is minimised.
 - Turn on **Only read chat while an Age game is running**.
 - Untick OCR languages you don't need.
 

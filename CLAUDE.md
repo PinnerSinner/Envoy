@@ -19,9 +19,9 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - `src/Envoy.Core` — all logic: chat parsing, OCR merging, pipeline, providers, settings, diagnostics (logging,
   safe mode, data inventory) and notifications. Put new logic here with tests.
 - `src/Envoy.App` — WPF shell: `AppHost` (composition root), `IShell` (app actions for view models),
-  `Security/ShellLauncher.cs` (the only process launcher), `Services/`
-  (capture, OCR, hotkeys, SendInput, `DialogService`), `Windows/`, `Pages/` (one `UserControl` per settings page,
-  ids in `PageIds`), `ViewModels/` (`MainViewModel` partials, `CapturePreviewViewModel`), `Themes/` (palettes +
+  `Security/ShellLauncher.cs` (the only process launcher), `Services/` (`Capture/` backends, `ChatWatcher`,
+  `GameWindowTracker`, OCR, hotkeys, SendInput, `DialogService`), `Windows/`, `Pages/` (one `UserControl` per
+  settings page, ids in `PageIds`), `ViewModels/` (`MainViewModel` partials, `CapturePreviewViewModel`), `Themes/` (palettes +
   `Controls.xaml`).
 - `tools/ci/` — `check_policy.py` + `policy.json` (allowlists); `tools/typecheck/` — the Linux type-check.
 - `docs/` — user and developer docs. Update them with user-facing changes, plus `CHANGELOG.md`.
@@ -59,6 +59,10 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
   `BadResponse`), turns SDK retries off, gets `ResilienceOptions.For` defaults and contract tests with fixtures under
   `tests/Envoy.Core.Tests/Fixtures/Providers/`. Provider health is read only from `AppHost.TranslationHealth`
   (`ProviderHealthRegistry`); nothing else is named `ProviderHealth`.
+- Background capture code reads the `CaptureOptions` snapshot (`AppHost.CaptureOptions`, rebuilt in `ApplySettings`
+  and `SetRegion`), never `AppSettings`; `ChatWatcher` passes `CancellationToken.None` to `ProcessAsync` (typecheck
+  R11). Game-window probing goes only through `GameWindowTracker` → `AppHost.GameWindow`; capture coordinates are
+  physical pixels. Capture/OCR failures become a `CaptureText` sentence via `CaptureErrors.Describe`.
 - Log through `ILog` (`AppHost.Log.For("Category")`), never `Debug`/`Trace`/`Console`. Chat text and player names go
   only through `LogField.Sensitive(...)`. Every `catch` in `AppHost.cs` logs. Fire-and-forget is
   `task.Forget(log, "what")`, never `_ = SomethingAsync()` (typecheck R9).

@@ -37,7 +37,8 @@ the screen, the keyboard and the user.
 | Folder | What's there |
 | --- | --- |
 | `Chat/` | `ChatLineParser` (channel, sender and text from many chat formats), `ChatDeduplicator` (fuzzy, time-windowed "seen it" memory), `TextSimilarity`, `PlayerDirectory` (per-player language memory), `MuteList`, `TranscriptWriter` |
-| `Ocr/` | `OcrMerger` combines several engines' readings line by line; `OcrText.Clean` removes the spaces Windows OCR puts between CJK characters |
+| `Ocr/` | `OcrMerger` combines several engines' readings line by line (`MergeLines` keeps each row's median `Top`/`Bottom`; `Merge` is its text); `OcrText.Clean` removes the spaces Windows OCR puts between CJK characters |
+| `Capture/` | The capture engine's pure logic (spec 05): `CaptureOptions` (the immutable snapshot the loop reads), `GameWindowInfo`, `RegionMath` (window-relative regions, output size, sample points), `CaptureGate` (pause reasons), `AdaptivePollPolicy`, `FramePool`/`FrameBuffer`, `FrameProcessing` (fingerprint and preprocessing without allocation) and `BlankFrames`, `SingleFlight` (OCR timeout, one call at a time), `LoopWatchdog`, `CaptureMetrics`, `CaptureText`/`CaptureErrors`, `SoakBudget` |
 | `Languages/` | `LanguageCatalog` (codes, names, OCR tags, normalising provider codes), `ScriptDetector` (offline language guess from Unicode blocks) |
 | `Translation/` | `ITranslator` and providers (`Providers/`, all HTTP through `ProviderHttp`), `TranslationException` with a `TranslationErrorKind` and its `TranslationErrorText`; `FallbackTranslator` (overall deadline), `CoalescingTranslator`, `CachingTranslator` + `TranslationCache` (+ the opt-in `TranslationCacheStore`), `BudgetedTranslator` + `UsageTracker`, `TranslatorFactory`, `SlangGlossary`; `TranslationRuntime` (long-lived: per-provider guards, `ProviderHealthRegistry`, the cache; survives rebuilds) and `TranslationLogging` |
 | `Translation/Resilience/` | `ResilienceOptions` (per-provider defaults, chat and compose lanes), `RetryPolicy`, `CircuitBreaker`, `TokenBucket`, `ResilientTranslator`, `ProviderHealthRegistry` (the single provider-health source, contract §2.1) and `ProviderHealthText` |
@@ -75,13 +76,14 @@ Everything here is covered by `tests/Envoy.Core.Tests` and runs on any OS.
 | `App.xaml.cs` | Start-up and exit in the contract §4 order (see below), single instance, tray icon, hotkey bindings, window management; implements `IShell` |
 | `IShell.cs` | The app-level actions view models may trigger (select region, open compose, open a URL, install an OCR pack, show an info box…). Each area adds its own block |
 | `Security/` | `ShellLauncher`: the only code that starts processes (`TryOpen`, `InstallOcrPack`, `RestartSelf`, `RevealFile`), each validated by Core `LaunchTarget` |
-| `Services/` | `ScreenCapturer` (GDI), `OcrService` (Windows.Media.Ocr), `ChatWatcher` (the loop), `HotkeyService` (RegisterHotKey), `KeyboardSender` (SendInput, guarded by `SendTargetGuard`), `GameDetector`, `ThemeManager`, `DpapiProtector`, `StartupRegistration`, `DialogService` (the only place that shows a `MessageBox`), `SettingsAutoApplier` (the 400 ms debounce), `LogBootstrap`, `GlobalExceptionHandlers` (wires the four exception events to `UnhandledErrorPolicy`), `ToastService` (problem toasts), `DiagnosticsCollector` |
+| `Services/` | `Capture/` (`ICaptureBackend`, `GdiCaptureBackend`, `CaptureBackendFactory`), `ScreenCapturer` (one-shot facade for Scan & translate), `OcrService` (Windows.Media.Ocr; bounded single-flight overload for the watcher), `ChatWatcher` (the loop), `GameWindowTracker` (the only game-window probe), `HotkeyService` (RegisterHotKey), `KeyboardSender` (SendInput, guarded by `SendTargetGuard`), `GameDetector`, `ThemeManager`, `DpapiProtector`, `StartupRegistration`, `DialogService` (the only place that shows a `MessageBox`), `SettingsAutoApplier` (the 400 ms debounce), `LogBootstrap`, `GlobalExceptionHandlers` (wires the four exception events to `UnhandledErrorPolicy`), `ToastService` (problem toasts), `DiagnosticsCollector` |
 | `Windows/` | `MainWindow` (title bar, safe-mode banner, sidebar and page hosts), `OverlayWindow`, `ComposeWindow`, `LookupWindow`, `RegionSelectorWindow`, `ToastWindow` (non-activating problem toast) |
 | `Pages/` | One `UserControl` per settings page (`WarRoomPage`, `TranslationPage`, `ReadingChatPage`, `OverlayPage`, `ReplyingPage`, `PhrasebookPage`, `HotkeysPage`, `AppearancePage`, `AboutPage`) and `PageIds` |
 | `ViewModels/` | `MainViewModel` (one instance shared by every page, split into `.Translation`, `.ReadingChat`, `.Phrasebook`, `.Diagnostics` and `.Actions` partials), `CapturePreviewViewModel` (the live view), `ProviderHealthRow` (the Translation page's health card), `Option`, `OcrLanguageItem`, `ThemeOption` |
 | `Controls/` | `HotkeyBox`, `SecretBox`, converters, `AutoApply.Ignore` |
 | `Themes/` | `Palette.<theme>.xaml` (colours only) + `Controls.xaml` (all control templates) |
 | `SmokeTest.cs` | `Envoy.exe --smoke-test` builds every window and settings page under every palette and fails on binding errors; CI runs it on Windows |
+| `SoakTest.cs` | `Envoy.exe --soak <minutes>`: runs the watcher on a synthetic chat window and fails if memory, handles, GDI/USER objects or pooled buffers grow by more than 20 % (pre-release, not CI) |
 
 ### Settings window
 
@@ -113,6 +115,29 @@ fill the slots marked `[NN …]` in the code.
   `AppHost.Notifications`. No error opens a modal box; `DialogService` only confirms actions the user starts in
   `MainWindow`, plus the one crash-loop message.
 
+### Capture loop
+
+`ChatWatcher` runs one loop generation at a time on the thread pool. Each tick follows contract §2.7:
+
+1. heartbeat for the `LoopWatchdog`;
+2. read the `CaptureOptions` snapshot (the only settings read; `AppHost` rebuilds it in `ApplySettings` and
+   `SetRegion` and publishes it with `Volatile.Write`);
+3. probe the game window with `GameWindowTracker.Observe` and publish it (`AppHost.GameWindow`, contract §2.4; a 1 s
+   UI timer also publishes it while capture is stopped);
+4. resolve the region (`WindowRegions[game]` against the client area, else `Regions[game]`, else `Regions["any"]`) and
+   ask `CaptureGate` whether to pause (no region, off-screen, minimised, no game, not foreground, covered);
+5. capture into a pooled `FrameBuffer` through the `ICaptureBackend`;
+6. fingerprint the raw pixels and skip unchanged frames (unless a Live view is open) or while OCR is still busy;
+7. preprocess in place; 8. OCR through `SingleFlight` with `OcrTimeoutMs`; 9. `OcrMerger.MergeLines`;
+10. `ChatPipeline.ProcessAsync(lines, CancellationToken.None)` — stopping or restarting capture never strands a
+    translation; 11. an exact-length copy to `FrameCaptured` while previewing;
+12. return the buffer, record `CaptureMetrics` and wait `AdaptivePollPolicy`'s delay (fast after a change, slower
+    while quiet, doubling after failures, 1 s while paused).
+
+A 2 s watchdog timer restarts a loop that missed heartbeats for `max(15 s, 2 × OcrTimeoutMs + MaxIntervalMs)` on a
+new backend, and gives up with `WatcherState.Error` after more than 3 restarts in 5 minutes. Failures never escape the
+loop: they are logged under `Capture` and shown as a `CaptureText` sentence. All coordinates are physical pixels.
+
 ### Live view and preview leases
 
 `ChatWatcher.BeginPreview()` returns a lease; while at least one is held (`IsPreviewing`), every capture is published
@@ -142,7 +167,9 @@ true; `ReadingChatPage` sets that from its visibility. Two live views never swit
 ## Threading
 
 - The capture/OCR loop runs on the thread pool (`Task.Run`). Each tick does capture → OCR → hand-off to the pipeline
-  without waiting for translation.
+  without waiting for translation. It reads settings only through the immutable `CaptureOptions` snapshot and the
+  detected game through a `volatile` field; `GameWindow` is published to the UI thread with `BeginInvoke`, and the
+  watcher's `StateChanged`, `FrameCaptured` and `RegionChanged` fire on the loop thread.
 - `ChatPipeline` is thread-safe for concurrent `ProcessAsync` calls: de-duplication and the player directory lock
   internally.
 - All UI updates go through `Dispatcher.BeginInvoke` in `AppHost`.
