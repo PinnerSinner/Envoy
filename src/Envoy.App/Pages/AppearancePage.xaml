@@ -49,7 +49,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel>
+                        <StackPanel Margin="0,0,12,0">
                             <TextBlock Text="Update channel" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
                             <TextBlock Text="Switching back to Stable keeps your current build until a newer stable release comes out."
                                        Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />

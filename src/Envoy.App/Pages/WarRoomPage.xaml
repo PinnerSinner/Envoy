@@ -20,7 +20,7 @@
                                 AutomationProperties.Name="{Binding Host.UpdateView.PrimaryLabel, Mode=OneWay}"
                                 Visibility="{Binding Host.UpdateView.HasPrimary, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
                         <Button Style="{StaticResource Button.Ghost}" Content="{Binding Host.UpdateView.SecondaryLabel, Mode=OneWay}"
-                                Command="{Binding UpdateSecondaryCommand}" Margin="8,0,0,0"
+                                Command="{Binding UpdateSecondaryCommand}" Margin="8,0,0,0" Foreground="{DynamicResource Text.OnAccent}"
                                 AutomationProperties.Name="{Binding Host.UpdateView.SecondaryLabel, Mode=OneWay}"
                                 Visibility="{Binding Host.UpdateView.HasSecondary, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
                         <Button Style="{StaticResource Button.Chip}" Content="Skip" Command="{Binding SkipUpdateCommand}" Margin="8,0,0,0"
