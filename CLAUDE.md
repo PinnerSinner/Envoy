@@ -21,12 +21,13 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 
 ## Layout
 - `src/Envoy.Core` — all logic: chat parsing, OCR merging, pipeline, providers, settings, diagnostics (logging,
-  safe mode, data inventory) and notifications. Put new logic here with tests.
+  safe mode, data inventory), notifications and notices, onboarding (the setup guide's flow), privacy text and page
+  hints (`Ux/`). Put new logic here with tests.
 - `src/Envoy.App` — WPF shell: `AppHost` (composition root), `IShell` (app actions for view models),
   `Security/ShellLauncher.cs` (the only process launcher), `Services/` (`Capture/` backends, `ChatWatcher`,
-  `GameWindowTracker`, OCR, hotkeys, SendInput, `DialogService`), `Windows/`, `Pages/` (one `UserControl` per
-  settings page, ids in `PageIds`), `ViewModels/` (`MainViewModel` partials, `CapturePreviewViewModel`), `Themes/` (palettes +
-  `Controls.xaml`).
+  `GameWindowTracker`, OCR, hotkeys, SendInput, `DialogService`, `TrayNotifier`), `Windows/` (incl. the setup guide),
+  `Pages/` (one `UserControl` per settings page, ids in `PageIds`), `ViewModels/` (`MainViewModel` partials,
+  `SetupWizardViewModel`, `CapturePreviewViewModel`), `Themes/` (palettes + `Controls.xaml`).
 - `tools/ci/` — `check_policy.py` + `policy.json` (allowlists); `tools/typecheck/` — the Linux type-check.
 - `docs/` — user and developer docs. Update them with user-facing changes, plus `CHANGELOG.md`.
 
@@ -86,6 +87,16 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
   stays off; typecheck UPD1/UPD2). Nothing automatic reaches the network in safe mode or with `CheckForUpdates` off.
   Never write user data under the install folder (`%LocalAppData%\Envoy`); all user data lives under
   `Host.DataFolder`. Signing secrets appear only in v* tag steps (`check_signing_scope.py`).
+- Privacy gate (spec 07a, contract §8.1): every translator stack AppHost builds is wrapped in `PrivacyGatedTranslator`
+  (outermost); nothing translates around it. Translation is off until `Onboarding.PrivacyAcknowledgedVersion >=
+  PrivacyText.Version`; bump `PrivacyText.Version` when the data flows change. A new smoke or test host calls
+  `SetPrivacyAcknowledged(true)` right after construction (the main smoke host checks the closed gate first).
+- Advisories (OCR pack missing, provider failing, update available) go only through `AppHost.Notices` (`NoticeCenter`
+  on the one `NotificationThrottle`, UI thread, null in safe mode), with text from `NoticeText` or
+  `UpdateView.Headline`; `TrayNotifier` only displays what it decided. Never show a balloon directly.
+- War Room order is fixed (contract §8.6): safe-mode banner, update banner, notice list, hint slot (`WarRoomSlots`),
+  content. A page's empty or error state is one `Callout` whose hint comes from Core `PageHints`. The setup guide's view
+  model edits only `Host.Settings` through its applier (typecheck R12) and its steps come from `OnboardingFlow`.
 - Anything written during `Host.Dispose` or exit checks `Host.SaveSuppressed` first, so a reset or "Delete all Envoy
   data" is never undone. Handlers of background events (pipeline, watcher) are unsubscribed in `AppHost.Dispose` and
   do nothing once the host is disposed or saving is suppressed. Start-up and exit code goes in its slot of `App.OnStartup`/`ExitApp` (contract §4).

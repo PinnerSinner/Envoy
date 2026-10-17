@@ -1,7 +1,7 @@
 # Onboarding and notices: setup guide, privacy disclosure, advisory notices, War Room layout
 
-Status: In progress — revised against `00-integration.md` (binding). Lands as step 8, after 01, 08a, 02, 03, 05, 04 and
-06.
+Status: Implemented — revised against `00-integration.md` (binding). Lands as step 8, after 01, 08a, 02, 03, 05, 04 and
+06. Differences from this text are listed under [Deviations](#deviations).
 
 Area id: `07a-onboarding-notices` · Requirement prefix: `OUXA` · Split from `07-onboarding-ux-accessibility.md`.
 Requirement numbers keep the original `REQ-OUX-n` numbering (contract preamble), so `REQ-OUXA-13` is the old `REQ-OUX-13`
@@ -782,3 +782,45 @@ critique:
   section or a numbered M-step.
 - **Smoke (critique major on budget; contract §6).** Sections are placed in the three phases. The test translation
   and tray balloon run once, not per palette. Guide screenshots are taken for one palette only.
+
+## Deviations
+
+Every MUST (REQ-OUXA-1, 2, 3, 6, 7, 10, 13, 16, 17, 23, 47, 48) and every SHOULD (5, 8, 9, 11, 12, 18, 20, 22) is
+built. The contract is unchanged: no P/Invoke, network path or URL host was added. Differences:
+
+1. **AC-OUXA-1's typecheck grep** is rule R12 in `tools/typecheck/check_ui_rules.py` (with Python tests), run by
+   `typecheck.sh`, instead of a bare `grep` line in `typecheck.sh`: it skips comments and fails with a message like the
+   other UI rules.
+2. **Additive Core helpers** beyond the listed shapes: `PrivacyText.Providers`, `Lines`, `CalloutFor`,
+   `ProviderSeparator`; `OnboardingText` labels, status words, `Counter`, `StepItemName`, `Summary`, `FinishSetupDetail`;
+   `OnboardingFlow.AllSteps`; `NoticeFactory` key prefixes and `OcrKey`/`ProviderKey`; `NoticeCenter.Deferred`;
+   `HotkeyRow.HasProblem`, `HotkeyCheatSheet.Problems`; `PageHint.HasAction`/`IsInfo`; `ProviderCredentials.IsSet`
+   (Translation callout); `ProviderNoticeRule` is an enum (`None`, `Submit`, `Resolve`).
+3. **Phrase load errors** use `PhrasebookText` reasons: "it isn't valid JSON (line n)" (or without the line when the
+   parser gives none), "it is larger than 1 MB", and also "it can't be read" for a locked or forbidden file.
+4. **The acknowledgement** is set through one `AppHost.SetPrivacyAcknowledged(bool)` (writes the version, logs, calls
+   `ApplySettings()` at once), used by the guide's box and the War Room's "Turn on translation", instead of each view
+   model writing the setting and calling `ApplySettings`. `AppHost` also exposes `PrivacyAcknowledged` and
+   `ActiveProviderNames` for the disclosure text. While the gate is closed, AppHost does not log the per-message
+   "translation failed" warning (every line fails the same known way).
+5. **`OpenSetupGuideCommand`** takes an optional step: the War Room's "Open setup guide" resumes at
+   `Onboarding.LastStep` (REQ-OUXA-12), About's "Run setup guide again" starts at Language.
+6. **Exit with the guide open** closes it without counting as Skip and keeps its step (the spec only covers Finish, Skip,
+   Esc and the close button).
+7. **About layout:** the existing "How it stays safe" and data-folder paragraphs moved into the new Privacy frame, so
+   the order is Version & updates → Setup guide → Troubleshooting → Privacy → licences. The War Room's existing "Get
+   ready" card stays as part of the existing content below the hint slot.
+8. **Reading Chat callout:** shows "no chat area" and "OCR unavailable / packs missing". The "no preview frame yet"
+   state is not a callout: the Live view on that page already shows its own empty frame and health line.
+9. **Smoke specifics:** `guide-entry` also exercises Finish (Completed, FirstRunCompleted, MainWindow on the War Room)
+   and then resets the guide state. `notices({palette})` re-submits its OCR seed each palette because the host's OCR
+   check (ApplySettings position 8) withdraws stale `ocr-missing:` keys. The "four notices" check in
+   `war-room-layout` uses provider notices with smoke ids for the same reason, and also checks "Don't remind me".
+   `notice-actions` asserts on App's own MainWindow (`RunNoticeAction` goes through `ShowPage`), then closes it.
+   `TrayNotifier` exposes `Held` and `PendingAction` for the `tray-notifier` section.
+10. **FAQ:** no publisher has published a third-party-tool policy for these games that we could find, so the entry says
+    "no published policy found" with the date checked (17 October 2026) and names the general community rules;
+    M-OUXA-6 rechecks it each release.
+11. **Verification on this change:** the Core tests, `typecheck.sh` and the policy check ran locally. The Windows build,
+    the smoke sections and the M-OUXA steps run in CI and the release pass.
+
