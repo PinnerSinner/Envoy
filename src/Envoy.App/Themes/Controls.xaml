@@ -578,7 +578,7 @@
                         <DockPanel>
                             <Button DockPanel.Dock="Right" Style="{StaticResource Button.Ghost}" Content="{Binding ActionLabel}" CommandParameter="{Binding ActionId}"
                                     Command="{Binding DataContext.RunHintActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    AutomationProperties.Name="{Binding ActionLabel}" Margin="12,0,0,0" VerticalAlignment="Center"
+                                    AutomationProperties.Name="{Binding ActionLabel, TargetNullValue=''}" Margin="12,0,0,0" VerticalAlignment="Center"
                                     Visibility="{Binding HasAction, Converter={StaticResource BoolToVisibility}}" />
                             <TextBlock x:Name="Glyph" Text="&#xE946;" Style="{StaticResource Text.Icon}" Foreground="{DynamicResource Accent}" FontSize="16"
                                        VerticalAlignment="Top" Margin="0,1,10,0" />
