@@ -5,8 +5,8 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 ## Commands
 - `dotnet test tests/Envoy.Core.Tests` — unit tests (any OS). Must stay green.
 - `tools/typecheck/typecheck.sh` — type-checks `src/Envoy.App` on Linux (no WindowsDesktop SDK there): XAML base
-  classes and event-handler names, resource keys, and the UI rules in `check_ui_rules.py` (after running its own
-  Python tests). Run it after every app change; it mirrors the real project's compiler settings
+  classes and event-handler names, resource keys, the accessibility rules in `check_a11y.py` and the UI rules in
+  `check_ui_rules.py` (after running its own Python tests). Run it after every app change; it mirrors the real project's compiler settings
   (keep `tools/typecheck/TypeCheck.csproj` in sync with `src/Envoy.App/Envoy.App.csproj`).
 - `python3 tools/ci/check_policy.py` (+ `python3 -m unittest discover -s tools/ci -p "test_*.py"`) — the policy
   check CI runs first: P/Invoke allowlist and denied names, network code and URL hosts, manifest, process launches,
@@ -42,7 +42,13 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - Pages never set `DataContext` and have no event handlers: buttons and links bind to `MainViewModel` commands
   (`Envoy.Core.Mvvm`; `AsyncRelayCommand` always gets `ReportCommandError`). View models reach the app only through
   `IShell`; every `MessageBox` goes through `Services/DialogService.cs`. `check_ui_rules.py` enforces this.
-- Every new interactive control gets `AutomationProperties.Name`.
+- Every new interactive control gets `AutomationProperties.Name` (or `LabeledBy`), and every focusable style a focus
+  visual (`FocusVisual.Ring`, never `FocusVisualStyle="{x:Null}"`); `tools/typecheck/check_a11y.py` enforces names, focus
+  visuals, Tab cycling in the guide and reply box, and no literal colours (`#…`) in `Windows/`, `Pages/` or `Controls/`.
+  Palettes keep text at 4.5:1 and `Focus.Ring` at 3:1 on every background (`PaletteContrastTests`); a new palette key
+  also goes into `Palette.highcontrast.xaml` as a `SystemColors` value.
+- The palette comes only from `AppHost.ApplyTheme` → `ThemeResolver.Resolve` (high contrast when asked or when Windows
+  uses a contrast theme); `highcontrast` is in `ThemeManager.PaletteIds` but never in the theme picker.
 - User-facing text built in code lives in a Core `public static class *Text` with whole-sentence templates and named
   placeholders (`{count}`, never `{0}`), filled only by `TextTemplate.Format`. XAML labels stay inline.
 - Only `src/Envoy.App/Security/ShellLauncher.cs` starts processes (`TryOpen`, `InstallOcrPack`, `RestartSelf`,

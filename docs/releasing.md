@@ -248,3 +248,23 @@ Use a fresh profile: rename `%APPDATA%\Envoy` first and put it back afterwards.
 - **M-OUXA-6 FAQ policy note** (docs). The FAQ answer "Is Envoy allowed in ranked/anti-cheat games?" either links each
   publisher's published third-party-tool policy (check the links open) or its "checked" date is from this release
   cycle.
+
+### Accessibility (07b)
+
+- **M-OUXB-1 Keyboard only** (REQ-OUXB-24, 29). Without the mouse, Tab through the setup guide: the focus ring is
+  visible on every control, Tab wraps inside the window, Enter = Next (Finish on the last step), Esc = Skip setup. Open
+  the reply box: Tab goes message → phrases → Copy → Send → language → Close and wraps, Enter sends, Esc closes,
+  Alt+I jumps to the language. Repeat the ring check in each theme.
+- **M-OUXB-2 High contrast, live** (REQ-OUXB-33). With Envoy open, Windows Settings → Accessibility → Contrast themes →
+  Night sky: the settings window, overlay and reply box switch to the contrast colours within a second. Switch to
+  Desert: they update again. Turn contrast themes off: the game theme returns. Set Appearance › Accessibility › High
+  contrast to **Never**: Envoy keeps the game theme under Night sky; **Always** uses contrast colours with contrast
+  themes off.
+- **M-OUXB-3 Readable overlay** (REQ-OUXB-36, 37). Overlay background at 20% over a bright map (snow or desert): with
+  "Keep text readable" on, the text stays readable and the Overlay page says "Raised to NN% so text stays readable";
+  turn it off and the card is as transparent as chosen.
+- **M-OUXB-4 Narrator** (REQ-OUXB-28). Narrator on (Win+Ctrl+Enter): the title-bar buttons announce Minimise,
+  Maximise and Close; hotkey boxes announce their action and how to enter a combination; text recognition rows, phrase
+  chips, theme cards and the guide's step list announce meaningful names.
+- **M-OUXB-5 Page keys** (REQ-OUXB-30). In the settings window Ctrl+Tab cycles the nine pages and wraps from About to
+  War Room; Ctrl+Shift+Tab goes the other way.

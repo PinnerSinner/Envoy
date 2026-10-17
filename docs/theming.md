@@ -4,7 +4,7 @@ Every pixel of Envoy's UI (settings, overlay, reply box and region picker) is dr
 plus a shared control library. Switching theme swaps the palette at runtime. Every control uses `DynamicResource`,
 so the change is instant.
 
-## The five themes
+## The themes
 
 | Id | Name | Inspired by | Feel |
 | --- | --- | --- | --- |
@@ -15,6 +15,11 @@ so the change is instant.
 | `classic` | Classic | Age of Empires | Sandstone and bronze-age earth |
 
 **Match the game** (the default) picks the theme of the running game.
+
+A sixth palette, `highcontrast`, is not in the picker: Envoy switches to it when a Windows contrast theme is on
+(Appearance › Accessibility › High contrast: **Follow Windows**, the default), or always with **Always**. Its colours
+are Windows' own system colours (`SystemColors`), read when the palette loads, so Envoy reloads it whenever the
+contrast theme changes.
 
 | Imperial | Parchment | Classic |
 | --- | --- | --- |
@@ -38,9 +43,26 @@ apart.
 | `Text.Primary`, `Text.Secondary`, `Text.Muted`, `Text.OnAccent` | Text hierarchy; text on accent fills |
 | `Border.Subtle` | Hairlines and input borders |
 | `Danger`, `Success` | Errors and confirmations |
-| `Overlay.Bg.Color`, `Overlay.Text`, `Overlay.Sender`, `Overlay.Original` | The in-game overlay (its background alpha comes from settings) |
+| `Overlay.Bg`, `Overlay.Text`, `Overlay.Sender`, `Overlay.Original` | The in-game overlay (its card alpha comes from settings and the readable-text floor) |
+| `Focus.Ring` | The keyboard focus ring (`FocusVisual.Ring`) and focused borders |
+| `Overlay.HitTest`, `Overlay.Dim` | The region selector's near-invisible hit-test surface and dimmed screen. Functional, not decorative: `#01000000` and `#99000000` in every palette, including high contrast |
 
 Every brush also has a matching `*.Color` resource.
+
+### Contrast rules
+
+`PaletteContrastTests` (Core unit tests) read every `Palette.*.xaml` except `highcontrast` and fail the build unless:
+
+- `Text.Primary`, `Text.Secondary`, `Text.Muted` and `Danger` reach **4.5:1** against `Bg.Window`, `Bg.Panel`,
+  `Bg.PanelAlt` and `Bg.Input`;
+- `Focus.Ring` reaches **3:1** against the same four backgrounds (use the palette's `Accent.Bright` if it passes);
+- `Overlay.Text` and `Overlay.Sender` reach **4.5:1** against an opaque `Overlay.Bg`.
+
+With **Keep text readable** on, the overlay card alpha is never lower than
+`ContrastMath.MinimumBackgroundAlpha(Overlay.Text, Overlay.Bg, 4.5)` over white, grey and black backdrops.
+
+No window, page or control XAML may use a literal colour (`#…`); `tools/typecheck/check_a11y.py` enforces this,
+along with a focus visual on every focusable style and an accessible name on every interactive control.
 
 ## Adding a theme
 
@@ -49,7 +71,8 @@ Every brush also has a matching `*.Color` resource.
 3. Optionally make it a game's default in `GameCatalog` (`ThemeId`).
 4. Run `tools/typecheck/typecheck.sh` (or let CI run the smoke test, which builds every window under every theme).
 
-Check contrast on the overlay in particular. It's read at a glance over busy game scenery, so keep `Overlay.Text`
+`PaletteContrastTests` covers a new palette automatically; fix any colour it reports. Check contrast on the overlay
+in particular. It's read at a glance over busy game scenery, so keep `Overlay.Text`
 near white (or near black on a light theme) with a solid enough background.
 
 ## Shared styles
@@ -60,5 +83,6 @@ near white (or near black on a light theme) with a solid enough background.
 - Containers: `OrnateFrame` (a `ContentControl` with double rules and corner studs), `Flourish` (a divider)
 - Buttons: the default style, `Button.Primary`, `Button.Ghost`, `Button.Chip`, `Button.Chrome`
 - Navigation: `NavItem`, `ThemeCard`
+- Focus: `FocusVisual.Ring` (set it as `FocusVisualStyle` on any new focusable style; never `{x:Null}`)
 - Implicit styles for `TextBox`, `PasswordBox`, `ComboBox`, `CheckBox` (a toggle switch), `Slider`, `ScrollBar`
   and `ToolTip`

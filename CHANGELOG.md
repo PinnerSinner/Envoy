@@ -92,6 +92,14 @@ versioning: [SemVer](https://semver.org/).
   `phrases.json` was not loaded (invalid JSON with its line, or larger than 1 MB), and the other pages point out a
   missing provider key, a hidden overlay or a missing or taken hotkey.
 - FAQ: "Is Envoy allowed in ranked/anti-cheat games?".
+- **Accessibility**: a visible focus ring on every control you can reach with Tab; screen readers announce every
+  button, box, slider, phrase chip, theme card and text recognition row by name; the setup guide and reply box keep
+  Tab inside the window (Enter = Next/Send, Esc = Skip/close, Alt+I = reply language); Ctrl+Tab and Ctrl+Shift+Tab
+  switch settings pages.
+- **High contrast**: with a Windows contrast theme on, Envoy uses your contrast theme's colours (settings, overlay and
+  reply box) and follows changes live. Appearance › Accessibility › High contrast: Follow Windows, Always or Never.
+- **Keep text readable** (Overlay page, on by default): when the overlay background is too transparent for the text to
+  stay readable over bright terrain, Envoy raises it and says so ("Raised to 63% so text stays readable").
 ### Changed
 - **Translation is off until you confirm "What leaves your PC"** (setup guide, or **Turn on translation** on the War
   Room). Until then no chat or reply text is sent anywhere and the overlay shows the original lines. This applies to
@@ -150,12 +158,20 @@ versioning: [SemVer](https://semver.org/).
 - Uninstalling the installed Envoy removes the "Start Envoy when I sign in to Windows" entry; with that option on,
   each start points it at the exe that is running.
 
+- Caption and error text is brighter (darker in Parchment) so it reaches WCAG AA contrast (4.5:1) in every theme.
+
 ### Security
 - Links, files and folders are opened only through one launcher that accepts web links, Windows Settings pages and
   non-executable files in Envoy's data folder. The update check only trusts `https://github.com/…/releases/…` URLs of
   Envoy's own repository, so a spoofed update response can't open a local program or a network share.
 
 ### Internal
+- Accessibility (spec 07b): `Envoy.Core.Ux.ContrastMath`/`Rgb`, `ThemeResolver`, `AccessibilityText`; settings
+  `Accessibility.HighContrast` and `Overlay.EnsureReadableText`; palette keys `Focus.Ring`, `Overlay.Bg`,
+  `Overlay.HitTest`, `Overlay.Dim` and `Palette.highcontrast.xaml` (from `SystemColors`); `PaletteContrastTests` hold every
+  game palette to 4.5:1 text and 3:1 focus-ring contrast; `tools/typecheck/check_a11y.py` (focus visuals, accessible
+  names, no literal colours in windows and pages, Tab cycling); smoke sections for the high-contrast palette, focus
+  visuals, keyboard, readable overlay and a runtime name and Tab audit (`AccessibilityAudit`).
 - Onboarding and notices (spec 07a): `Envoy.Core.Onboarding` (`OnboardingFlow`, `OnboardingGate`,
   `OnboardingOutcome`, `DisplayModeAdvisor`, `OnboardingText`), `Envoy.Core.Privacy.PrivacyText`,
   `PrivacyGatedTranslator` (outermost on both translator stacks), `OcrReadiness`, `HotkeyCheatSheet`, the

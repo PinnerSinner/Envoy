@@ -1,6 +1,6 @@
 # Accessibility: focus ring, accessible names, colour contrast, Windows high contrast
 
-Status: Proposed — revised against `00-integration.md` (binding). Lands as step 9, after 01, 08a, 02, 03, 05, 04, 06
+Status: Implemented — revised against `00-integration.md` (binding). Lands as step 9, after 01, 08a, 02, 03, 05, 04, 06
 and 07a.
 
 Area id: `07b-accessibility` · Requirement prefix: `OUXB` · Split from `07-onboarding-ux-accessibility.md`.
@@ -407,3 +407,49 @@ critique:
   because REQ-OUXB-36 is a 07b MUST in contract §9. 07c's compact template uses the same card brush.
 - **UI strings (contract §8.7).** `AccessibilityText` holds the caption and HotkeyBox help.
 - **Allowlists.** No P/Invoke, network or process-launch additions.
+
+## Deviations
+
+Recorded when the area was implemented (process stage 5). Every MUST (REQ-OUXB-24, 25, 26, 29, 32, 33, 35, 36) is
+implemented; the SHOULDs are implemented as noted.
+
+- **`Overlay.Bg` brush key.** The palettes only had `Overlay.Bg.Color`; the design binds `{DynamicResource Overlay.Bg}`,
+  so every palette now also defines the `Overlay.Bg` brush (with `Focus.Ring`, `Overlay.HitTest` and `Overlay.Dim`).
+- **Edit frame.** `Opacity="0.2"` on `EditFrame` would also fade its `Accent` border, so the 20% `Overlay.Bg` fill is a
+  nested `Border` inside the frame; the frame's border stays opaque.
+- **Where the overlay alpha is computed.** `ThemeManager.OverlayCardAlpha(OverlaySettings)` (and `OverlayMinimumAlpha()`
+  for the smoke test) holds the `ContrastMath.EffectiveBackgroundAlpha` call with the high-contrast rule, so
+  `OverlayWindow` and the Overlay page note (`MainViewModel.OverlayOpacityNote`) share one implementation. A palette
+  change reaches the overlay through a new `ThemeManager.Applied` event (subscribed in the constructor, removed in
+  `OnClosed`). `AppHost.SystemHighContrast` wraps `SystemParameters.HighContrast` so view models don't read it directly.
+- **Contrast values.** The adjusted colours were computed with a 0.02 safety margin over 4.5:1, so some differ slightly
+  from the suggested table: frontier `Danger` `#CF8378`, olympian `Text.Muted` `#8696A8`; the others match. Parchment
+  keeps the four-background rule (`Text.Muted` `#5A4830`); no pairs were relaxed. The focus ring is each palette's
+  `Accent.Bright` (parchment measures 3.03:1, the lowest).
+- **High-contrast gradients.** `Header.Gradient` → `WindowColor`, `Accent.Gradient` → `HighlightColor`,
+  `Rule.Gradient` → `GrayTextColor` (solid brushes). 02–07a added no other palette keys, so the table covers them all.
+- **`check_a11y.py`.** It uses `xml.parsers.expat` (line numbers built in) instead of `ElementTree` plus a re-scan, and
+  reports rule ids `A11Y1`–`A11Y5`. Rule 2's `Button` exemption applies only to literal `Content`: a bound
+  `Content="{Binding …}"` needs a name, which is stricter than the spec. The property-element form
+  `<AutomationProperties.Name>` counts as a name. The fixtures are one passing and one failing tree per rule
+  (`fixtures/a11y/ruleN/{pass,fail}/…`, laid out like `src/Envoy.App`), because rules 4 and 5 depend on file paths.
+- **Names sweep and HelpText (REQ-OUXB-28, SHOULD, partial).** Every control the lint flagged was named from its row
+  label. `HelpText` was added where the row carries a caption or the item has a description (War Room language and
+  name, main provider, daily cap, Overlay font, OCR rows, theme cards, phrase chips, the Close button, the new
+  Accessibility and Overlay controls) and on `HotkeyBox`; captions elsewhere on the pages are not yet mirrored.
+- **Accessibility caption text.** `AccessibilityText` also holds `HighContrastOn`/`HighContrastOff`, the sentence under
+  the High contrast box that says whether a Windows contrast theme is on.
+- **Reply box.** "Reply in" is a `Label` with access key Alt+I (`Target=TargetLanguage`); the language box is also named
+  directly. Tab order uses `TabIndex` 0–5 with the phrase list as a `Local` navigation group at index 1.
+- **Focus borders.** Besides the ring, focused `TextBox`, `PasswordBox` and toggle tracks get a 2 px `Focus.Ring`
+  border; focused theme cards and drop-down items get a `Focus.Ring` border too.
+- **Ctrl+Tab (REQ-OUXB-30).** `MainWindow.NavigateRelative(step)` and `CurrentPage` implement it; an extra smoke section
+  `page-keys` (first palette) checks the wrap at both ends.
+- **Smoke audit (REQ-OUXB-27, 31).** `a11y-audit(pages)` names every page (first palette) and logs
+  `a11y: ok (N controls)`; each guide step and the reply box get the name audit plus Tab reachability, the lookup
+  window and the overlay in edit mode the name audit only (neither is a Tab-driven window). A name failure fails the
+  smoke test; when a window cannot take keyboard focus on the CI desktop, the reachability check logs a Warning instead
+  of failing, because keyboard focus depends on window activation there. `overlay-readable({palette})` uses its own
+  overlay window after the `overlay({palette})` section.
+- **Failure behaviour.** `ThemeManager.Apply` still does not catch a palette that fails to load (it never did); the
+  smoke loop over `PaletteIds` is the guard, as the table says.

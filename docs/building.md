@@ -63,8 +63,10 @@ app's C# against the Windows reference assemblies with warnings as errors. The s
 class and a `nameof` for every event handler the XAML names, so a `<UserControl>` paired with `: Window`, or a
 `Click="OnFoo"` with no `OnFoo`, fails here rather than on Windows. It also checks that every
 `StaticResource`/`DynamicResource` key exists, that all palettes define the same keys, and the UI-structure rules in
-`check_ui_rules.py` (no handlers or `DataContext` in `Pages/`, no `MessageBox` outside `DialogService`, and so on). CI
-runs the real Windows build and smoke test on every push.
+`check_ui_rules.py` (no handlers or `DataContext` in `Pages/`, no `MessageBox` outside `DialogService`, and so on), and
+the accessibility rules in `check_a11y.py` (a focus visual on every focusable style, an accessible name on every
+interactive control, Tab cycling in the setup guide and reply box, no literal colours in windows, pages and controls).
+CI runs the real Windows build and smoke test on every push.
 
 ## Analyzers and the policy check
 

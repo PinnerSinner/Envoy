@@ -46,7 +46,7 @@ MUST counts are the requirements whose level is MUST. Folded and removed rows ar
 | 6 | [04-chat-understanding.md](04-chat-understanding.md) | Wrapped lines, game notices, dedupe, cleaning, the pending-message lifecycle, "Understood as" | Implemented | 17 | 18 | 1 |
 | 7 | [06-distribution-updates.md](06-distribution-updates.md) | Velopack installer, in-app updates, channels, tag-only signing, winget | Implemented | 17 | 11 | 1 |
 | 8 | [07a-onboarding-notices.md](07a-onboarding-notices.md) | Setup guide, privacy disclosure and translation gate, advisory notices, tray balloons, War Room layout | Implemented | 12 | 8 | 0 |
-| 9 | [07b-accessibility.md](07b-accessibility.md) | Focus ring, accessible names, `check_a11y.py`, contrast fixes, high-contrast palette | Proposed | 8 | 5 | 0 |
+| 9 | [07b-accessibility.md](07b-accessibility.md) | Focus ring, accessible names, `check_a11y.py`, contrast fixes, high-contrast palette | Implemented | 8 | 5 | 0 |
 | 10 | [07c-reply-overlay-polish.md](07c-reply-overlay-polish.md) | Reply history, length counter, phrase order, compact overlay, copy | Proposed | 4 | 3 | 0 |
 | 11 | [08b-ci-release.md](08b-ci-release.md) | Workflow restructure and `release` job, coverage gate, CodeQL, SBOM, time budget, OCR end-to-end test, threat model, compatibility matrix, release checklist | Proposed | 10 | 16 | 0 |
 | | **Total** | | | **152** | **111** | **8** |
