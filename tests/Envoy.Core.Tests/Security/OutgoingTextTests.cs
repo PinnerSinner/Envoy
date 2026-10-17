@@ -95,4 +95,15 @@ public class OutgoingTextTests
         var once = OutgoingText.Sanitize(new string('a', 998) + " 😀 tail");
         Assert.Equal(once, OutgoingText.Sanitize(once));
     }
+
+    [Fact]
+    public void ExceedsHardMax_detects_cut_text_only()
+    {
+        var full = new string('a', OutgoingText.HardMaxLength);
+        Assert.False(OutgoingText.ExceedsHardMax(full));
+        Assert.False(OutgoingText.ExceedsHardMax(full + "   \r\n"));
+        Assert.True(OutgoingText.ExceedsHardMax(full + " b"));
+        Assert.True(OutgoingText.ExceedsHardMax(full + "b"));
+        Assert.False(OutgoingText.ExceedsHardMax(null));
+    }
 }

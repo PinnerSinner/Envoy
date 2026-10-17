@@ -22,10 +22,19 @@ public static class OutgoingText
     public static string Sanitize(string? text, int maxLength = HardMaxLength)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maxLength);
-        if (string.IsNullOrEmpty(text)) return "";
-        var max = Math.Min(maxLength, HardMaxLength);
+        return Clean(text, Math.Min(maxLength, HardMaxLength));
+    }
 
-        var sb = new StringBuilder(Math.Min(text.Length, max + 1));
+    /// <summary>
+    /// True when <see cref="Sanitize"/> would cut <paramref name="text"/> at <see cref="HardMaxLength"/>: the cleaned
+    /// text without the cap is longer than the capped one (07c's counter says so).
+    /// </summary>
+    public static bool ExceedsHardMax(string? text) => Clean(text, int.MaxValue).Length > Sanitize(text).Length;
+
+    private static string Clean(string? text, int max)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        var sb = new StringBuilder(Math.Min(text.Length, max) + 1);
         var pendingSpace = false;
         for (var i = 0; i < text.Length; i++)
         {

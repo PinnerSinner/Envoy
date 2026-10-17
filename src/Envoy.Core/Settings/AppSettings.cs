@@ -329,6 +329,9 @@ public sealed class OverlaySettings
     public bool ShowProvider { get; set; }
     public bool PlaySound { get; set; }
 
+    /// <summary>One wrapped line per message, no original or provider line (REQ-OUXC-44).</summary>
+    public bool Compact { get; set; }
+
     /// <summary>Read translated messages aloud with a Windows voice.</summary>
     public bool SpeakMessages { get; set; }
     public bool SpeakSenderName { get; set; } = true;
@@ -370,6 +373,29 @@ public sealed class ComposeSettings
 
     /// <summary>Append the original after the translation, e.g. "你好 (hello)".</summary>
     public bool AppendOriginal { get; set; }
+
+    /// <summary>Show the length of what will be sent under the reply box (REQ-OUXC-41).</summary>
+    public bool ShowCharacterCount { get; set; } = true;
+
+    /// <summary>Counter turns red above this many characters; 0 = no limit known. Never blocks sending.</summary>
+    public int MaxMessageLength { get; set; }
+
+    /// <summary>How the reply box orders quick-phrase chips (REQ-OUXC-42).</summary>
+    public PhraseOrder PhraseOrder { get; set; } = PhraseOrder.MostUsed;
+
+    /// <summary>
+    /// Target language → phrase id → times sent (REQ-OUXC-43). Phrase ids only, never free text, so no marker. UI thread
+    /// only: read and written by the reply box.
+    /// </summary>
+    public Dictionary<string, Dictionary<string, int>> PhraseUsage { get; set; } = new();
+}
+
+public enum PhraseOrder
+{
+    /// <summary>Phrases translated into the target language first, then by how often you sent them to it.</summary>
+    MostUsed,
+    /// <summary>The phrasebook's own order.</summary>
+    BookOrder,
 }
 
 public sealed class HotkeySettings
