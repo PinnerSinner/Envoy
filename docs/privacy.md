@@ -82,6 +82,12 @@ still guess short, common ones, so treat the file like your chat transcripts.
 It holds at most 2,000 entries (and 1 MiB), forgets entries after 30 days, and never stores messages longer than 200
 characters. Turning the option off, or **Clear saved translations**, deletes the file.
 
+### Reply history and quick-phrase counts
+
+Replies you recall with Up in the reply box are kept in memory only and forgotten when Envoy closes; they are never
+saved or logged. To put your most-used quick phrases first, `settings.json` keeps, per reply language, the id of each
+built-in or `phrases.json` phrase you sent and how often (at most 100 per language) — never the text you typed.
+
 ### Chat formats and test captures
 
 Envoy never writes `chat-formats.json`; it only reads it if you create one (see [chat formats](chat-formats.md)). The

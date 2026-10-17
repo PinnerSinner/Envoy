@@ -103,6 +103,11 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - War Room order is fixed (contract §8.6): safe-mode banner, update banner, notice list, hint slot (`WarRoomSlots`),
   content. A page's empty or error state is one `Callout` whose hint comes from Core `PageHints`. The setup guide's view
   model edits only `Host.Settings` through its applier (typecheck R12) and its steps come from `OnboardingFlow`.
+- Reply box and overlay (spec 07c): reply history (`ComposeWindow.History`, `ReplyHistory`) is memory only — never in
+  settings or logs (typecheck R13); `Compose.PhraseUsage` holds phrase ids and counts only and is UI-thread state of the
+  reply box. The counter measures `ReplyLength.Measure(AppendOriginal(...))`, i.e. what `OutgoingText.Sanitize` sends.
+  The overlay has two item templates, `FullItem` and `CompactItem`; change both together (the smoke test renders both
+  under every palette). Clipboard writes from the app go through `Services/ClipboardHelper.TrySetText`.
 - Anything written during `Host.Dispose` or exit checks `Host.SaveSuppressed` first, so a reset or "Delete all Envoy
   data" is never undone. Handlers of background events (pipeline, watcher) are unsubscribed in `AppHost.Dispose` and
   do nothing once the host is disposed or saving is suppressed. Start-up and exit code goes in its slot of `App.OnStartup`/`ExitApp` (contract §4).

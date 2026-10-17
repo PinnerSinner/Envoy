@@ -268,3 +268,15 @@ Use a fresh profile: rename `%APPDATA%\Envoy` first and put it back afterwards.
   chips, theme cards and the guide's step list announce meaningful names.
 - **M-OUXB-5 Page keys** (REQ-OUXB-30). In the settings window Ctrl+Tab cycles the nine pages and wraps from About to
   War Room; Ctrl+Shift+Tab goes the other way.
+
+### Reply box and overlay (07c)
+
+- **M-OUXC-1 Reply history and length** (REQ-OUXC-39, 40, 41). In game, send two replies; open the reply box: Up, Up,
+  Down recall them in order, and a further Down returns what you had typed. Set Replying › "Warn above" to 10 and type a
+  long reply: the counter under the box turns red and Send still works. Turn "Show message length" off: the counter is
+  gone.
+- **M-OUXC-2 Compact overlay** (REQ-OUXC-44). Toggle Overlay › "Compact layout" during a match: the overlay switches
+  without a restart; pending lines show "…" and then the translation, a failed one ends in a red ⚠.
+- **M-OUXC-3 Phrase order and copy** (REQ-OUXC-42, 43, 45). Send "gg" twice to a Korean target and reopen: the "gg"
+  chip is first for Korean but not for Russian. `Ctrl+Shift+E` → ⧉ on a message → paste into Notepad shows
+  "Sender: translation" and the original on the next line; the button says "Copied" for a moment.

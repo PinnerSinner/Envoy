@@ -1,6 +1,6 @@
 # Reply box and overlay polish: reply history, length counter, phrase order, compact overlay, copy
 
-Status: Proposed — revised against `00-integration.md` (binding). Lands as step 10, after 01, 08a, 02, 03, 05, 04,
+Status: Implemented — revised against `00-integration.md` (binding). Lands as step 10, after 01, 08a, 02, 03, 05, 04,
 06, 07a and 07b.
 
 Area id: `07c-reply-overlay-polish` · Requirement prefix: `OUXC` · Split from `07-onboarding-ux-accessibility.md`.
@@ -311,3 +311,44 @@ critique:
 - **Scope (contract §9).** MUSTs cut from 8 to 4. REQ-OUX-46 is folded into 44; 42, 43 and 45 are SHOULD. Every MUST has
   a unit test, a smoke section or a typecheck check, plus a numbered manual step.
 - **Allowlists.** No P/Invoke, network or process-launch additions.
+
+## Deviations
+
+Implemented: every MUST (REQ-OUXC-39, 40, 41, 44) and every SHOULD (42, 43, 45). Changes from the design above:
+
+- **`WillBeCut` formula.** The design computes it as `OutgoingText.Sanitize(composed, int.MaxValue).Length > sent.Length`,
+  but `Sanitize` clamps any `maxLength` to `HardMaxLength`, so that is always false. `OutgoingText` gained
+  `ExceedsHardMax(text)` (the same cleaning without the cap, compared with the capped result), which `ReplyLength.Measure`
+  uses; `OutgoingTextTests.ExceedsHardMax_detects_cut_text_only` covers it. `Sanitize`'s behaviour is unchanged.
+- **Counter text.** With a limit set the counter always shows "n / limit" (red only above it); with no limit it shows
+  "n"; when the hard cap will cut the text it shows "n · longer text is cut" in `Danger`, whatever the limit. A negative
+  `MaxMessageLength` counts as no limit.
+- **`Skipped` status.** `IncomingStatus` has no `Skipped`; the skipped state is `Untranslated`, so `OverlayCopyText`
+  treats Pending, Failed and Untranslated alike (original only), and the test
+  `Pending_failed_and_skipped_use_original` covers those three.
+- **Page name.** The settings page is `Pages/ReplyingPage.xaml` (01's name), not `ReplyPage.xaml`. Its new "Reply box"
+  section holds "Show message length", "Warn above" (with the caption) and "Quick phrase order"
+  (`MainViewModel.PhraseOrders`).
+- **Copy text.** "Copied" and "Couldn't copy" live as constants on `OverlayCopyText` (the Core `*Text` rule).
+- **Copy button placement.** One `CopyControls` template (feedback text and ⧉ button) is shared by `FullItem` and
+  `CompactItem` through a `ContentPresenter` docked right, and is visible only while `OverlayWindow.IsEditing`. Its
+  name binds `Copy message from {0}` as designed, so a message with no sender is named "Copy message from ".
+- **Template keys.** `OverlayWindow.FullItemKey`/`CompactItemKey` name the two templates; `ApplySettings` only swaps
+  `ItemTemplate` when the key changes. The message text blocks are named `Line` (both templates) and `OriginalLine`,
+  `PendingLine`, `ErrorLine`, `ProviderLine` (full only), which is how the smoke test counts "one text line element".
+- **Compact marks.** `OverlayItem.PendingMark` (" …") and `FailedMark` (" ⚠", only for a real failure, not a cancelled
+  translation, as in the full layout) are trailing `Run`s; the badge is 16 px high in compact mode.
+- **History typecheck.** The grep is rule **UIF-R13** in `tools/typecheck/check_ui_rules.py` (with tests) rather than
+  a bare grep in `typecheck.sh`: `ReplyHistory` never appears in `SettingsStore.cs`/`AppSettings.cs`, and no line of
+  `ComposeWindow.xaml.cs` with a logging call mentions `History`. `check_resources.py` now also accepts a window's own
+  `x:Key`s for `StaticResource` (palette `DynamicResource` keys must still come from the themes).
+- **History on open.** `Open` ends any browsing so each opening starts from the newest reply. A paste-mode send that
+  fails still leaves the text on the clipboard (as before) but adds nothing to history or usage; a clipboard-only send
+  or copy adds to history only when the clipboard write succeeded.
+- **Smoke.** `overlay-compact({palette})` runs in its own overlay window after `overlay-readable({palette})`; it also
+  checks that the Copy buttons hide again after edit mode. `compose-history` (first palette) also confirms the counter
+  is collapsed before a translation; with `--screenshots`, each palette checks it is visible after the preview arrives.
+- **Other clipboard writes.** `LookupWindow` and `App` keep their own clipboard calls; only the reply box and overlay
+  use `ClipboardHelper` in this step.
+- **Privacy page.** `docs/privacy.md` gained a short "Reply history and quick-phrase counts" section, since phrase
+  counts are a new kind of value in `settings.json` (no new file, so `DataInventory` is unchanged).

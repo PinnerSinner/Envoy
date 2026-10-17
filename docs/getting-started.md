@@ -91,10 +91,15 @@ See [OCR languages](ocr-languages.md) for details.
 
 - Foreign chat appears translated in the overlay next to the game's chat. It fades out after 25 seconds by default.
 - Press **`Ctrl+Shift+T`** to reply. Type in your language and press **Enter**. Envoy translates the message and
-  types it into game chat.
+  types it into game chat. Press **Up** in the reply box to bring back a reply you sent earlier (Down returns to what
+  you were typing); this history is forgotten when Envoy closes. The number under the box is the length of what will
+  be sent. If a game cuts long messages, set **Replying › Warn above** to its limit and the number turns red past it.
+- Want a smaller overlay? Tick **Overlay → Compact layout** for one line per message. To copy a message, press
+  **`Ctrl+Shift+E`** and click ⧉ next to it, then **Done**.
 - Press **`Ctrl+Shift+Q`** and drag over any other text (lobby names, map descriptions) to translate it once.
 - Turn on **Overlay → Herald** to hear translations read aloud.
-- Or click a **quick phrase** (gl hf, gg wp, rematch?…). These are human translations.
+- Or click a **quick phrase** (gl hf, gg wp, rematch?…). These are human translations. Phrases translated into the
+  language you are replying in come first, with the ones you use most at the front.
 
 Next: [choose a translation provider](translation-providers.md) if you want better quality than the free default, or
 [troubleshooting](troubleshooting.md) if something doesn't work.

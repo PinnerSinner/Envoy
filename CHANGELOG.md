@@ -100,6 +100,17 @@ versioning: [SemVer](https://semver.org/).
   reply box) and follows changes live. Appearance › Accessibility › High contrast: Follow Windows, Always or Never.
 - **Keep text readable** (Overlay page, on by default): when the overlay background is too transparent for the text to
   stay readable over bright terrain, Envoy raises it and says so ("Raised to 63% so text stays readable").
+- **Reply history**: in the reply box, Up recalls replies you sent or copied this session and Down goes back to what
+  you were typing. The history stays in memory and is never saved or logged.
+- **Message length** under the reply box counts exactly what will be sent (an emoji or a Chinese character counts as
+  one). Replying › Reply box: turn it off, or set "Warn above" so it turns red past a game's limit; it also says when
+  text is long enough to be cut. It never stops you sending.
+- **Quick phrases follow the language you reply in**: phrases translated into it come first, the ones you send to it
+  most at the front (Replying › Quick phrase order; "Phrasebook order" keeps the old order). Envoy keeps only phrase
+  ids and counts in `settings.json`, never what you typed.
+- **Compact overlay** (Overlay page): one line per message with sender and translation only; switches live.
+- **Copy a message from the overlay**: in edit mode (`Ctrl+Shift+E`) each message has a ⧉ button that copies the
+  sender, translation and original.
 ### Changed
 - **Translation is off until you confirm "What leaves your PC"** (setup guide, or **Turn on translation** on the War
   Room). Until then no chat or reply text is sent anywhere and the overlay shows the original lines. This applies to
@@ -166,6 +177,11 @@ versioning: [SemVer](https://semver.org/).
   Envoy's own repository, so a spoofed update response can't open a local program or a network share.
 
 ### Internal
+- Reply box and overlay polish (spec 07c): `Envoy.Core.Compose` (`ReplyHistory`, `ReplyLength`, `ReplyText`,
+  `PhraseOrdering`), `Envoy.Core.Pipeline.OverlayCopyText`, `OutgoingText.ExceedsHardMax`; settings `Overlay.Compact`,
+  `Compose.ShowCharacterCount`, `MaxMessageLength`, `PhraseOrder`, `PhraseUsage`; `Services/ClipboardHelper.cs`;
+  `OverlayWindow` item templates `FullItem`/`CompactItem`; smoke sections `overlay-compact({palette})` and
+  `compose-history`; typecheck rule UIF-R13 (reply history never reaches settings or logs).
 - Accessibility (spec 07b): `Envoy.Core.Ux.ContrastMath`/`Rgb`, `ThemeResolver`, `AccessibilityText`; settings
   `Accessibility.HighContrast` and `Overlay.EnsureReadableText`; palette keys `Focus.Ring`, `Overlay.Bg`,
   `Overlay.HitTest`, `Overlay.Dim` and `Palette.highcontrast.xaml` (from `SystemColors`); `PaletteContrastTests` hold every
