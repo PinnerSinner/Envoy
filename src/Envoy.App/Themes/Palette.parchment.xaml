@@ -10,15 +10,19 @@
   <Color x:Key="Accent.Dim.Color">#7A5A35</Color>
   <Color x:Key="Text.Primary.Color">#2A1C0F</Color>
   <Color x:Key="Text.Secondary.Color">#55412C</Color>
-  <Color x:Key="Text.Muted.Color">#87704F</Color>
+  <Color x:Key="Text.Muted.Color">#5A4830</Color>
   <Color x:Key="Text.OnAccent.Color">#F7EEDA</Color>
   <Color x:Key="Border.Subtle.Color">#C2AA7E</Color>
-  <Color x:Key="Danger.Color">#A1301F</Color>
+  <Color x:Key="Danger.Color">#8A291B</Color>
   <Color x:Key="Success.Color">#4E7A33</Color>
   <Color x:Key="Overlay.Text.Color">#F4E9D1</Color>
   <Color x:Key="Overlay.Sender.Color">#E1B866</Color>
   <Color x:Key="Overlay.Original.Color">#B8A27F</Color>
   <Color x:Key="Overlay.Bg.Color">#2B1F14</Color>
+  <Color x:Key="Focus.Ring.Color">#B0402A</Color>
+  <!-- Functional alphas (not decorative): the region selector's hit-test surface and dim. Same in every palette. -->
+  <Color x:Key="Overlay.HitTest.Color">#01000000</Color>
+  <Color x:Key="Overlay.Dim.Color">#99000000</Color>
   <SolidColorBrush x:Key="Bg.Window" Color="{StaticResource Bg.Window.Color}" />
   <SolidColorBrush x:Key="Bg.Panel" Color="{StaticResource Bg.Panel.Color}" />
   <SolidColorBrush x:Key="Bg.PanelAlt" Color="{StaticResource Bg.PanelAlt.Color}" />
@@ -36,6 +40,10 @@
   <SolidColorBrush x:Key="Overlay.Text" Color="{StaticResource Overlay.Text.Color}" />
   <SolidColorBrush x:Key="Overlay.Sender" Color="{StaticResource Overlay.Sender.Color}" />
   <SolidColorBrush x:Key="Overlay.Original" Color="{StaticResource Overlay.Original.Color}" />
+  <SolidColorBrush x:Key="Overlay.Bg" Color="{StaticResource Overlay.Bg.Color}" />
+  <SolidColorBrush x:Key="Focus.Ring" Color="{StaticResource Focus.Ring.Color}" />
+  <SolidColorBrush x:Key="Overlay.HitTest" Color="{StaticResource Overlay.HitTest.Color}" />
+  <SolidColorBrush x:Key="Overlay.Dim" Color="{StaticResource Overlay.Dim.Color}" />
   <LinearGradientBrush x:Key="Header.Gradient" StartPoint="0,0" EndPoint="0,1"><GradientStop Offset="0" Color="#3A2A1A" /><GradientStop Offset="1" Color="#2A1E12" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="Accent.Gradient" StartPoint="0,0" EndPoint="0,1"><GradientStop Offset="0" Color="#B0402A" /><GradientStop Offset="1" Color="#8E2E1C" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="Rule.Gradient" StartPoint="0,0" EndPoint="1,0"><GradientStop Offset="0" Color="#008E2E1C" /><GradientStop Offset="0.5" Color="#8E2E1C" /><GradientStop Offset="1" Color="#008E2E1C" /></LinearGradientBrush>

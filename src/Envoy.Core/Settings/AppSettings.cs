@@ -75,6 +75,9 @@ public sealed class AppSettings
     /// <summary>Advisory tray balloons and the War Room notice list (spec 07a).</summary>
     public NotificationSettings Notifications { get; set; } = new();
 
+    /// <summary>High-contrast palette choice (spec 07b).</summary>
+    public AccessibilitySettings Accessibility { get; set; } = new();
+
     public UsageSnapshot? Usage { get; set; }
 }
 
@@ -280,6 +283,21 @@ public sealed class TranslationSettings
     public bool RememberTranslations { get; set; }
 }
 
+/// <summary>When Envoy uses its high-contrast palette (REQ-OUXB-33).</summary>
+public enum HighContrastMode
+{
+    /// <summary>High contrast while a Windows contrast theme is on, else the chosen theme.</summary>
+    FollowWindows,
+    Always,
+    Never,
+}
+
+/// <summary>Accessibility preferences (spec 07b). Holds no names, text or positions, so it needs no marker. UI thread only.</summary>
+public sealed class AccessibilitySettings
+{
+    public HighContrastMode HighContrast { get; set; } = HighContrastMode.FollowWindows;
+}
+
 public enum OverlayAnchor
 {
     Free,
@@ -298,6 +316,9 @@ public sealed class OverlaySettings
     public double MaxHeight { get; set; } = 320;
     public double Opacity { get; set; } = 0.92;
     public double BackgroundOpacity { get; set; } = 0.78;
+
+    /// <summary>Raise the card background when <see cref="BackgroundOpacity"/> is too low for readable text (REQ-OUXB-36).</summary>
+    public bool EnsureReadableText { get; set; } = true;
     public double FontSize { get; set; } = 15;
     public string FontFamily { get; set; } = "";
     public int MaxMessages { get; set; } = 8;
