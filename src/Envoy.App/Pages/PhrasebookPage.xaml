@@ -8,6 +8,8 @@
             <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,18">
                 Hand-translated phrases for common moments. They appear as one-click chips in the reply box and are used instead of machine translation whenever you type one exactly.
             </TextBlock>
+            <!-- phrases.json problems (REQ-OUXA-23): built-ins are in use until the file is fixed. -->
+            <ContentControl x:Name="PhrasebookCallout" Style="{StaticResource Callout}" Content="{Binding PhrasebookHint, Mode=OneWay}" />
             <ContentControl Style="{StaticResource OrnateFrame}">
                 <StackPanel>
                     <DockPanel Margin="0,0,0,10">

@@ -6,6 +6,8 @@
             <TextBlock Text="Overlay" Style="{StaticResource Text.H1}" />
             <TextBlock Text="The translated chat floating over your game. It ignores the mouse, so it never gets in the way of play." Style="{StaticResource Text.Body}" Margin="0,0,0,18" />
 
+            <!-- The page callout (spec 07a, REQ-OUXA-22). -->
+            <ContentControl x:Name="PageCallout" Style="{StaticResource Callout}" Content="{Binding OverlayHint, Mode=OneWay}" />
             <ContentControl Style="{StaticResource OrnateFrame}">
                 <StackPanel>
                     <TextBlock Text="Placement" Style="{StaticResource Text.H2}" />

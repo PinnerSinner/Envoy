@@ -18,15 +18,15 @@ public sealed partial class MainViewModel
     public CapturePreviewViewModel CapturePreview { get; }
 
     /// <summary>The chat area's size and whether it follows the game window or is a fixed screen position (REQ-CAP-8).</summary>
-    public string RegionText
+    public string RegionText => RegionTextFor(Host);
+
+    /// <summary>The region line, shared with the setup guide's Chat area step.</summary>
+    internal static string RegionTextFor(AppHost host)
     {
-        get
-        {
-            if (Host.Watcher.CurrentRegion is not { IsEmpty: false } r) return CaptureText.RegionNotSet;
-            if (Host.Watcher.CurrentRegionSource != RegionSource.WindowRelative) return CaptureText.RegionFixed(r);
-            var game = GameCatalog.Find(Host.CurrentGameId)?.Name ?? Host.Game?.Profile.Name ?? Host.CurrentGameId;
-            return CaptureText.RegionFollows(r.Width, r.Height, game);
-        }
+        if (host.Watcher.CurrentRegion is not { IsEmpty: false } r) return CaptureText.RegionNotSet;
+        if (host.Watcher.CurrentRegionSource != RegionSource.WindowRelative) return CaptureText.RegionFixed(r);
+        var game = GameCatalog.Find(host.CurrentGameId)?.Name ?? host.Game?.Profile.Name ?? host.CurrentGameId;
+        return CaptureText.RegionFollows(r.Width, r.Height, game);
     }
 
     /// <summary>Asks for a re-select when the game's size changed since the chat area was chosen; "" otherwise.</summary>

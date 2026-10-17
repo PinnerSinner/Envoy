@@ -14,7 +14,8 @@ namespace Envoy.App.ViewModels;
 /// <summary>
 /// The single view model behind MainWindow and every page in <c>Pages/</c>. Split into partial files by page:
 /// <c>.Translation</c>, <c>.ReadingChat</c>, <c>.Phrasebook</c>, <c>.Diagnostics</c> (About › Troubleshooting and the
-/// safe-mode banner), <c>.Updates</c> (the update banner and settings) and <c>.Actions</c> (the commands). App-level actions go
+/// safe-mode banner), <c>.Updates</c> (the update banner and settings), <c>.Hints</c> (the War Room notices and hint slot,
+/// page callouts) and <c>.Actions</c> (the commands). App-level actions go
 /// through <see cref="IShell"/>.
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject, IDisposable
@@ -89,6 +90,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         SkipUpdateCommand = new RelayCommand(Host.SkipUpdate);
         CheckForUpdatesCommand = new AsyncRelayCommand(() => Host.Updates.CheckAsync(manual: true, Host.UpdatesToken), ReportCommandError);
         AttachUpdates();
+
+        // War Room notices and hint slot, page callouts, setup guide and privacy (07a; MainViewModel.Hints.cs).
+        CreateHintCommands();
+        AttachHints();
     }
 
     public AppHost Host { get; }
@@ -148,6 +153,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Notify(nameof(HotkeyErrors));
         RefreshChatUnderstanding();
         RefreshTroubleshooting();
+        RefreshHints();
     }
 
     /// <summary>
@@ -200,6 +206,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Host.GameWindowChanged -= OnRegionMoved;
         DetachTranslationHealth();
         DetachUpdates();
+        DetachHints();
         CapturePreview.Dispose();
     }
 }

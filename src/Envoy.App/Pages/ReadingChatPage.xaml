@@ -9,6 +9,8 @@
                 Envoy looks at the chat area of your screen with the text recognition built into Windows. Nothing touches the game itself.
             </TextBlock>
 
+            <!-- The page callout (spec 07a, REQ-OUXA-22). -->
+            <ContentControl x:Name="PageCallout" Style="{StaticResource Callout}" Content="{Binding ReadingChatHint, Mode=OneWay}" />
             <ContentControl Style="{StaticResource OrnateFrame}">
                 <StackPanel>
                     <TextBlock Text="Chat area" Style="{StaticResource Text.H2}" />

@@ -52,4 +52,16 @@ public interface IShell
     /// Envoy again in the same window state. Does nothing otherwise.
     /// </summary>
     void RestartToUpdate();
+
+    // 07a
+
+    /// <summary>
+    /// Opens the setup guide, or activates the open one (single instance). <paramref name="stepId"/> is an
+    /// <c>OnboardingStep</c> name: the guide moves there; null opens a new guide at the first step and leaves an open one
+    /// where it is.
+    /// </summary>
+    void OpenSetupWizard(string? stepId = null);
+
+    /// <summary>Shows MainWindow on a <c>PageIds</c> page.</summary>
+    void ShowPage(string pageId);
 }

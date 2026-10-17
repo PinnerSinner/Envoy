@@ -20,11 +20,13 @@ using Envoy.Core.Diagnostics;
 using Envoy.Core.Games;
 using Envoy.Core.Notifications;
 using Envoy.Core.Ocr;
+using Envoy.Core.Onboarding;
 using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
 using Envoy.Core.Translation;
 using Envoy.Core.Translation.Resilience;
 using Envoy.Core.Updates;
+using Forms = System.Windows.Forms;
 
 namespace Envoy.App;
 
@@ -116,6 +118,10 @@ internal static class SmokeTest
             Log("ocr languages: " + string.Join(", ", OcrService.InstalledLanguages().Select(l => l.WindowsTag)));
             Section("ocr-languages", sw);
 
+            // ---- 07a: the privacy gate on the fresh host, before anything is sent (AC-OUXA-11) ----
+            await CheckPrivacyGateAsync(host);
+            Section("privacy-gate", sw);
+
             await WarmUpProviderAsync(host);
             Section("provider-warmup", sw);
 
@@ -164,6 +170,12 @@ internal static class SmokeTest
             portableHost = await CheckPortableUpdatesAsync(app, root, log, recent);
             Section("updates-portable", sw);
 
+            // ---- 07a: the guide's entry points (AC-OUXA-3), and a notice so the War Room list renders ----
+            await CheckGuideEntryAsync(app, host);
+            Section("guide-entry", sw);
+            Check(host.Notices is not null, "the main host has no NoticeCenter");
+            host.Notices!.Submit(NoticeFactory.OcrMissing(["ja"])!, gameForeground: false);
+
             // Binding errors fail the run. Refresh() turns WPF tracing on in release builds; set the level after it.
             PresentationTraceSources.Refresh();
             PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Error;
@@ -172,7 +184,7 @@ internal static class SmokeTest
             var first = true;
             foreach (var palette in ThemeManager.PaletteIds)
             {
-                await RunPaletteAsync(host, safeHost, updates, settingsPath, palette, first, shots);
+                await RunPaletteAsync(app, host, safeHost, updates, settingsPath, palette, first, shots);
                 first = false;
             }
 
@@ -229,7 +241,7 @@ internal static class SmokeTest
         app.Shutdown(exitCode);
     }
 
-    private static async Task RunPaletteAsync(AppHost host, AppHost safeHost, SmokeUpdateBackend updates, string settingsPath, string palette,
+    private static async Task RunPaletteAsync(App app, AppHost host, AppHost safeHost, SmokeUpdateBackend updates, string settingsPath, string palette,
                                               bool first, string? shots)
     {
         var paletteTime = Stopwatch.StartNew();
@@ -278,6 +290,19 @@ internal static class SmokeTest
             await CheckUpdateBannerAsync(host, updates, main, palette, shots);
             Section($"updates({palette})", sw);
 
+            // ---- 07a: notices, the War Room slot order, notice actions and the section order ----
+            await CheckNoticesAsync(host, main);
+            Section($"notices({palette})", sw);
+            await CheckWarRoomLayoutAsync(host, main, first);
+            Section($"war-room-layout({palette})", sw);
+            if (first)
+            {
+                await CheckNoticeActionsAsync(app);
+                Section("notice-actions", sw);
+                await CheckPageOrderAsync(main);
+                Section("page-order", sw);
+            }
+
             // ---- close ----
             if (first)
             {
@@ -299,6 +324,14 @@ internal static class SmokeTest
             Section($"close({palette})", sw);
 
             // ---- other windows ----
+            await CheckGuideAsync(app, host, palette, first, shots);
+            Section($"guide({palette})", sw);
+            if (first)
+            {
+                CheckTrayNotifier();
+                Section("tray-notifier", sw);
+            }
+
             var overlay = new OverlayWindow(host);
             overlay.Show();
             host.ShowDemoMessages();
@@ -662,6 +695,236 @@ internal static class SmokeTest
         return expected;
     }
 
+    // ---------------- 07a checks ----------------
+
+    /// <summary>
+    /// AC-OUXA-11: on the fresh main host translation is off until "What leaves your PC" is confirmed. Both stacks fail
+    /// with Configuration before any provider runs; then the acknowledgement opens the gate.
+    /// </summary>
+    private static async Task CheckPrivacyGateAsync(AppHost host)
+    {
+        Check(!host.PrivacyAcknowledged, "a fresh host starts with the privacy acknowledgement set");
+        foreach (var (name, translator) in new[] { ("chat", host.Translator), ("compose", host.ComposeTranslator) })
+        {
+            try
+            {
+                await translator.TranslateAsync(new TranslationRequest("smoke", "en"));
+                Check(false, $"the closed privacy gate let a {name} translation through");
+            }
+            catch (TranslationException ex)
+            {
+                Check(ex.Kind == TranslationErrorKind.Configuration, $"the closed gate failed the {name} call with {ex.Kind}, not Configuration");
+            }
+        }
+        host.SetPrivacyAcknowledged(true);
+        Check(host.PrivacyAcknowledged && host.Settings.Onboarding.PrivacyAcknowledgedVersion == Core.Privacy.PrivacyText.Version,
+            "the acknowledgement was not recorded");
+    }
+
+    /// <summary>
+    /// AC-OUXA-3: the tray menu has the guide items; OpenSetupWizard is single-instance and moves an open guide; the guide
+    /// holds notices while open; closing it records Skip and its step, Finish records Completed and opens the War Room.
+    /// </summary>
+    private static async Task CheckGuideEntryAsync(App app, AppHost host)
+    {
+        using (var menu = new Forms.ContextMenuStrip())
+        {
+            app.AddGuideItems(menu);
+            var items = menu.Items.Cast<Forms.ToolStripItem>().Select(i => i.Text).ToList();
+            Check(items.Contains(App.TrayGuideItem) && items.Contains(App.TrayCheatSheetItem), $"the tray menu has [{string.Join(", ", items)}]");
+        }
+
+        IShell shell = app;
+        shell.OpenSetupWizard(nameof(OnboardingStep.Hotkeys));
+        await Pump();
+        var wizard = app.Wizard;
+        Check(wizard is { IsVisible: true }, "OpenSetupWizard did not show the guide");
+        Check(wizard!.ViewModel.Current == OnboardingStep.Hotkeys, $"the guide opened at {wizard.ViewModel.Current}, not Hotkeys");
+        Check(host.Notices?.IsHeld == true, "notices are not held while the guide is open");
+        shell.OpenSetupWizard(nameof(OnboardingStep.OcrLanguages));
+        await Pump();
+        Check(ReferenceEquals(app.Wizard, wizard), "a second OpenSetupWizard opened another guide");
+        Check(wizard.ViewModel.Current == OnboardingStep.OcrLanguages, $"the open guide is at {wizard.ViewModel.Current}, not OcrLanguages");
+        wizard.Close();
+        await Pump();
+        Check(app.Wizard is null, "the closed guide is still App's guide");
+        Check(host.Notices?.IsHeld == false, "notices are still held after the guide closed");
+        Check(host.Settings.Onboarding.Skipped && host.Settings.Onboarding.LastStep == nameof(OnboardingStep.OcrLanguages),
+            "closing the guide did not record Skip and its step");
+        Check(!host.Watcher.IsPreviewing, "the closed guide still holds a preview lease");
+
+        // Finish on the last step: Completed and FirstRunCompleted, then MainWindow on the War Room (REQ-OUXA-10).
+        host.Settings.Onboarding.Skipped = false;
+        shell.OpenSetupWizard(nameof(OnboardingStep.Hotkeys));
+        await Pump();
+        Check(app.Wizard!.ViewModel.IsLast, "Hotkeys is not the guide's last step");
+        app.Wizard.ViewModel.NextCommand.Execute(null);
+        await Pump();
+        Check(app.Wizard is null, "Finish did not close the guide");
+        Check(host.Settings.Onboarding.Completed && host.Settings.FirstRunCompleted, "Finish did not record Completed and FirstRunCompleted");
+        Check(app.Main is { } shown && shown.PageFor(PageIds.Dashboard).IsVisible, "Finish did not open MainWindow on the War Room");
+        app.Main!.Close();
+        await Pump();
+
+        // Start the per-palette checks as a user who has not finished the guide (the Finish-setup callout shows).
+        host.Settings.Onboarding.Completed = false;
+        host.Settings.Onboarding.LastStep = "";
+    }
+
+    /// <summary>AC-OUXA-7: a seeded OCR notice is in the War Room list.</summary>
+    private static async Task CheckNoticesAsync(AppHost host, MainWindow main)
+    {
+        main.Navigate(PageIds.Dashboard);
+        var notice = NoticeFactory.OcrMissing(["ja"])!;
+        host.Notices!.Submit(notice, gameForeground: false); // ApplySettings re-checks OCR and may have withdrawn the setup seed
+        await Pump();
+        var page = (WarRoomPage)main.PageFor(PageIds.Dashboard);
+        var vm = (MainViewModel)main.DataContext;
+        Check(vm.Notices.Any(n => n.Key == notice.Key), "the seeded notice is not in the view model's list");
+        Check(page.NoticeList.IsVisible, "the War Room notice list is not visible");
+        Check(page.NoticeRows.Items.Cast<Notice>().Any(n => n.Key == notice.Key) || vm.Notices.Count > MainViewModel.VisibleNoticeLimit,
+            "the seeded notice has no row in the War Room list");
+    }
+
+    /// <summary>
+    /// AC-OUXA-12: banner, notice list and hint slot top to bottom; the slot shows Finish-setup (and Privacy without the
+    /// acknowledgement); four notices show three rows and "Show all (4)"; "Don't remind me" removes one for good.
+    /// </summary>
+    private static async Task CheckWarRoomLayoutAsync(AppHost host, MainWindow main, bool first)
+    {
+        main.Navigate(PageIds.Dashboard);
+        var page = (WarRoomPage)main.PageFor(PageIds.Dashboard);
+        var vm = (MainViewModel)main.DataContext;
+        Check(!host.Settings.Onboarding.Completed, "the layout check expects an unfinished guide");
+        vm.RefreshStatus();
+        await Pump();
+        Check(page.NoticeList.IsVisible && page.HintSlot.IsVisible, "the notice list or the hint slot is not visible");
+        Check(page.FinishSetupCallout.IsVisible && !page.PrivacyCallout.IsVisible, "the hint slot does not show the Finish-setup callout");
+        var slots = new FrameworkElement[] { main.SafeModeBanner, page.UpdateBanner, page.NoticeList, page.HintSlot }.Where(e => e.IsVisible).ToList();
+        var ys = slots.Select(e => e.TranslatePoint(new Point(0, 0), main).Y).ToList();
+        for (var i = 1; i < ys.Count; i++)
+            Check(ys[i] > ys[i - 1], $"War Room slot {slots[i].Name} (y={ys[i]:0}) is not below {slots[i - 1].Name} (y={ys[i - 1]:0})");
+        if (!first) return;
+
+        host.SetPrivacyAcknowledged(false);
+        vm.RefreshStatus();
+        await Pump();
+        Check(page.PrivacyCallout.IsVisible && !page.FinishSetupCallout.IsVisible, "without the acknowledgement the hint slot does not show Privacy");
+        host.SetPrivacyAcknowledged(true);
+
+        var center = host.Notices!;
+        center.ResolveWhere(_ => true);
+        for (var i = 1; i <= 4; i++)
+            center.Submit(NoticeFactory.ProviderFailing($"smoke-{i}", $"Smoke {i}", ProviderState.AuthFailed)!, gameForeground: false);
+        await Pump();
+        Check(page.NoticeRows.Items.Count == MainViewModel.VisibleNoticeLimit, $"{page.NoticeRows.Items.Count} notice rows, expected {MainViewModel.VisibleNoticeLimit}");
+        Check(page.ShowAllNoticesToggle.IsVisible && page.ShowAllNoticesText.Text == "Show all (4)", $"the toggle reads '{page.ShowAllNoticesText.Text}'");
+        vm.ShowAllNotices = true;
+        await Pump();
+        Check(page.NoticeRows.Items.Count == 4, "Show all did not list every notice");
+
+        var dismissed = NoticeFactory.ProviderKey("smoke-1");
+        vm.DismissNoticeCommand.Execute(dismissed);
+        await Pump();
+        Check(vm.Notices.All(n => n.Key != dismissed) && host.Settings.Notifications.Dismissed.Contains(dismissed), "Don't remind me did not dismiss the notice");
+        Check(center.Submit(NoticeFactory.ProviderFailing("smoke-1", "Smoke 1", ProviderState.AuthFailed)!, false) == NoticeDecision.Suppress
+            && vm.Notices.All(n => n.Key != dismissed), "a dismissed notice came back");
+        host.Settings.Notifications.Dismissed.Remove(dismissed);
+        vm.ShowAllNotices = false;
+        center.ResolveWhere(k => k.StartsWith(NoticeFactory.ProviderKeyPrefix + "smoke-", StringComparison.Ordinal));
+        await Pump();
+    }
+
+    /// <summary>AC-OUXA-9: a balloon's action opens App's MainWindow on Translation or Reading Chat.</summary>
+    private static async Task CheckNoticeActionsAsync(App app)
+    {
+        app.RunNoticeAction(NoticeActions.OpenTranslation);
+        await Pump();
+        Check(app.Main is { } main && main.PageFor(PageIds.Translation).IsVisible, "open-translation did not show the Translation page");
+        app.RunNoticeAction(NoticeActions.OpenCapture);
+        await Pump();
+        Check(app.Main!.PageFor(PageIds.Capture).IsVisible, "open-capture did not show the Reading Chat page");
+        app.Main.Close();
+        await Pump();
+    }
+
+    /// <summary>AC-OUXA-12: Appearance and About sections in the contract §8.6 order.</summary>
+    private static async Task CheckPageOrderAsync(MainWindow main)
+    {
+        main.Navigate(PageIds.Appearance);
+        await Pump();
+        var appearance = (AppearancePage)main.PageFor(PageIds.Appearance);
+        CheckOrder(appearance, "Appearance", appearance.ThemesList, appearance.NotificationsFrame, appearance.StartupFrame);
+        main.Navigate(PageIds.About);
+        await Pump();
+        var about = (AboutPage)main.PageFor(PageIds.About);
+        CheckOrder(about, "About", about.VersionFrame, about.SetupGuideFrame, about.TroubleshootingFrame, about.PrivacyFrame, about.LicencesText);
+        main.Navigate(PageIds.Dashboard);
+        await Pump();
+    }
+
+    private static void CheckOrder(FrameworkElement page, string name, params FrameworkElement[] elements)
+    {
+        var ys = elements.Select(e => e.TranslatePoint(new Point(0, 0), page).Y).ToList();
+        for (var i = 1; i < ys.Count; i++)
+            Check(ys[i] > ys[i - 1], $"{name}: {elements[i].Name} (y={ys[i]:0}) is not below {elements[i - 1].Name} (y={ys[i - 1]:0})");
+    }
+
+    /// <summary>
+    /// AC-OUXA-1, 4: every built step shows exactly one panel and "Step n of N"; the live view is active only on Chat area
+    /// and its lease is gone after Close. The first palette also runs the test translation (REQ-OUXA-8).
+    /// </summary>
+    private static async Task CheckGuideAsync(App app, AppHost host, string palette, bool first, string? shots)
+    {
+        var wizard = new SetupWizardWindow(host, app, OnboardingStep.Language);
+        wizard.Show();
+        await Pump();
+        var vm = wizard.ViewModel;
+        Check(vm.StepCount == OnboardingFlow.AllSteps.Count, $"the guide has {vm.StepCount} steps");
+        Check(vm.CanGoNext, "Next is disabled on Language although translation was acknowledged");
+        for (var i = 0; i < vm.Steps.Count; i++)
+        {
+            var step = vm.Steps[i].Step;
+            vm.GoTo(step);
+            await Pump();
+            var visible = vm.Steps.Where(s => wizard.PanelFor(s.Step).IsVisible).Select(s => s.Step).ToList();
+            Check(visible.Count == 1 && visible[0] == step, $"step {step}: visible panels [{string.Join(", ", visible)}]");
+            Check(wizard.StepCounter.Text == $"Step {i + 1} of {vm.StepCount}", $"step {step}: the counter reads '{wizard.StepCounter.Text}'");
+            var chat = step == OnboardingStep.ChatArea;
+            Check(vm.CapturePreview.IsActive == chat && host.Watcher.IsPreviewing == chat, $"step {step}: live view active={vm.CapturePreview.IsActive}, lease={host.Watcher.IsPreviewing}");
+            if (shots is not null && palette == "imperial") Save(wizard, Path.Combine(shots, $"{palette}-setup-{step.ToString().ToLowerInvariant()}.png"));
+        }
+        Check(vm.Steps.All(s => s.Status != StepStatus.NotVisited), "a visited step still reads Not visited");
+
+        if (first)
+        {
+            vm.GoTo(OnboardingStep.TestTranslation);
+            var run = vm.TestTranslateCommand.ExecuteAsync();
+            await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(5)));
+            await Pump();
+            Check(vm.TestOutput.Length > 0, "the test translation shows nothing");
+            if (!run.IsCompleted || vm.TestOutput == TranslationTestText.Pending) Warn("the guide's test translation did not finish within 5 s");
+        }
+
+        wizard.Close();
+        await Pump();
+        Check(!host.Watcher.IsPreviewing, "the guide's live view still holds a preview lease after Close");
+    }
+
+    /// <summary>The tray notifier holds a notice until it is attached, then shows it without throwing (spec 07a smoke plan).</summary>
+    private static void CheckTrayNotifier()
+    {
+        var notice = NoticeFactory.OcrMissing(["ja"])!;
+        using var notifier = new TrayNotifier(_ => { }, _smokeLog);
+        notifier.Show(notice);
+        Check(ReferenceEquals(notifier.Held, notice), "a notice shown before Attach was not held");
+        using var icon = new Forms.NotifyIcon { Icon = System.Drawing.SystemIcons.Information, Visible = true, Text = "Envoy smoke" };
+        notifier.Attach(icon);
+        Check(notifier.Held is null, "Attach did not show the held notice");
+        Check(notifier.PendingAction == notice.ActionId, "the held notice's balloon failed (see the log)");
+        icon.Visible = false;
+    }
+
     // ---------------- 06 checks ----------------
 
     /// <summary>
@@ -673,6 +936,7 @@ internal static class SmokeTest
         var data = Path.Combine(root, "portable-data");
         var portable = new AppHost(Path.Combine(data, "settings.json"), app.Dispatcher,
             new AppHostOptions { DataFolder = data, Log = log, RecentLog = recent, UpdateBackend = new SmokeUpdateBackend(InstallKind.Portable) });
+        portable.SetPrivacyAcknowledged(true); // every smoke host but the main one confirms right after construction (AC-OUXA-11)
         Check(portable.DataFolder.StartsWith(root, StringComparison.OrdinalIgnoreCase), "the portable host's data folder is outside the smoke root");
         await portable.Updates.CheckAsync(manual: true);
         var view = UpdateViewBuilder.Build(portable.Updates.Snapshot);
@@ -794,7 +1058,9 @@ internal static class SmokeTest
         var data = Path.Combine(root, "safe-data");
         var safeHost = new AppHost(Path.Combine(data, "settings.json"), app.Dispatcher,
             new AppHostOptions { DataFolder = data, Log = log, RecentLog = recent, SafeMode = SafeModeReason.CommandLine });
+        safeHost.SetPrivacyAcknowledged(true);
         Check(safeHost.DataFolder.StartsWith(root, StringComparison.OrdinalIgnoreCase), "the safe host's data folder is outside the smoke root");
+        Check(safeHost.Notices is null, "safe mode created a NoticeCenter (contract §2.2)");
         Check(safeHost.Settings.StartCapturingAutomatically, "the safe host's defaults should ask for automatic capture");
         safeHost.Start();
         Check(safeHost.IsSafeMode, "the safe host is not in safe mode");

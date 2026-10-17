@@ -9,6 +9,8 @@ using Envoy.App.Windows;
 using Envoy.Core.Diagnostics;
 using Envoy.Core.Hotkeys;
 using Envoy.Core.Languages;
+using Envoy.Core.Notifications;
+using Envoy.Core.Onboarding;
 using Envoy.Core.Security;
 using Envoy.Core.Settings;
 using Envoy.Core.Updates;
@@ -34,6 +36,8 @@ public partial class App : Application, IShell
     private MainWindow? _main;
     private OverlayWindow? _overlay;
     private ComposeWindow? _compose;
+    private SetupWizardWindow? _wizard;
+    private TrayNotifier? _notifier;
     private LogHub? _hub;
     private MemoryLogSink? _recent;
     private ILog _log = NullLog.Instance;
@@ -137,13 +141,18 @@ public partial class App : Application, IShell
         var plan = StartupPlan.For(safe, e.Args.Contains("--minimized"), Host.Settings.FirstRunCompleted,
             Host.Settings.StartCapturingAutomatically);
 
-        // 8. Notification services: toasts and the throttle always. [07a NoticeCenter + TrayNotifier unless safe]
-        //    [07b high-contrast listeners]
+        // 8. Notification services: toasts and the throttle always; the advisory notifier (07a) unless in safe mode (the
+        //    host creates NoticeCenter only then). [07b high-contrast listeners]
         _toasts = new ToastService(Dispatcher, Host.Notifications, () => Host.Settings.Diagnostics.ShowErrorToasts,
             () => Host.Game?.MainWindow ?? IntPtr.Zero, OpenTroubleshooting, hub.For("Toast"));
         _handlers.ShowProblem = _toasts.Show;
         _handlers.BeforeCrashLoopExit = PrepareCrashLoopExit;
         Host.ProblemReported += _toasts.Show;
+        if (Host.Notices is not null)
+        {
+            _notifier = new TrayNotifier(RunNoticeAction, hub.For("Notices"));
+            Host.NoticeReady += _notifier.Show;
+        }
 
         // 9. Start (no automatic capture in safe mode), then automatic update checks unless in safe mode (06). The
         //    coordinator exists either way, so About's "Check for updates" works in safe mode too.
@@ -168,9 +177,13 @@ public partial class App : Application, IShell
             Host.HotkeyResults = [.. HotkeyBindings().Select(b => new HotkeyRegistrationResult(b.Id, HotkeyText.ActionName(b.Id), b.Combo ?? "", HotkeyStatus.SkippedSafeMode))];
         }
 
-        // 11. Tray, then the window choice. [07a guide gate]
+        // 11. Tray (the notifier attaches and shows a notice held since step 9), then the window choice: MainWindow in safe
+        //     mode, the tray only with --minimized, the setup guide for a new user (07a), else the first-run rule.
         CreateTray(plan.SafeMode);
-        if (plan.ShowMainWindow) ShowMain();
+        if (_tray is not null) _notifier?.Attach(_tray);
+        var minimized = e.Args.Contains("--minimized");
+        if (OnboardingGate.ShouldAutoOpenAtStartup(plan.SafeMode, minimized, Host.Settings)) OpenSetupWizard(Host.Settings.Onboarding.LastStep);
+        else if (plan.ShowMainWindow) ShowMain();
         ShowStartupProblem(history);
 
         // 12. Healthy after 30 s or the first MainWindow render, whichever comes first.
@@ -262,9 +275,16 @@ public partial class App : Application, IShell
     {
         _main?.Hide();
         _compose?.Hide();
+        var wizard = _wizard;
+        wizard?.Hide();
         var region = await RegionSelectorWindow.SelectAsync(Host.Watcher.CurrentRegion);
         if (region is not null) Host.SetRegion(region);
         _main?.Show();
+        if (wizard is { IsClosing: false } && ReferenceEquals(wizard, _wizard))
+        {
+            wizard.Show();
+            wizard.Activate();
+        }
         _overlay?.Reposition();
     }
 
@@ -316,10 +336,12 @@ public partial class App : Application, IShell
         _exiting = true;
         _healthyTimer?.Stop();
 
-        // 1. Hide the overlay and unregister hotkeys.
+        // 1. Hide the overlay and unregister hotkeys. An open setup guide closes without counting as Skip: it remembers
+        //    its step and opens again next time (07a).
         _overlay?.Hide();
         _hotkeys?.Dispose();
         _hotkeys = null;
+        CloseWizardForExit();
 
         // 2. Apply pending edits and save, unless a reset or Delete-all suppressed saving. This is the last settings write:
         //    MainWindow.OnClosed (run later by Shutdown) no longer applies or saves.
@@ -332,7 +354,13 @@ public partial class App : Application, IShell
         // 4. End the session cleanly.
         _sentinel?.EndSession();
 
-        // 5. Notifications and tray. [07a notifier]
+        // 5. Notifications and tray: the notifier (07a) before the tray it is attached to.
+        if (_notifier is not null)
+        {
+            Host.NoticeReady -= _notifier.Show;
+            _notifier.Dispose();
+            _notifier = null;
+        }
         _toasts?.CloseAll();
         Host.PropertyChanged -= OnHostPropertyChanged;
         _restartToUpdateItem = null;
@@ -440,6 +468,7 @@ public partial class App : Application, IShell
         };
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("Open Envoy", null, (_, _) => ShowMain());
+        AddGuideItems(menu);
         if (safeMode) menu.Items.Add("Restart normally", null, (_, _) => Restart(false));
         menu.Items.Add("Reply…", null, (_, _) => OpenCompose());
         menu.Items.Add("Scan && translate…", null, (_, _) => ScanAndTranslate());
@@ -563,5 +592,102 @@ public partial class App : Application, IShell
         if (!Host.Updates.CanRestartToUpdate) return;
         _log.Info("Restarting to update", LogField.Of("version", Host.Updates.Snapshot.Available?.Version));
         ExitApp(_main is { IsVisible: true } ? RestartFlags.None : RestartFlags.Minimized, applyUpdate: true);
+    }
+
+    // ---- 07a ----
+
+    /// <summary>The tray items after "Open Envoy" (REQ-OUXA-3, 9). The smoke test builds a menu with them.</summary>
+    internal void AddGuideItems(Forms.ContextMenuStrip menu)
+    {
+        menu.Items.Add(TrayGuideItem, null, (_, _) => OpenSetupWizard());
+        menu.Items.Add(TrayCheatSheetItem, null, (_, _) => OpenSetupWizard(nameof(OnboardingStep.Hotkeys)));
+    }
+
+    internal const string TrayGuideItem = "Setup guide…";
+    internal const string TrayCheatSheetItem = "Hotkey cheat sheet…";
+
+    /// <summary>The open setup guide, if any (the smoke test checks the single instance).</summary>
+    internal SetupWizardWindow? Wizard => _wizard;
+
+    /// <summary>The MainWindow App shows (ShowMain / ShowPage); null when closed.</summary>
+    internal MainWindow? Main => _main;
+
+    /// <inheritdoc />
+    public void OpenSetupWizard(string? stepId = null)
+    {
+        if (_exiting) return;
+        if (_wizard is { IsClosing: false } open)
+        {
+            if (stepId is not null) open.ViewModel.GoTo(OnboardingGate.ParseStep(stepId));
+            if (!open.IsVisible) open.Show();
+            if (open.WindowState == WindowState.Minimized) open.WindowState = WindowState.Normal;
+            open.Activate();
+            return;
+        }
+        var start = stepId is null ? OnboardingStep.Language : OnboardingGate.ParseStep(stepId);
+        _wizard = new SetupWizardWindow(Host, this, start);
+        _wizard.ViewModel.Finished += OnWizardFinished;
+        Host.Notices?.Hold(true); // every advisory waits while the guide is open (contract §2.2)
+        _log.Info("Setup guide opened", LogField.Of("step", start));
+        _wizard.Show();
+        _wizard.Activate();
+    }
+
+    /// <inheritdoc />
+    public void ShowPage(string pageId)
+    {
+        ShowMain();
+        _main?.Navigate(pageId);
+    }
+
+    /// <summary>Finish (completed) or Skip setup, Esc and the close button: record it, release held notices (REQ-OUXA-10).</summary>
+    private void OnWizardFinished(bool completed)
+    {
+        if (_wizard is not { } wizard) return;
+        _wizard = null;
+        wizard.ViewModel.Finished -= OnWizardFinished;
+        if (!Host.SaveSuppressed)
+        {
+            OnboardingOutcome.Apply(Host.Settings, completed, wizard.ViewModel.Current);
+            Host.SaveNow();
+        }
+        _log.Info("Setup guide closed", LogField.Of("completed", completed), LogField.Of("step", wizard.ViewModel.Current));
+        Host.Notices?.Hold(false);
+        Host.ReleaseDeferredNotices();
+        if (!wizard.IsClosing) wizard.Close();
+        if (completed) ShowPage(PageIds.Dashboard);
+    }
+
+    /// <summary>Exit step 1: the guide closes without counting as Skip; its step is kept unless saving is suppressed.</summary>
+    private void CloseWizardForExit()
+    {
+        if (_wizard is not { } wizard) return;
+        _wizard = null;
+        wizard.ViewModel.Finished -= OnWizardFinished;
+        if (!Host.SaveSuppressed) Host.Settings.Onboarding.LastStep = wizard.ViewModel.Current.ToString();
+        Host.Notices?.Hold(false);
+        if (!wizard.IsClosing) wizard.Close();
+    }
+
+    /// <summary>What clicking a balloon does (REQ-OUXA-17). Also run by the smoke test.</summary>
+    internal void RunNoticeAction(string actionId)
+    {
+        switch (actionId)
+        {
+            case NoticeActions.OpenCapture:
+                ShowPage(PageIds.Capture);
+                break;
+            case NoticeActions.OpenTranslation:
+                ShowPage(PageIds.Translation);
+                break;
+            case NoticeActions.UpdatePrimary:
+                // One dispatcher for UpdateAction, shared by the banner, the tray item and the balloon (06).
+                ShowPage(PageIds.Dashboard);
+                UpdateActions.Run(Host.UpdateView.Primary, Host, this, Log("Updates"));
+                break;
+            default:
+                _log.Warn("Unknown notice action", null, LogField.Of("action", actionId));
+                break;
+        }
     }
 }

@@ -11,9 +11,11 @@ using Envoy.Core.Chat;
 using Envoy.Core.Diagnostics;
 using Envoy.Core.Games;
 using Envoy.Core.Hotkeys;
+using Envoy.Core.Languages;
 using Envoy.Core.Notifications;
 using Envoy.Core.Phrases;
 using Envoy.Core.Pipeline;
+using Envoy.Core.Privacy;
 using Envoy.Core.Settings;
 using Envoy.Core.Translation;
 using Envoy.Core.Translation.Resilience;
@@ -87,6 +89,10 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     private bool _gameWasRunning;
     private bool _updatesStarted;
     private bool _disposed;
+    // The privacy gate (contract §8.1): published at ApplySettings position 2, read by PrivacyGatedTranslator on pool threads.
+    private volatile bool _privacyAcknowledged;
+    private readonly DispatcherTimer? _noticeTimer;
+    private readonly ILog _noticesLog;
 
     public AppHost(string settingsPath, Dispatcher ui, AppHostOptions? options = null)
     {
@@ -103,6 +109,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         _captureLog = Log.For("Capture");
         _translationLog = Log.For("Translation");
         _chatLog = Log.For("Chat");
+        _noticesLog = Log.For("Notices");
         _startedAt = Time.GetUtcNow();
 
         // Contract §3 constructor order. 1: settings (02).
@@ -122,9 +129,11 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         // Browser-like (the keyless providers depend on it); only the Envoy token carries the version (contract §3).
         _http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgents.Default(AppVersion));
         _factory = new TranslatorFactory(_http, Usage, TranslationRuntime);
+        _privacyAcknowledged = PrivacyText.IsAcknowledged(Settings.Onboarding.PrivacyAcknowledgedVersion);
         (_translator, _composeTranslator) = BuildTranslator();
 
-        Phrases = PhraseBook.LoadWithUserFile(UserPhrasesPath);
+        Phrases = PhraseBook.LoadWithUserFile(UserPhrasesPath, out var phrasesError);
+        PhrasesLoadError = phrasesError;
         Ocr = new OcrService(Time);
         // 5: ChatFormatCatalog (04): built-in formats plus the user's chat-formats.json, read only.
         ChatFormats = ChatFormatCatalog.LoadWithUserFile(ChatFormatsPath, _chatLog);
@@ -143,7 +152,15 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Updates = new UpdateCoordinator(options.UpdateBackend ?? UpdateBackendFactory.Create(_http, AppVersion, _updatesLog),
             UpdatePreferences.From(Settings, IsSafeMode), OnUpdateCheckCompleted, Time, _updatesLog);
         Updates.Changed += OnUpdatesChanged;
-        // [07a NoticeCenter, skipped in safe mode]
+        // 9: NoticeCenter (07a), skipped in safe mode (contract §2.2). Its sources all arrive on the UI thread: provider
+        //    health (OnProviderHealthChanged), update state (RefreshUpdateView), game window (PublishGameWindow) and the
+        //    OCR check (ApplySettings position 8 and Start); a 5 s timer re-offers deferred balloons.
+        if (!IsSafeMode)
+        {
+            Notices = new NoticeCenter(Settings, Notifications);
+            _noticeTimer = new DispatcherTimer(TimeSpan.FromSeconds(5), DispatcherPriority.Background, (_, _) => ReleaseDeferredNotices(), _ui);
+            _noticeTimer.Start();
+        }
 
         Pipeline.MessageReceived += OnPipelineMessageReceived;
         Pipeline.MessageUpdated += OnPipelineMessageUpdated;
@@ -199,6 +216,24 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
 
     /// <summary>The single notification throttle (contract §2.2).</summary>
     public NotificationThrottle Notifications { get; }
+
+    /// <summary>Advisory notices (07a): the War Room list and the tray balloons. Null in safe mode. UI thread only.</summary>
+    public NoticeCenter? Notices { get; }
+
+    /// <summary>A notice to show as a tray balloon now; raised on the UI thread (App's <c>TrayNotifier</c> shows it).</summary>
+    public event Action<Notice>? NoticeReady;
+
+    /// <summary>Why phrases.json was not loaded the last time it was read; null when it loaded or does not exist (REQ-OUXA-23).</summary>
+    public string? PhrasesLoadError { get; private set; }
+
+    /// <summary>
+    /// True once the user confirmed "What leaves your PC" for the current <see cref="PrivacyText.Version"/>; until then no
+    /// text reaches any provider (contract §8.1). UI thread.
+    /// </summary>
+    public bool PrivacyAcknowledged => PrivacyText.IsAcknowledged(Settings.Onboarding.PrivacyAcknowledgedVersion);
+
+    /// <summary>The provider chain's display names, in order ("What leaves your PC").</summary>
+    public IReadOnlyList<string> ActiveProviderNames => [.. _activeProviderIds.Select(ProviderCatalog.NameOf)];
 
     /// <summary>True after a reset or "Delete all Envoy data": nothing may write settings.json again this session.</summary>
     public bool SaveSuppressed => _store.SavesSuppressed;
@@ -341,7 +376,36 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         _windowTimer.Start();
         RefreshGameWindow();
         if (!IsSafeMode && Settings.StartCapturingAutomatically) Watcher.Start();
+        CheckOcrReadiness();
         Notify(nameof(CaptureStatus));
+    }
+
+    /// <summary>
+    /// Records (or withdraws) the "What leaves your PC" acknowledgement and applies it at once, not through a page's
+    /// debounce, so the gate is open before the next translation (REQ-OUXA-47). UI thread.
+    /// </summary>
+    public void SetPrivacyAcknowledged(bool acknowledged)
+    {
+        var version = acknowledged ? PrivacyText.Version : 0;
+        if (Settings.Onboarding.PrivacyAcknowledgedVersion == version) return;
+        Settings.Onboarding.PrivacyAcknowledgedVersion = version;
+        _log.Info("Privacy acknowledgement changed", LogField.Of("acknowledged", acknowledged));
+        ApplySettings();
+    }
+
+    /// <summary>
+    /// Shows every deferred advisory that may be shown now (contract §2.2): on game-window changes, on game exit
+    /// (RefreshGame position 4), when the guide closes and every 5 s. The throttle's spacing releases at most one per call.
+    /// UI thread.
+    /// </summary>
+    public void ReleaseDeferredNotices()
+    {
+        if (_disposed || Notices is null) return;
+        while (Notices.TakeDeferred(GameWindow?.GameForeground == true) is { } notice)
+        {
+            LogNotice(notice, NoticeDecision.Show, deferred: true);
+            Announce(notice);
+        }
     }
 
     /// <summary>
@@ -459,6 +523,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         ApplyDiagnosticsSettings(); // contract §3 ApplySettings position 1
         var translationOptions = TranslationRuntimeOptions.From(Settings.Translation); // 2: publish the snapshots
         Volatile.Write(ref _captureOptions, CaptureOptions.From(Settings));
+        _privacyAcknowledged = PrivacyText.IsAcknowledged(Settings.Onboarding.PrivacyAcknowledgedVersion); // the gate (07a)
         TranslationRuntime.Configure(translationOptions); // 3
         (_translator, _composeTranslator) = BuildTranslator(); // 4
         Pipeline.Translator = _translator;
@@ -466,13 +531,65 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         ConfigureOcr();
         Watcher.Invalidate(); // 6 (05)
         Updates.Configure(UpdatePreferences.From(Settings, IsSafeMode), UpdatesToken).Forget(_updatesLog, "update channel check"); // 7 (06)
+        CheckOcrReadiness(); // 8 (07a)
         ApplyTheme();
         StartupRegistration.Apply(Settings.StartWithWindows);
         ScheduleSave();
+        Notify(nameof(PrivacyAcknowledged));
         SettingsApplied?.Invoke();
     }
 
-    public void ReloadPhrases() => Phrases = PhraseBook.LoadWithUserFile(UserPhrasesPath);
+    /// <summary>Re-reads phrases.json; <see cref="PhrasesLoadError"/> says why it was not used (REQ-OUXA-23).</summary>
+    public void ReloadPhrases()
+    {
+        Phrases = PhraseBook.LoadWithUserFile(UserPhrasesPath, out var error);
+        if (error is not null && error != PhrasesLoadError) Log.For("Phrases").Warn("phrases.json was not loaded", null, LogField.Of("reason", error));
+        PhrasesLoadError = error;
+        Notify(nameof(PhrasesLoadError));
+    }
+
+    /// <summary>
+    /// The OCR-readiness notice (REQ-OUXA-17): wanted languages whose Windows pack is missing. A changed set resolves the
+    /// old key (so installing a pack withdraws it). OCR is unavailable on some Windows editions, so a failure is logged
+    /// and skipped. UI thread; ApplySettings position 8 and <see cref="Start"/>.
+    /// </summary>
+    private void CheckOcrReadiness()
+    {
+        if (Notices is null || _disposed) return;
+        try
+        {
+            var installed = OcrService.InstalledLanguages().Select(l => l.Code);
+            var missing = OcrReadiness.MissingWanted(Settings.Capture.OcrLanguages, Settings.MyLanguage, installed);
+            var notice = NoticeFactory.OcrMissing(missing);
+            Notices.ResolveWhere(k => k.StartsWith(NoticeFactory.OcrKeyPrefix, StringComparison.Ordinal) && k != notice?.Key);
+            Submit(notice);
+        }
+        catch (Exception ex)
+        {
+            _noticesLog.Warn("Text recognition check failed", ex);
+        }
+    }
+
+    /// <summary>Asks <see cref="Notices"/> about <paramref name="notice"/>; a Show raises <see cref="NoticeReady"/>. UI thread.</summary>
+    private void Submit(Notice? notice)
+    {
+        if (notice is null || Notices is null || _disposed) return;
+        var decision = Notices.Submit(notice, GameWindow?.GameForeground == true);
+        LogNotice(notice, decision, deferred: false);
+        if (decision == NoticeDecision.Show) Announce(notice);
+    }
+
+    private void Announce(Notice notice)
+    {
+        // Showing an update notice recorded its version (Updates.LastAnnouncedVersion), so a restart doesn't repeat it.
+        if (notice.Kind == NoticeKind.UpdateAvailable) ScheduleSave();
+        NoticeReady?.Invoke(notice);
+    }
+
+    // Keys hold language codes, provider ids or versions only (never chat text or keys).
+    private void LogNotice(Notice notice, NoticeDecision decision, bool deferred) =>
+        _noticesLog.Info("Notice", LogField.Of("kind", notice.Kind), LogField.Of("key", notice.Key), LogField.Of("decision", decision),
+            LogField.Of("deferred", deferred));
 
     public void ScheduleSave()
     {
@@ -542,6 +659,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         GameWindow = info;
         PushGameRunning();
         GameWindowChanged?.Invoke();
+        ReleaseDeferredNotices(); // an advisory deferred while the game was in front (contract §2.2)
     });
 
     /// <summary>
@@ -565,6 +683,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         if (_disposed) return;
         _updateView = UpdateViewBuilder.Build(Updates.Snapshot, JustUpdatedTo);
         Notify(nameof(UpdateView));
+        Submit(NoticeFactory.UpdateAvailable(Updates.Snapshot, _updateView)); // the update balloon (07a, contract §2.5)
     }
 
     /// <summary>After every completed check (any thread): remember when, on the UI thread (contract §7).</summary>
@@ -597,7 +716,8 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         // A translation can finish after Dispose (the watcher does not wait for in-flight work) or after a reset or
         // "Delete all Envoy data": nothing may write logs/chat-*.txt or speak then.
         if (_disposed || SaveSuppressed) return;
-        if (!isNew && message.Status == IncomingStatus.Failed && !message.WasCancelled)
+        // While the privacy gate is closed every line fails the same known way (PrivacyText.TranslationOff): not a warning.
+        if (!isNew && message.Status == IncomingStatus.Failed && !message.WasCancelled && _privacyAcknowledged)
         {
             _translationLog.Warn("Message translation failed", null, LogField.Sensitive("text", message.Chat.Text),
                 LogField.Of("error", message.Error));
@@ -665,12 +785,16 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     /// </summary>
     private (ITranslator Chat, ITranslator Compose) BuildTranslator()
     {
-        var chat = _factory.Build(Settings.Translation);
-        var compose = _factory.Build(Settings.Translation, lane: TranslationLane.Compose);
+        // The privacy gate is outermost (contract §8.1): while closed, nothing reaches 03's runtime, health or cache.
+        var chat = new PrivacyGatedTranslator(_factory.Build(Settings.Translation), IsPrivacyGateOpen);
+        var compose = new PrivacyGatedTranslator(_factory.Build(Settings.Translation, lane: TranslationLane.Compose), IsPrivacyGateOpen);
         _activeProviderIds = TranslatorFactory.ChainIds(Settings.Translation);
         RefreshProviderStatus();
         return (chat, compose);
     }
+
+    /// <summary>Any thread: the volatile flag ApplySettings publishes.</summary>
+    private bool IsPrivacyGateOpen() => _privacyAcknowledged;
 
     /// <summary>The War Room status line, derived from the health registry (REQ-TRR-18). UI thread.</summary>
     private void RefreshProviderStatus()
@@ -688,6 +812,16 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         if (_disposed) return;
         RefreshProviderStatus();
         ProviderHealthChanged?.Invoke(snapshot);
+        // The provider notice follows the state edges (REQ-OUXA-17); Healthy re-arms it.
+        switch (ProviderNoticeRules.For(snapshot.State))
+        {
+            case ProviderNoticeRule.Submit:
+                Submit(NoticeFactory.ProviderFailing(snapshot.ProviderId, ProviderCatalog.NameOf(snapshot.ProviderId), snapshot.State));
+                break;
+            case ProviderNoticeRule.Resolve:
+                Notices?.Resolve(NoticeFactory.ProviderKey(snapshot.ProviderId));
+                break;
+        }
     });
 
     /// <summary>The pipeline's options snapshot, with the chat format resolved for the current game (REQ-CHAT-20, 33).</summary>
@@ -726,7 +860,8 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Pipeline.Options = BuildChatOptions(); // 2: format re-resolve for the new game (REQ-CHAT-34)
         // 3: a download that waited for the game starts once it closes (06, REQ-DIST-16).
         PushGameRunning();
-        // [07a Notices.TakeDeferred]
+        // 4: advisories deferred while the game was in front (07a, contract §2.2).
+        ReleaseDeferredNotices();
         if (_game is not null && before is null) NewMatch();
         Notify(nameof(Game));
         Notify(nameof(GameStatus));
@@ -747,6 +882,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Watcher.RegionChanged -= OnWatcherRegionChanged;
         TranslationRuntime.ProviderHealthChanged -= OnProviderHealthChanged;
         Updates.Changed -= OnUpdatesChanged;
+        _noticeTimer?.Stop();
         _updatesCts.Cancel(); // aborts an in-flight download; Velopack removes the partial file next time (contract §4)
         _updateTimer.Stop();
         _gameTimer.Stop();

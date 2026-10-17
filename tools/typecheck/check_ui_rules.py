@@ -1,4 +1,4 @@
-"""Mechanical checks for the UI-structure rules of specs 01 and 02 (stdlib only).
+"""Mechanical checks for the UI-structure rules of specs 01, 02, 05, 06 and 07a (stdlib only).
 
 Usage: check_ui_rules.py <src/Envoy.App dir>. Prints `path:line: UIF-Rn message` (or `UPDn message`) per violation and
 exits 1 if any.
@@ -16,6 +16,8 @@ R10 Windows/ComposeWindow.xaml.cs uses no DialogService; App.xaml.cs calls
     DialogService.ShowWarning at most once (the crash-loop message)                     REQ-REL-19
 R11 Services/ChatWatcher.cs passes only CancellationToken.None to ProcessAsync( and never
     reads AppSettings or `.Settings` outside its usings (it reads the CaptureOptions snapshot)  REQ-CAP-42
+R12 ViewModels/SetupWizardViewModel.cs contains no `new AppSettings` and no `SaveNow` (the setup guide edits only
+    Host.Settings, through its applier into ApplySettings)                              AC-OUXA-1
 UPD1 `new UpdateManager(`, `UpdateManager m = new(` and `: UpdateManager` only in
     Services/VelopackUpdateBackend.cs; VelopackFlowSource and ApplyUpdatesAndRestart nowhere
     (also scanned in Envoy.Core)                                                          REQ-DIST-14, 12
@@ -51,6 +53,8 @@ REQUIRED_FILES = (
 )
 
 WATCHER = "Services/ChatWatcher.cs"
+SETUP_WIZARD_VM = "ViewModels/SetupWizardViewModel.cs"
+WIZARD_BANNED = re.compile(r"\bnew\s+AppSettings\b|\bSaveNow\b")
 VELOPACK_BACKEND = "Services/VelopackUpdateBackend.cs"
 PROGRAM = "Program.cs"
 _UPDATE_MANAGER = r"(?:Velopack\s*\.\s*)?UpdateManager"
@@ -209,6 +213,12 @@ def check(root):
         for n, line in lines.items():
             if not line.lstrip().startswith("using ") and WATCHER_SETTINGS.search(line):
                 report(watcher, n, "R11", "the watcher reads settings only through the CaptureOptions snapshot (contract §7)")
+
+    wizard_vm = os.path.join(root, *SETUP_WIZARD_VM.split("/"))
+    if os.path.exists(wizard_vm):
+        for n, line in _code_lines(_read(wizard_vm)):
+            if WIZARD_BANNED.search(line):
+                report(wizard_vm, n, "R12", "the setup guide edits Host.Settings through its applier only (no new AppSettings, no SaveNow)")
 
     _check_velopack(root, report)
     return problems

@@ -10,6 +10,8 @@
                 type in your language, and Envoy types the translation into the game's chat for you — the same way an on-screen keyboard would.
             </TextBlock>
 
+            <!-- The page callout (spec 07a, REQ-OUXA-22). -->
+            <ContentControl x:Name="PageCallout" Style="{StaticResource Callout}" Content="{Binding ReplyHint, Mode=OneWay}" />
             <ContentControl Style="{StaticResource OrnateFrame}">
                 <StackPanel>
                     <TextBlock Text="Sending" Style="{StaticResource Text.H2}" />

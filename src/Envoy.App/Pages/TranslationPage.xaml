@@ -10,6 +10,8 @@
                 Envoy has no server of its own, so nobody else can ever spend your credits.
             </TextBlock>
 
+            <!-- The page callout (spec 07a, REQ-OUXA-22). -->
+            <ContentControl x:Name="PageCallout" Style="{StaticResource Callout}" Content="{Binding TranslationHint, Mode=OneWay}" />
             <ContentControl Style="{StaticResource OrnateFrame}">
                 <StackPanel>
                     <TextBlock Text="Providers" Style="{StaticResource Text.H2}" />

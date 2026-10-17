@@ -1,0 +1,257 @@
+<Window x:Class="Envoy.App.Windows.SetupWizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:Envoy.App.Controls"
+        xmlns:pv="clr-namespace:Envoy.Core.Privacy;assembly=Envoy.Core"
+        Title="Envoy setup guide" Width="780" Height="580" MinWidth="680" MinHeight="500"
+        WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanMinimize"
+        Background="{DynamicResource Bg.Window}" Foreground="{DynamicResource Text.Primary}"
+        FontFamily="{StaticResource Font.Body}" Icon="pack://application:,,,/Envoy;component/Assets/envoy.ico">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="46" ResizeBorderThickness="0" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <!-- The setup guide (spec 07a): the step list on the left, one panel per step on the right, Skip / Back / Next below. -->
+    <Border BorderBrush="{DynamicResource Accent.Dim}" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="46" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="210" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ===== Title bar ===== -->
+            <Border Grid.ColumnSpan="2" Background="{DynamicResource Header.Gradient}" BorderBrush="{DynamicResource Accent.Dim}" BorderThickness="0,0,0,1">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+                        <Button Style="{StaticResource Button.Chrome}" Content="&#xE921;" Click="OnMinimize" ToolTip="Minimise"
+                                AutomationProperties.Name="Minimise setup" />
+                        <Button Style="{StaticResource Button.Chrome}" Content="&#xE8BB;" Click="OnClose" ToolTip="Close (you can finish later)"
+                                AutomationProperties.Name="Close setup" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+                        <Image Source="pack://application:,,,/Envoy;component/Assets/envoy.png" Width="24" Height="24" />
+                        <TextBlock Text="ENVOY SETUP" FontFamily="{StaticResource Font.Decorative}" FontSize="17" FontWeight="Bold" Margin="10,0,0,0"
+                                   Foreground="{DynamicResource Accent.Bright}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- ===== Step list (REQ-OUXA-11) ===== -->
+            <Border Grid.Row="1" Grid.RowSpan="2" Background="{DynamicResource Bg.Panel}" BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="0,0,1,0">
+                <ItemsControl x:Name="StepList" ItemsSource="{Binding Steps}" Margin="0,14,0,0" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button x:Name="StepButton" Style="{StaticResource Button.Ghost}" HorizontalContentAlignment="Stretch" HorizontalAlignment="Stretch"
+                                    Padding="18,6" BorderThickness="3,0,0,0"
+                                    Command="{Binding DataContext.GoToStepCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding Step}" AutomationProperties.Name="{Binding AccessibleName}">
+                                <StackPanel Width="168">
+                                    <TextBlock x:Name="StepTitle" Text="{Binding Title}" FontFamily="{StaticResource Font.Display}" FontSize="13"
+                                               Foreground="{DynamicResource Text.Secondary}" />
+                                    <TextBlock x:Name="StepStatus" Text="{Binding StatusText}" Style="{StaticResource Text.Caption}" FontFamily="{StaticResource Font.Body}"
+                                               FontWeight="Normal" />
+                                </StackPanel>
+                            </Button>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                    <Setter TargetName="StepButton" Property="BorderBrush" Value="{DynamicResource Accent}" />
+                                    <Setter TargetName="StepButton" Property="Background" Value="{DynamicResource Bg.PanelAlt}" />
+                                    <Setter TargetName="StepTitle" Property="Foreground" Value="{DynamicResource Accent.Bright}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding NeedsAttention}" Value="True">
+                                    <Setter TargetName="StepStatus" Property="Foreground" Value="{DynamicResource Danger}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsDone}" Value="True">
+                                    <Setter TargetName="StepStatus" Property="Foreground" Value="{DynamicResource Success}" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+
+            <!-- ===== The current step ===== -->
+            <ScrollViewer Grid.Row="1" Grid.Column="1" Padding="28,20" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock x:Name="StepCounter" Text="{Binding StepText, Mode=OneWay}" Style="{StaticResource Text.Caption}" />
+                    <TextBlock Text="{Binding CurrentTitle, Mode=OneWay}" Style="{StaticResource Text.H1}" Margin="0,2,0,14" />
+
+                    <!-- 1. Language & privacy (REQ-OUXA-1, 47) -->
+                    <StackPanel x:Name="LanguagePanel" Visibility="{Binding IsLanguageStep, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Your language" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                        <TextBlock Text="Incoming chat is translated into this; your replies are written in it." Style="{StaticResource Text.Caption}" />
+                        <ComboBox Width="280" HorizontalAlignment="Left" Margin="0,6,0,12" ItemsSource="{Binding Languages}" DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Code" SelectedValue="{Binding Settings.MyLanguage}" AutomationProperties.Name="Your language" />
+                        <TextBlock Text="Your in-game name (optional)" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                        <TextBlock Text="So your own messages aren't translated back to you." Style="{StaticResource Text.Caption}" />
+                        <TextBox Width="280" HorizontalAlignment="Left" Margin="0,6,0,16" Text="{Binding Settings.MyPlayerName, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.Name="Your in-game name" />
+
+                        <Border x:Name="PrivacyBlock" Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Accent}" BorderThickness="3,0,0,0" Padding="14,10">
+                            <StackPanel>
+                                <TextBlock Text="{x:Static pv:PrivacyText.Heading}" Style="{StaticResource Text.H2}" />
+                                <ItemsControl ItemsSource="{Binding PrivacyLines, Mode=OneWay}" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Mode=OneWay}" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Style="{StaticResource Text.Caption}" Margin="0,2,0,8">
+                                    <Hyperlink Command="{Binding OpenPrivacyDetailsCommand}" AutomationProperties.Name="Privacy details">Privacy details</Hyperlink>
+                                </TextBlock>
+                                <CheckBox x:Name="PrivacyCheck" Content="{x:Static pv:PrivacyText.Acknowledge}" IsChecked="{Binding PrivacyAcknowledged}"
+                                          c:AutoApply.Ignore="True" AutomationProperties.Name="{x:Static pv:PrivacyText.Acknowledge}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 2. Game & display (REQ-OUXA-1, 5) -->
+                    <StackPanel x:Name="GamePanel" Visibility="{Binding IsGameStep, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding Host.GameStatus, Mode=OneWay}" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                        <TextBlock x:Name="DisplayVerdict" Text="{Binding DisplayVerdictText, Mode=OneWay}" Style="{StaticResource Text.Label}" Margin="0,6,0,0" />
+                        <Button Content="Check again" Command="{Binding RecheckDisplayCommand}" HorizontalAlignment="Left" Margin="0,8,0,14"
+                                AutomationProperties.Name="Check the display mode again" />
+                        <Border Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Accent}" BorderThickness="3,0,0,0" Padding="14,10">
+                            <StackPanel>
+                                <TextBlock Text="Play in windowed or borderless mode" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding BorderlessAdvice, Mode=OneWay}" Style="{StaticResource Text.Caption}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 3. Chat area (REQ-OUXA-6): this step's own live view -->
+                    <StackPanel x:Name="ChatAreaPanel" Visibility="{Binding IsChatAreaStep, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Start a game (or a replay) so the chat is on screen, then drag a box around the chat area. This window hides while you choose."
+                                   Style="{StaticResource Text.Body}" Margin="0,0,0,10" />
+                        <DockPanel Margin="0,0,0,10">
+                            <Button DockPanel.Dock="Left" Content="Select chat area" Style="{StaticResource Button.Primary}" Command="{Binding SelectRegionCommand}"
+                                    AutomationProperties.Name="Select chat area" Margin="0,0,12,0" />
+                            <TextBlock Text="{Binding RegionText, Mode=OneWay}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <TextBlock Text="Live view" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                        <Border Background="{DynamicResource Bg.Input}" BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="1" MinHeight="70" Margin="0,4,0,6">
+                            <Image Source="{Binding CapturePreview.Image, Mode=OneWay}" Stretch="Uniform" MaxHeight="150" HorizontalAlignment="Left" />
+                        </Border>
+                        <TextBlock Text="{Binding CapturePreview.Text, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding CapturePreview.HealthText, Mode=OneWay}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
+                    </StackPanel>
+
+                    <!-- 4. Text recognition (REQ-OUXA-7) -->
+                    <StackPanel x:Name="OcrPanel" Visibility="{Binding IsOcrStep, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,10">
+                            Windows reads each script with a free text recognition pack. Install the ones for your language and your opponents'.
+                            Installing asks for administrator permission.
+                        </TextBlock>
+                        <ItemsControl x:Name="OcrRowList" ItemsSource="{Binding OcrRows, Mode=OneWay}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Label}" />
+                                            <TextBlock Text=" · your language" Style="{StaticResource Text.Caption}"
+                                                       Visibility="{Binding IsMine, Converter={StaticResource BoolToVisibility}}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="Installed" Style="{StaticResource Text.Label}" Foreground="{DynamicResource Success}"
+                                                   Visibility="{Binding Installed, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Grid.Column="1" Text="Missing" Style="{StaticResource Text.Label}" Foreground="{DynamicResource Danger}"
+                                                   Visibility="{Binding Installed, Converter={StaticResource InverseBoolToVisibility}}" />
+                                        <Button Grid.Column="2" Content="Install" Padding="10,3" CommandParameter="{Binding Code}"
+                                                Command="{Binding DataContext.InstallOcrCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                AutomationProperties.Name="{Binding Name, StringFormat='Install text recognition for {0}'}"
+                                                Visibility="{Binding Installed, Converter={StaticResource InverseBoolToVisibility}}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="Check again" Command="{Binding RecheckOcrCommand}" HorizontalAlignment="Left" Margin="0,10,0,0"
+                                AutomationProperties.Name="Check text recognition packs again" />
+                    </StackPanel>
+
+                    <!-- 5. Test translation (REQ-OUXA-8) -->
+                    <StackPanel x:Name="TestPanel" Visibility="{Binding IsTestStep, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock x:Name="TestTarget" Text="{Binding TestTarget, Mode=OneWay}" Style="{StaticResource Text.Body}" Margin="0,0,0,8" />
+                        <DockPanel Margin="0,0,0,8">
+                            <Button DockPanel.Dock="Right" Content="Translate" Command="{Binding TestTranslateCommand}" Margin="8,0,0,0"
+                                    AutomationProperties.Name="Translate the test sentence" />
+                            <TextBox Text="{Binding TestInput, UpdateSourceTrigger=PropertyChanged}" c:AutoApply.Ignore="True"
+                                     AutomationProperties.Name="Test sentence" />
+                        </DockPanel>
+                        <TextBlock x:Name="TestResult" Text="{Binding TestOutput, Mode=OneWay}" Style="{StaticResource Text.Label}" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <!-- 6. Hotkeys (REQ-OUXA-9) -->
+                    <StackPanel x:Name="HotkeysPanel" Visibility="{Binding IsHotkeysStep, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="These work while the game is in front." Style="{StaticResource Text.Body}" Margin="0,0,0,8" />
+                        <ItemsControl x:Name="HotkeyRowList" ItemsSource="{Binding HotkeyRows, Mode=OneWay}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="240" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Action}" Style="{StaticResource Text.Label}" />
+                                        <TextBlock x:Name="Combo" Grid.Column="1" Text="{Binding Display}" Style="{StaticResource Text.Label}" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Accent.Bright}" />
+                                    </Grid>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding HasProblem}" Value="True">
+                                            <Setter TargetName="Combo" Property="Foreground" Value="{DynamicResource Danger}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Style="{StaticResource Text.Caption}" Margin="0,10,0,0">
+                            <Hyperlink Command="{Binding OpenHotkeysCommand}" AutomationProperties.Name="Open Hotkeys settings">Open Hotkeys settings</Hyperlink>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <!-- The last step sums up what still needs attention (REQ-OUXA-11). -->
+                    <Border x:Name="SummaryBlock" Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Accent}" BorderThickness="3,0,0,0" Padding="14,10"
+                            Margin="0,18,0,0" Visibility="{Binding IsLast, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding SummaryText, Mode=OneWay}" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                            <ItemsControl ItemsSource="{Binding AttentionSteps, Mode=OneWay}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Style="{StaticResource Text.Caption}" Margin="0,4,0,0">
+                                            <Run Text="{Binding Title, Mode=OneWay}" />
+                                            <Run Text=" · " />
+                                            <Hyperlink Command="{Binding DataContext.GoToStepCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       CommandParameter="{Binding Step}" AutomationProperties.Name="{Binding Title, StringFormat='Go to step: {0}'}">Go to step</Hyperlink>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ===== Footer: always visible (REQ-OUXA-1) ===== -->
+            <Border Grid.Row="2" Grid.Column="1" BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="0,1,0,0" Padding="28,12">
+                <DockPanel>
+                    <Button x:Name="SkipButton" DockPanel.Dock="Left" Style="{StaticResource Button.Ghost}" Content="Skip setup" Command="{Binding SkipCommand}"
+                            IsCancel="True" AutomationProperties.Name="Skip setup" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button x:Name="BackButton" Content="Back" Command="{Binding BackCommand}" AutomationProperties.Name="Back" Margin="0,0,8,0" />
+                        <Button x:Name="NextButton" Content="{Binding NextLabel, Mode=OneWay}" Style="{StaticResource Button.Primary}" Command="{Binding NextCommand}"
+                                IsDefault="True" AutomationProperties.Name="{Binding NextLabel, Mode=OneWay}" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

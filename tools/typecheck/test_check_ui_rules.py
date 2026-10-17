@@ -1,4 +1,4 @@
-"""Tests for check_ui_rules.py (REQ-UIF-17, specs 02, 05 and 06): a clean tree passes and each rule R1-R11, UPD1 and UPD2
+"""Tests for check_ui_rules.py (REQ-UIF-17, specs 02, 05, 06 and 07a): a clean tree passes and each rule R1-R12, UPD1 and UPD2
 reports its own violation.
 The mini trees are built in a temp directory from check_ui_rules.REQUIRED_FILES, so they track the real file list."""
 import os
@@ -201,6 +201,23 @@ namespace Envoy.App.Services; class ChatWatcher
     }
 }
 """
+
+    WIZARD_OK = """namespace Envoy.App.ViewModels; class SetupWizardViewModel
+{
+    // SaveNow and new AppSettings() in a comment are fine.
+    void Edit() { Host.Settings.MyLanguage = "en"; Host.ScheduleSave(); }
+}
+"""
+
+    def test_r12_wizard_edits_through_host_settings_are_fine(self):
+        self.write("ViewModels/SetupWizardViewModel.cs", self.WIZARD_OK)
+        self.assertEqual([], check_ui_rules.check(self.root))
+
+    def test_r12_wizard_new_settings_or_save_now(self):
+        self.write("ViewModels/SetupWizardViewModel.cs", self.WIZARD_OK.replace("Host.ScheduleSave()", "Host.SaveNow()"))
+        self.assertOnly("R12", "ViewModels/SetupWizardViewModel.cs:4")
+        self.write("ViewModels/SetupWizardViewModel.cs", self.WIZARD_OK.replace("Host.ScheduleSave();", "var s = new AppSettings();"))
+        self.assertOnly("R12", "ViewModels/SetupWizardViewModel.cs:4")
 
     def test_r11_watcher_token_and_snapshot_are_fine(self):
         self.write("Services/ChatWatcher.cs", self.WATCHER_OK)

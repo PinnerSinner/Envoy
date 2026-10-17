@@ -46,6 +46,7 @@ internal static class SoakTest
         {
             Write($"soak: {minutes} min, data {data}");
             host = new AppHost(Path.Combine(data, "settings.json"), app.Dispatcher, new AppHostOptions { DataFolder = data, Log = log });
+            host.SetPrivacyAcknowledged(true); // every test host confirms "What leaves your PC" (07a); the echo translator sends nothing
             host.Pipeline.Translator = new EchoTranslator(TimeSpan.FromMilliseconds(50));
 
             var lines = new TextBlock { FontSize = 18, Margin = new Thickness(16), TextWrapping = TextWrapping.NoWrap };

@@ -15,6 +15,7 @@
 
     <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     <c:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
+    <c:NullToCollapsedConverter x:Key="NullToCollapsed" />
 
     <!-- ===== Typography ===== -->
     <Style x:Key="Text.H1" TargetType="TextBlock">
@@ -559,5 +560,45 @@
         <Setter Property="Background" Value="{DynamicResource Bg.PanelAlt}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Accent.Dim}" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+    </Style>
+
+    <!--
+        A page callout (spec 07a, REQ-OUXA-22): Content is a Core PageHint (or null, which collapses it). A 3 px left
+        edge in Accent (Info) or Danger (Warning, Error), a glyph, the sentence, and an optional button that runs the page
+        view model's RunHintActionCommand with the hint's ActionId.
+    -->
+    <Style x:Key="Callout" TargetType="ContentControl">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Margin" Value="0,0,0,16" />
+        <Setter Property="Visibility" Value="{Binding Content, RelativeSource={RelativeSource Self}, Converter={StaticResource NullToCollapsed}}" />
+        <Setter Property="ContentTemplate">
+            <Setter.Value>
+                <DataTemplate>
+                    <Border x:Name="Bd" Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Accent}" BorderThickness="3,0,0,0" Padding="14,10">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Ghost}" Content="{Binding ActionLabel}" CommandParameter="{Binding ActionId}"
+                                    Command="{Binding DataContext.RunHintActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    AutomationProperties.Name="{Binding ActionLabel}" Margin="12,0,0,0" VerticalAlignment="Center"
+                                    Visibility="{Binding HasAction, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock x:Name="Glyph" Text="&#xE946;" Style="{StaticResource Text.Icon}" Foreground="{DynamicResource Accent}" FontSize="16"
+                                       VerticalAlignment="Top" Margin="0,1,10,0" />
+                            <TextBlock Text="{Binding Text}" Style="{StaticResource Text.Label}" />
+                        </DockPanel>
+                    </Border>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Severity}" Value="Warning">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Danger}" />
+                            <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource Danger}" />
+                            <Setter TargetName="Glyph" Property="Text" Value="&#xE7BA;" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Severity}" Value="Error">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Danger}" />
+                            <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource Danger}" />
+                            <Setter TargetName="Glyph" Property="Text" Value="&#xEA39;" />
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 </ResourceDictionary>
