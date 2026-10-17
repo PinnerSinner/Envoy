@@ -3,6 +3,10 @@ namespace Envoy.Core.Pipeline;
 /// <summary>What the overlay's Copy button puts on the clipboard (REQ-OUXC-45). Pure.</summary>
 public static class OverlayCopyText
 {
+    /// <summary>Shown next to the Copy button for 1.5 s.</summary>
+    public const string Copied = "Copied";
+    public const string CopyFailed = "Couldn't copy";
+
     /// <summary>
     /// "Sender: translation" (no prefix without a sender), plus the original on a second line when the message is
     /// translated and the original differs. Pending, failed and untranslated (skipped) messages give the original only.

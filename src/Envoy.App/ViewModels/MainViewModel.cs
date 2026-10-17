@@ -117,6 +117,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         new(TypingMethod.Paste, "Paste with Ctrl+V"),
     ];
 
+    public IReadOnlyList<Option> PhraseOrders { get; } =
+    [
+        new(PhraseOrder.MostUsed, "Most used for this language"),
+        new(PhraseOrder.BookOrder, "Phrasebook order"),
+    ];
+
     // ---- Overlay page ----
     public IReadOnlyList<Option> Anchors { get; } =
     [

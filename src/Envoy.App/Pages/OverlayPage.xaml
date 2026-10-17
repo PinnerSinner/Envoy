@@ -48,6 +48,10 @@
                     <CheckBox x:Name="EnsureReadableBox" Content="Keep text readable" IsChecked="{Binding Settings.Overlay.EnsureReadableText}"
                               AutomationProperties.Name="Keep text readable"
                               AutomationProperties.HelpText="Raises the background when it is too transparent for the text to stay readable over bright terrain." />
+                    <!-- REQ-OUXC-44: applied live through SettingsAutoApplier → ApplySettings. -->
+                    <CheckBox x:Name="CompactBox" Content="Compact layout" IsChecked="{Binding Settings.Overlay.Compact}"
+                              AutomationProperties.Name="Compact layout"
+                              AutomationProperties.HelpText="One line per message: sender and translation only, no original or provider line." />
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Overall opacity" Style="{StaticResource Text.Label}" />

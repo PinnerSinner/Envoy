@@ -41,6 +41,27 @@
                 </StackPanel>
             </ContentControl>
 
+            <!-- Spec 07c: the reply box's length counter (REQ-OUXC-41) and quick-phrase order (REQ-OUXC-42). -->
+            <ContentControl Style="{StaticResource OrnateFrame}">
+                <StackPanel>
+                    <TextBlock Text="Reply box" Style="{StaticResource Text.H2}" />
+                    <CheckBox Content="Show message length" IsChecked="{Binding Settings.Compose.ShowCharacterCount}" AutomationProperties.Name="Show message length" />
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Warn above" Style="{StaticResource Text.Label}" />
+                        <TextBox AutomationProperties.Name="Warn above this many characters" Grid.Column="1" Width="90" HorizontalAlignment="Left"
+                                 Text="{Binding Settings.Compose.MaxMessageLength}" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource Text.Caption}" Margin="220,0,0,6" TextWrapping="Wrap"
+                               Text="0 = no limit. Envoy doesn't know each game's limit; set it if long messages get cut off." />
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Quick phrase order" Style="{StaticResource Text.Label}" />
+                        <ComboBox AutomationProperties.Name="Quick phrase order" Grid.Column="1" ItemsSource="{Binding PhraseOrders}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Compose.PhraseOrder}" />
+                    </Grid>
+                </StackPanel>
+            </ContentControl>
+
             <ContentControl Style="{StaticResource OrnateFrame}">
                 <StackPanel>
                     <TextBlock Text="Timing" Style="{StaticResource Text.H2}" />

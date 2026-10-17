@@ -43,11 +43,29 @@ public partial class OverlayWindow : Window, INotifyPropertyChanged
         ApplySettings();
     }
 
+    /// <summary>The item templates in OverlayWindow.xaml: today's layout and the compact one (REQ-OUXC-44).</summary>
+    public const string FullItemKey = "FullItem";
+    public const string CompactItemKey = "CompactItem";
+
     private OverlaySettings S => _host.Settings.Overlay;
 
     // ---- bound appearance ----
     public double OverlayFontSize => S.FontSize;
     public double SmallFontSize => Math.Max(10, S.FontSize - 3);
+    /// <summary>The compact layout's font size (REQ-OUXC-44).</summary>
+    public double CompactFontSize => Math.Max(11, S.FontSize - 2);
+
+    /// <summary>True in edit mode (Ctrl+Shift+E): the cards show their Copy button (REQ-OUXC-45).</summary>
+    public bool IsEditing
+    {
+        get => _editMode;
+        private set
+        {
+            if (_editMode == value) return;
+            _editMode = value;
+            Notify();
+        }
+    }
     public FontFamily OverlayFontFamily => string.IsNullOrWhiteSpace(S.FontFamily) ? (FontFamily)FindResource("Font.Body") : new FontFamily(S.FontFamily);
     public Visibility ProviderVisibility => S.ShowProvider ? Visibility.Visible : Visibility.Collapsed;
 
@@ -81,7 +99,9 @@ public partial class OverlayWindow : Window, INotifyPropertyChanged
     {
         Width = Math.Max(240, S.Width);
         Opacity = Math.Clamp(S.Opacity, 0.2, 1);
-        foreach (var name in new[] { nameof(OverlayFontSize), nameof(SmallFontSize), nameof(OverlayFontFamily), nameof(ProviderVisibility), nameof(CardBackground) })
+        var template = S.Compact ? CompactItemKey : FullItemKey;
+        if (!ReferenceEquals(Items.ItemTemplate, FindResource(template))) Items.ItemTemplate = (DataTemplate)FindResource(template);
+        foreach (var name in new[] { nameof(OverlayFontSize), nameof(SmallFontSize), nameof(CompactFontSize), nameof(OverlayFontFamily), nameof(ProviderVisibility), nameof(CardBackground) })
             Notify(name);
         TrimToMax();
         Reposition();
@@ -170,7 +190,7 @@ public partial class OverlayWindow : Window, INotifyPropertyChanged
 
     public void ToggleEditMode()
     {
-        _editMode = !_editMode;
+        IsEditing = !_editMode;
         if (_hwnd != IntPtr.Zero) Native.SetClickThrough(_hwnd, clickThrough: !_editMode);
         EditFrame.Visibility = EditBar.Visibility = ResizeGrip.Visibility = _editMode ? Visibility.Visible : Visibility.Collapsed;
         if (_editMode)

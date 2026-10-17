@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Envoy.App.Services;
+using Envoy.Core.Compose;
 using Envoy.Core.Diagnostics;
 using Envoy.Core.Languages;
 using Envoy.Core.Phrases;
@@ -23,6 +24,13 @@ public partial class ComposeWindow : Window
     private string _translated = "";
     private string _translatedFor = "";
     private bool _opening;
+    private bool _recalling;
+
+    /// <summary>
+    /// Replies sent or copied this session (REQ-OUXC-39). Lives on this window, which App reuses for the whole session;
+    /// memory only, never saved or logged.
+    /// </summary>
+    internal ReplyHistory History { get; } = new();
 
     public ComposeWindow(AppHost host)
     {
@@ -50,6 +58,7 @@ public partial class ComposeWindow : Window
         FillContext();
         FillPhrases();
         Input.Text = "";
+        History.EndBrowsing();
         ClearPreview();
         Hint.Text = _host.Settings.Compose.SendMode switch
         {
@@ -85,7 +94,8 @@ public partial class ComposeWindow : Window
 
     private void FillPhrases()
     {
-        Phrases.ItemsSource = _host.Phrases.All
+        var compose = _host.Settings.Compose;
+        Phrases.ItemsSource = PhraseOrdering.Order(_host.Phrases.All, Target, compose.PhraseUsage, compose.PhraseOrder)
             .Select(p => new PhraseChip(p, p.Icon, p.In(MyLanguage) ?? p.In("en") ?? p.Id, p.In(Target) ?? ""))
             .ToList();
     }
@@ -98,11 +108,31 @@ public partial class ComposeWindow : Window
         Placeholder.Visibility = Visibility.Visible;
         _translated = "";
         _translatedFor = "";
+        UpdateCount();
+    }
+
+    /// <summary>
+    /// The length of what will be sent (REQ-OUXC-41): Danger above the user's limit or when 08a's cap will cut it.
+    /// Collapsed when the counter is off or nothing is translated yet. Never blocks sending.
+    /// </summary>
+    private void UpdateCount()
+    {
+        var compose = _host.Settings.Compose;
+        if (!compose.ShowCharacterCount || _translated.Length == 0)
+        {
+            CharCount.Visibility = Visibility.Collapsed;
+            return;
+        }
+        var info = ReplyLength.Measure(AppendOriginal(_translated), compose.MaxMessageLength);
+        CharCount.Text = info.Text;
+        CharCount.SetResourceReference(ForegroundProperty, info.OverLimit ? "Danger" : "Text.Muted");
+        CharCount.Visibility = Visibility.Visible;
     }
 
     private void OnInputChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
         Placeholder.Visibility = Input.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (!_recalling) History.EndBrowsing();
         _debounce.Stop();
         if (Input.Text.Trim().Length == 0) { ClearPreview(); return; }
         _debounce.Start();
@@ -134,6 +164,7 @@ public partial class ComposeWindow : Window
             _translated = result.Text;
             _translatedFor = key;
             Preview.Text = result.Text;
+            UpdateCount();
             PreviewSource.Text = result.ProviderId switch
             {
                 "phrasebook" => "phrasebook (human translation)",
@@ -163,10 +194,50 @@ public partial class ComposeWindow : Window
 
     private async void OnInputKey(object sender, KeyEventArgs e)
     {
+        // Up/Down recall replies sent this session (REQ-OUXC-40); the first Up keeps the unsent draft.
+        if (e.Key == Key.Up)
+        {
+            e.Handled = true;
+            if (History.Older(Input.Text) is { } older) SetInputFromHistory(older);
+            return;
+        }
+        if (e.Key == Key.Down)
+        {
+            e.Handled = true;
+            if (History.Newer() is { } newer) SetInputFromHistory(newer);
+            return;
+        }
         if (e.Key != Key.Enter) return;
         e.Handled = true;
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) await CopyAsync();
         else await SendAsync();
+    }
+
+    private void SetInputFromHistory(string text)
+    {
+        _recalling = true;
+        try
+        {
+            Input.Text = text;
+            Input.CaretIndex = Input.Text.Length;
+        }
+        finally
+        {
+            _recalling = false;
+        }
+    }
+
+    /// <summary>
+    /// After a successful send or copy: remembers the typed input (REQ-OUXC-39) and, when it is a quick phrase, counts it
+    /// for the target language (REQ-OUXC-43).
+    /// </summary>
+    private void Remember(string input, string target)
+    {
+        History.Add(input);
+        if (_host.Phrases.FindByText(input, MyLanguage) is not { } phrase) return;
+        var compose = _host.Settings.Compose;
+        PhraseOrdering.RecordUse(compose.PhraseUsage, target, phrase.Id);
+        _host.ScheduleSave();
     }
 
     private async void OnSend(object sender, RoutedEventArgs e) => await SendAsync();
@@ -183,15 +254,19 @@ public partial class ComposeWindow : Window
 
     private async Task CopyAsync()
     {
+        var input = Input.Text;
+        var target = Target;
         var text = await TranslateNowAsync();
         if (string.IsNullOrEmpty(text)) return;
-        SetClipboard(OutgoingText.Sanitize(AppendOriginal(text)));
+        if (ClipboardHelper.TrySetText(OutgoingText.Sanitize(AppendOriginal(text)))) Remember(input, target);
         Hide();
     }
 
     private async Task SendAsync()
     {
         var settings = _host.Settings.Compose;
+        var input = Input.Text;
+        var target = Target;
         var text = await TranslateNowAsync();
         if (string.IsNullOrEmpty(text)) return;
         text = OutgoingText.Sanitize(AppendOriginal(text));
@@ -199,21 +274,22 @@ public partial class ComposeWindow : Window
 
         if (settings.SendMode == SendMode.Clipboard)
         {
-            SetClipboard(text);
+            if (ClipboardHelper.TrySetText(text)) Remember(input, target);
             Hide();
             return;
         }
 
-        if (settings.TypingMethod == TypingMethod.Paste) SetClipboard(text);
+        if (settings.TypingMethod == TypingMethod.Paste) ClipboardHelper.TrySetText(text);
         Hide();
         try
         {
             await KeyboardSender.SendToWindowAsync(_target, text, settings);
+            Remember(input, target);
         }
         catch (Exception ex)
         {
-            // Never a modal box here: it would steal focus from the game (REQ-REL-19).
-            SetClipboard(text);
+            // Never a modal box here: it would steal focus from the game (REQ-REL-19). Nothing joins the history.
+            ClipboardHelper.TrySetText(text);
             _host.Log.For("Compose").Warn("Reply was not typed", ex);
             _host.ReportProblem(ex is SendBlockedException blocked ? ProblemText.ReplyBlocked(blocked.Message) : ProblemText.ReplySendFailed);
         }
@@ -221,23 +297,6 @@ public partial class ComposeWindow : Window
 
     private string AppendOriginal(string translated) =>
         _host.Settings.Compose.AppendOriginal ? $"{translated} ({Input.Text.Trim()})" : translated;
-
-    private static void SetClipboard(string text)
-    {
-        // The clipboard can be briefly locked by other apps (clipboard managers, RDP); retry a few times.
-        for (var attempt = 0; attempt < 5; attempt++)
-        {
-            try
-            {
-                Clipboard.SetText(text);
-                return;
-            }
-            catch (System.Runtime.InteropServices.COMException)
-            {
-                Thread.Sleep(40);
-            }
-        }
-    }
 
     private void OnDrag(object sender, MouseButtonEventArgs e)
     {

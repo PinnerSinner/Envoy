@@ -1,4 +1,4 @@
-"""Mechanical checks for the UI-structure rules of specs 01, 02, 05, 06 and 07a (stdlib only).
+"""Mechanical checks for the UI-structure rules of specs 01, 02, 05, 06, 07a and 07c (stdlib only).
 
 Usage: check_ui_rules.py <src/Envoy.App dir>. Prints `path:line: UIF-Rn message` (or `UPDn message`) per violation and
 exits 1 if any.
@@ -18,6 +18,8 @@ R11 Services/ChatWatcher.cs passes only CancellationToken.None to ProcessAsync( 
     reads AppSettings or `.Settings` outside its usings (it reads the CaptureOptions snapshot)  REQ-CAP-42
 R12 ViewModels/SetupWizardViewModel.cs contains no `new AppSettings` and no `SaveNow` (the setup guide edits only
     Host.Settings, through its applier into ApplySettings)                              AC-OUXA-1
+R13 ReplyHistory never appears in Envoy.Core/Settings/SettingsStore.cs or AppSettings.cs, and no logging call in
+    Windows/ComposeWindow.xaml.cs mentions History (reply history is memory only)          AC-OUXC-1
 UPD1 `new UpdateManager(`, `UpdateManager m = new(` and `: UpdateManager` only in
     Services/VelopackUpdateBackend.cs; VelopackFlowSource and ApplyUpdatesAndRestart nowhere
     (also scanned in Envoy.Core)                                                          REQ-DIST-14, 12
@@ -52,6 +54,8 @@ REQUIRED_FILES = (
     ]
 )
 
+HISTORY_FREE = ("Envoy.Core/Settings/SettingsStore.cs", "Envoy.Core/Settings/AppSettings.cs")
+LOG_CALL = re.compile(r"\bLog\b|\.(?:Info|Warn|Error|Debug|Trace)\s*\(")
 WATCHER = "Services/ChatWatcher.cs"
 SETUP_WIZARD_VM = "ViewModels/SetupWizardViewModel.cs"
 WIZARD_BANNED = re.compile(r"\bnew\s+AppSettings\b|\bSaveNow\b")
@@ -219,6 +223,18 @@ def check(root):
         for n, line in _code_lines(_read(wizard_vm)):
             if WIZARD_BANNED.search(line):
                 report(wizard_vm, n, "R12", "the setup guide edits Host.Settings through its applier only (no new AppSettings, no SaveNow)")
+
+    src = os.path.dirname(os.path.abspath(root))
+    for rel in HISTORY_FREE:
+        path = os.path.join(src, *rel.split("/"))
+        if os.path.exists(path):
+            for n, line in _code_lines(_read(path)):
+                if "ReplyHistory" in line:
+                    report(path, n, "R13", "reply history is memory only; it never reaches settings (REQ-OUXC-39)")
+    if os.path.exists(compose):
+        for n, line in _code_lines(_read(compose)):
+            if LOG_CALL.search(line) and "History" in line:
+                report(compose, n, "R13", "reply history is never logged (REQ-OUXC-39)")
 
     _check_velopack(root, report)
     return problems

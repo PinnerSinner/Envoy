@@ -1,6 +1,10 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Input;
+using System.Windows.Threading;
+using Envoy.App.Services;
 using Envoy.Core.Languages;
+using Envoy.Core.Mvvm;
 using Envoy.Core.Pipeline;
 
 namespace Envoy.App.Windows;
@@ -9,6 +13,8 @@ namespace Envoy.App.Windows;
 public sealed class OverlayItem(IncomingMessage message, bool showSender = true, bool showOriginal = true) : INotifyPropertyChanged
 {
     private double _opacity = 1;
+    private string _copyFeedback = "";
+    private DispatcherTimer? _feedbackTimer;
 
     public IncomingMessage Message { get; } = message;
     public DateTime ShownAt { get; } = DateTime.UtcNow;
@@ -33,6 +39,9 @@ public sealed class OverlayItem(IncomingMessage message, bool showSender = true,
     public string LanguageName => LanguageCatalog.NameOf(Message.SourceLanguage);
 
     public bool IsPending => Message.Status == IncomingStatus.Pending;
+    /// <summary>The compact layout's trailing marks (REQ-OUXC-44).</summary>
+    public string PendingMark => IsPending ? " …" : "";
+    public string FailedMark => IsFailed ? " ⚠" : "";
     /// <summary>A real failure shows the ⚠ row; a cancelled translation (new match, exit) just shows the original (REQ-CHAT-47).</summary>
     public bool IsFailed => Message.Status == IncomingStatus.Failed && !Message.WasCancelled;
     public string? Error => Message.Error;
@@ -49,9 +58,36 @@ public sealed class OverlayItem(IncomingMessage message, bool showSender = true,
         }
     }
 
+    /// <summary>"Copied" or "Couldn't copy" for 1.5 s after the edit-mode Copy button (REQ-OUXC-45).</summary>
+    public string CopyFeedback
+    {
+        get => _copyFeedback;
+        private set
+        {
+            if (_copyFeedback == value) return;
+            _copyFeedback = value;
+            Notify();
+        }
+    }
+
+    private RelayCommand? _copyCommand;
+    public ICommand CopyCommand => _copyCommand ??= new RelayCommand(Copy);
+
+    /// <summary>Puts sender, translation and original on the clipboard; the overlay copy is not typed into a game, so no OutgoingText.</summary>
+    public void Copy()
+    {
+        CopyFeedback = ClipboardHelper.TrySetText(OverlayCopyText.Format(Message)) ? OverlayCopyText.Copied : OverlayCopyText.CopyFailed;
+        _feedbackTimer?.Stop();
+        _feedbackTimer = new DispatcherTimer(TimeSpan.FromSeconds(1.5), DispatcherPriority.Background, (s, _) =>
+        {
+            ((DispatcherTimer)s!).Stop();
+            CopyFeedback = "";
+        }, Dispatcher.CurrentDispatcher);
+    }
+
     public void Refresh()
     {
-        foreach (var name in new[] { nameof(Main), nameof(Original), nameof(HasOriginal), nameof(LanguageBadge), nameof(HasLanguage), nameof(LanguageName), nameof(IsPending), nameof(IsFailed), nameof(Error), nameof(Provider) })
+        foreach (var name in new[] { nameof(Main), nameof(Original), nameof(HasOriginal), nameof(LanguageBadge), nameof(HasLanguage), nameof(LanguageName), nameof(IsPending), nameof(IsFailed), nameof(PendingMark), nameof(FailedMark), nameof(Error), nameof(Provider) })
             Notify(name);
     }
 

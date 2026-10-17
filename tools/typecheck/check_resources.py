@@ -22,13 +22,23 @@ for name, keys in palettes.items():
     if keys != reference:
         problems.append(f"{name}: palette keys differ ({sorted(keys ^ reference)})")
 
+def local_keys(xaml):
+    """Keys a window or control defines in its own resources (for example OverlayWindow's item templates)."""
+    if not os.path.exists(xaml):
+        return set()
+    return set(re.findall(r'x:Key="([^"]+)"', open(xaml, encoding="utf-8").read()))
+
 for f in glob.glob(os.path.join(root, "**", "*.xaml"), recursive=True):
-    for kind, key in re.findall(r'\{(StaticResource|DynamicResource) (\{x:Type [^}]+\}|[^}]+)\}', open(f, encoding="utf-8").read()):
-        if key not in defined:
+    text = open(f, encoding="utf-8").read()
+    local = local_keys(f)
+    for kind, key in re.findall(r'\{(StaticResource|DynamicResource) (\{x:Type [^}]+\}|[^}]+)\}', text):
+        # A palette key must come from the themes; a window's own keys only serve StaticResource lookups.
+        if key not in defined and not (kind == "StaticResource" and key in local):
             problems.append(f"{os.path.relpath(f, root)}: {kind} '{key}' is not defined")
 for f in glob.glob(os.path.join(root, "**", "*.cs"), recursive=True):
+    local = local_keys(f[:-3]) if f.endswith(".xaml.cs") else set()
     for key in re.findall(r'(?:FindResource|TryFindResource)\("([^"]+)"\)', open(f, encoding="utf-8").read()):
-        if key not in defined:
+        if key not in defined and key not in local:
             problems.append(f"{os.path.relpath(f, root)}: resource '{key}' is not defined")
 
 if problems:

@@ -377,9 +377,16 @@ internal static class SmokeTest
             await CheckOverlayReadableAsync(host, readable, palette);
             readable.Close();
             Section($"overlay-readable({palette})", sw);
+            await CheckOverlayCompactAsync(host, palette, shots);
+            Section($"overlay-compact({palette})", sw);
 
             var compose = new ComposeWindow(host);
             compose.Open(IntPtr.Zero);
+            if (first)
+            {
+                CheckComposeHistory(compose);
+                Section("compose-history", sw);
+            }
             if (shots is not null)
             {
                 compose.Input.Text = ComposeSample;
@@ -388,6 +395,7 @@ internal static class SmokeTest
                 while (wait.ElapsedMilliseconds < 2500 && (compose.Preview.Text is "" or "…" || compose.BackTranslation.Text == ""))
                     await Task.Delay(50);
                 if (compose.Preview.Text is "" or "…") Warn($"compose preview still empty after 2.5 s ({palette})");
+                else Check(compose.CharCount.Visibility == Visibility.Visible && compose.CharCount.Text.Length > 0, $"the reply box's length counter is hidden after a translation ({palette})");
             }
             await Pump();
             if (shots is not null) Save(compose, Path.Combine(shots, $"{palette}-reply.png"), Backdrop());
@@ -1041,6 +1049,77 @@ internal static class SmokeTest
             (o.BackgroundOpacity, o.EnsureReadableText) = (opacity, readable);
             overlay.ApplySettings();
         }
+    }
+
+    /// <summary>
+    /// AC-OUXC-4 (REQ-OUXC-44, 45): the compact layout renders one text line per card under every palette and switches
+    /// back to the full layout live; in edit mode every card shows its Copy button.
+    /// </summary>
+    private static async Task CheckOverlayCompactAsync(AppHost host, string palette, string? shots)
+    {
+        var o = host.Settings.Overlay;
+        var compact = o.Compact;
+        var overlay = new OverlayWindow(host);
+        try
+        {
+            o.Compact = true;
+            overlay.ApplySettings();
+            overlay.Show();
+            host.ShowDemoMessages();
+            await Pump();
+            Check(ReferenceEquals(overlay.Items.ItemTemplate, overlay.FindResource(OverlayWindow.CompactItemKey)), $"the compact overlay does not use CompactItem ({palette})");
+            var count = overlay.Items.Items.Count;
+            Check(count > 0, $"the compact overlay shows no demo messages ({palette})");
+            for (var i = 0; i < count; i++)
+            {
+                var card = overlay.Items.ItemContainerGenerator.ContainerFromIndex(i)
+                    ?? throw new InvalidOperationException($"compact overlay card {i} was not generated ({palette})");
+                var lines = VisualDescendants(card).OfType<TextBlock>().Count(t => t.Name.EndsWith("Line", StringComparison.Ordinal) && t.IsVisible);
+                Check(lines == 1, $"compact overlay card {i} shows {lines} text lines, not 1 ({palette})");
+            }
+            if (shots is not null) Save(overlay, Path.Combine(shots, $"{palette}-overlay-compact.png"), Backdrop());
+
+            overlay.ToggleEditMode();
+            await Pump();
+            Check(overlay.IsEditing, $"the overlay is not in edit mode after Ctrl+Shift+E ({palette})");
+            var copies = VisualDescendants(overlay).OfType<Button>().Count(b => b.Name == "CopyButton" && b.IsVisible);
+            Check(copies == count, $"edit mode shows {copies} Copy buttons for {count} messages ({palette})");
+            overlay.ToggleEditMode();
+            await Pump();
+            Check(!VisualDescendants(overlay).OfType<Button>().Any(b => b.Name == "CopyButton" && b.IsVisible), $"Copy buttons stay visible after edit mode ({palette})");
+
+            o.Compact = false;
+            overlay.ApplySettings();
+            await Pump();
+            Check(ReferenceEquals(overlay.Items.ItemTemplate, overlay.FindResource(OverlayWindow.FullItemKey)), $"turning Compact off does not restore FullItem ({palette})");
+        }
+        finally
+        {
+            o.Compact = compact;
+            overlay.Close();
+        }
+    }
+
+    /// <summary>
+    /// AC-OUXC-2, 3: the counter is collapsed before any translation, and Up/Down through the real key handler recall a
+    /// sent reply and restore the draft.
+    /// </summary>
+    private static void CheckComposeHistory(ComposeWindow compose)
+    {
+        Check(compose.CharCount.Visibility == Visibility.Collapsed, "the reply box's length counter shows before any translation");
+        compose.History.Add("gg wp");
+        compose.Input.Text = "dr";
+        PressKey(compose.Input, Key.Up);
+        Check(compose.Input.Text == "gg wp", $"Up in the reply box recalled \"{compose.Input.Text}\", not the sent reply");
+        PressKey(compose.Input, Key.Down);
+        Check(compose.Input.Text == "dr", $"Down past the newest reply restored \"{compose.Input.Text}\", not the draft");
+        compose.Input.Text = "";
+    }
+
+    private static void PressKey(UIElement target, Key key)
+    {
+        var source = PresentationSource.FromVisual(target) ?? throw new InvalidOperationException("the reply box has no presentation source");
+        target.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent });
     }
 
     /// <summary>

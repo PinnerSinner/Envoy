@@ -79,6 +79,9 @@
                         <Button x:Name="CopyButton" Content="Copy" Click="OnCopy" TabIndex="2" Margin="0,0,8,0" ToolTip="Copy the translation (Ctrl+Enter)" />
                         <Button x:Name="SendButton" Content="Send to game" TabIndex="3" Style="{StaticResource Button.Primary}" Click="OnSend" ToolTip="Enter" />
                     </StackPanel>
+                    <!-- REQ-OUXC-41: the length of what will be sent; Danger above the user's limit. -->
+                    <TextBlock x:Name="CharCount" DockPanel.Dock="Right" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,12,0"
+                               Visibility="Collapsed" AutomationProperties.Name="Message length" AutomationProperties.LiveSetting="Polite" />
                     <TextBlock x:Name="Hint" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,10,0" />
                 </DockPanel>
             </StackPanel>

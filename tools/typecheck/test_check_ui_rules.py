@@ -1,5 +1,5 @@
 """Tests for check_ui_rules.py (REQ-UIF-17, specs 02, 05, 06 and 07a): a clean tree passes and each rule R1-R12, UPD1 and UPD2
-reports its own violation.
+reports its own violation (R13: spec 07c).
 The mini trees are built in a temp directory from check_ui_rules.REQUIRED_FILES, so they track the real file list."""
 import os
 import shutil
@@ -235,6 +235,37 @@ namespace Envoy.App.Services; class ChatWatcher
                 self.write("Services/ChatWatcher.cs", self.WATCHER_OK.replace("var o = options();", snippet))
                 self.assertOnly("R11", "Services/ChatWatcher.cs:7")
 
+
+    # ---- spec 07c ----
+    COMPOSE_OK = """namespace Envoy.App.Windows; class ComposeWindow
+{
+    internal ReplyHistory History { get; } = new();
+    void Sent(string input) => History.Add(input);
+    void Failed() => _host.Log.For("Compose").Warn("Reply was not typed", null);
+}
+"""
+
+    def write_core(self, rel, content):
+        path = os.path.join(self.base, "src", "Envoy.Core", *rel.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def test_r13_history_in_compose_only_is_fine(self):
+        self.write("Windows/ComposeWindow.xaml.cs", self.COMPOSE_OK)
+        self.write_core("Settings/AppSettings.cs", "class AppSettings\n{\n    // ReplyHistory in a comment is fine.\n}\n")
+        self.assertEqual([], check_ui_rules.check(self.root))
+
+    def test_r13_history_logged(self):
+        self.write("Windows/ComposeWindow.xaml.cs", self.COMPOSE_OK.replace('"Reply was not typed", null', '"Sent", null, LogField.Of("h", History.Entries[0])'))
+        self.assertOnly("R13", "Windows/ComposeWindow.xaml.cs:5")
+
+    def test_r13_history_in_settings(self):
+        for rel in ("Settings/AppSettings.cs", "Settings/SettingsStore.cs"):
+            with self.subTest(rel=rel):
+                self.write_core(rel, "class S\n{\n    public ReplyHistory Replies { get; set; } = new();\n}\n")
+                self.assertOnly("R13", rel + ":3")
+                self.write_core(rel, "class S { }\n")
 
     # ---- spec 06 ----
 
