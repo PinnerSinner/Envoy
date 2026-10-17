@@ -76,7 +76,29 @@ versioning: [SemVer](https://semver.org/).
 - Releases list `SHA256SUMS.txt` for both downloads, use the `CHANGELOG.md` section as their notes, and are published
   only once every file is uploaded and checked. Signed releases are possible once a certificate is configured.
 
+- **Setup guide**: new users get a short guide instead of the settings window: Language & privacy, Game & display
+  (windowed / borderless / likely exclusive fullscreen), Chat area (with a live view), Text recognition (which packs
+  are missing, with **Install**), Test translation and Hotkeys. Reopen it from the tray (**Setup guide…**, **Hotkey
+  cheat sheet…**), About (**Run setup guide again**) or the War Room's "Finish setting up Envoy".
+- **What leaves your PC**: the guide, the War Room and About › Privacy say where chat and replies are sent (by
+  provider name; the default is Google's unofficial keyless endpoint), that update checks go to GitHub and that OCR
+  and speech stay on your PC. See [Privacy](docs/privacy.md#what-leaves-your-pc).
+- **Tips in the notification area** for a missing text recognition pack, a translation provider that keeps failing
+  and a new version. They wait while the game is in front, never take focus and open the right page when clicked.
+  The War Room lists the same notices with **Don't remind me**; Appearance › Notifications turns tips (or each kind)
+  off.
+- Empty and problem states on every page: the War Room explains an empty players or messages list and why chat
+  reading paused (offering "Select chat area again" when the area is off-screen), the Phrasebook says why your
+  `phrases.json` was not loaded (invalid JSON with its line, or larger than 1 MB), and the other pages point out a
+  missing provider key, a hidden overlay or a missing or taken hotkey.
+- FAQ: "Is Envoy allowed in ranked/anti-cheat games?".
 ### Changed
+- **Translation is off until you confirm "What leaves your PC"** (setup guide, or **Turn on translation** on the War
+  Room). Until then no chat or reply text is sent anywhere and the overlay shows the original lines. This applies to
+  existing settings files too.
+- The War Room has a fixed order: update banner, notices, one hint, then its cards. About is ordered Version &
+  updates, Setup guide, Troubleshooting, Privacy, licences; Appearance has a Notifications section before Startup &
+  updates.
 - **Translation never hangs.** A slow provider used to leave a line on "translating…" forever and the fallback was
   never tried. Each attempt now has its own time limit and each line an overall one; a timeout moves on to the next
   provider and a line that still fails says so.
@@ -134,6 +156,13 @@ versioning: [SemVer](https://semver.org/).
   Envoy's own repository, so a spoofed update response can't open a local program or a network share.
 
 ### Internal
+- Onboarding and notices (spec 07a): `Envoy.Core.Onboarding` (`OnboardingFlow`, `OnboardingGate`,
+  `OnboardingOutcome`, `DisplayModeAdvisor`, `OnboardingText`), `Envoy.Core.Privacy.PrivacyText`,
+  `PrivacyGatedTranslator` (outermost on both translator stacks), `OcrReadiness`, `HotkeyCheatSheet`, the
+  `Notice`/`NoticeFactory`/`NoticeCenter` advisories on 02's throttle, `PageHints`/`WarRoomSlots`,
+  `PhraseBook.LoadWithUserFile(path, out error)`; `SetupWizardWindow`, `TrayNotifier`, `IShell.OpenSetupWizard`/
+  `ShowPage`; settings `Onboarding`, `Notifications` and `Updates.LastAnnouncedVersion`; smoke sections for the gate,
+  the guide, notices, the War Room order and the tray notifier; typecheck rule R12.
 - Distribution and updates (spec 06): `Envoy.Core.Updates` (`ReleaseVersion`, `IUpdateBackend`, `GitHubReleaseBackend`,
   the channel-aware `UpdateChecker`, `UpdatePreferences`, `UpdateCoordinator`, `UpdateViewBuilder`, `UpdateText`,
   `ReleaseNotesText`, `UserAgents`, `PendingUpdatePolicy`); `Program.Main` runs Velopack 1.2.161 (`vpk` pinned in

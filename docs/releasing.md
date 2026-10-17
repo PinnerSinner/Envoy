@@ -222,3 +222,29 @@ Run these on a fork (or with throwaway tags) before the first release, after a V
   not download by itself. Repeat the 2-minute watch in safe mode with the box ticked. Finally delete
   `%LocalAppData%\velopack\velopack.log` if it exists and start the portable exe (and `Envoy.exe --smoke-test`): no
   `velopack*.log` appears in `%LocalAppData%\velopack` or `%TEMP%`.
+
+### Onboarding and notices (07a)
+
+Use a fresh profile: rename `%APPDATA%\Envoy` first and put it back afterwards.
+
+- **M-OUXA-1 Setup guide** (REQ-OUXA-1, 6, 10, 47). Start Envoy: the setup guide opens instead of the main window.
+  **Next** stays disabled on Language & privacy until "I understand what leaves my PC" is ticked. Walk every step with
+  AoE II: DE or AoE IV in borderless: **Select chat area** hides the guide and brings it back with a live view of the
+  chat. **Finish** lands on the War Room. Repeat with a fresh profile and **Skip setup**: the next start opens the main
+  window, the War Room shows "Finish setting up Envoy", and tray › **Setup guide…** reopens the guide (single window;
+  a second click brings it to the front).
+- **M-OUXA-2 Text recognition** (REQ-OUXA-7). On a PC without the Japanese pack, the Text recognition step shows
+  Japanese **Missing**. **Install** → UAC → after it finishes, **Check again** shows Installed and the
+  "Text recognition pack missing" tip does not come back.
+- **M-OUXA-3 Provider tip** (REQ-OUXA-13, 17). DeepL first with a bogus key; receive chat: one "Translation provider
+  problem" tip appears; clicking it opens the Translation page. Fix the key and break it again with the game in front:
+  no tip until you alt-tab out, then it appears within about 5 s.
+- **M-OUXA-4 Update tip** (REQ-OUXA-17). Install an older release with `Envoy-win-Setup.exe` while a newer one exists
+  on its channel, then start it with a game in front: no tip. Close the game: one "Envoy update" tip; clicking it opens
+  the War Room and runs the banner's main action. Restart Envoy: no second tip for the same version.
+- **M-OUXA-5 Nothing sent before confirming** (REQ-OUXA-47). With translation not confirmed, play a match: the overlay
+  shows the original lines with no translation, and Fiddler or Wireshark shows no request to
+  `translate.googleapis.com` (or any other provider).
+- **M-OUXA-6 FAQ policy note** (docs). The FAQ answer "Is Envoy allowed in ranked/anti-cheat games?" either links each
+  publisher's published third-party-tool policy (check the links open) or its "checked" date is from this release
+  cycle.

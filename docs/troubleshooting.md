@@ -35,6 +35,9 @@ happens again, copy diagnostics into a bug report; the report includes the last 
 
 ## Nothing is being translated
 
+0. **Did you confirm "What leaves your PC"?** If the overlay shows the original lines and says *Translation is off until
+   you confirm what leaves your PC*, open Envoy and press **Turn on translation** on the War Room (or tick the box on
+   the setup guide's first step). Nothing is sent until you do; see [Privacy](privacy.md#what-leaves-your-pc).
 1. **Is it reading?** Check the status in the sidebar or the War Room:
    - *Chat area not set*: click **Select chat area**.
    - *Waiting for a game to start*: Envoy only reads while an Age game is running. Turn this off under

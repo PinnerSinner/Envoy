@@ -1,7 +1,37 @@
 # Privacy
 
-Envoy has no account, no telemetry and no crash upload. This page lists what it keeps on your PC and how to remove
-it.
+Envoy has no account, no telemetry and no crash upload. This page says what leaves your PC, what Envoy keeps on it
+and how to remove it.
+
+## What leaves your PC
+
+Envoy shows this in the setup guide's first step, on the War Room and under About › Privacy. **Translation stays off
+until you confirm it** (tick "I understand what leaves my PC" in the setup guide, or press **Turn on translation** on
+the War Room). Until then Envoy sends no chat or reply text anywhere: the overlay shows the original lines and says why.
+When the data flows change, Envoy asks again.
+
+- **Chat lines Envoy reads, and replies you translate**, go to the translation providers you chose on the Translation
+  page, in order (your first choice, any fallback, and Google Translate (free) as the last resort). The default is
+  Google Translate (free), which uses Google's unofficial keyless endpoint (`translate.googleapis.com`); Microsoft
+  Translator (free) uses the keyless endpoint Microsoft Edge uses. Neither needs an account, and neither is an official
+  API for apps like Envoy. Paid providers (DeepL, Claude, Amazon Translate) and your own LibreTranslate server receive
+  the same text under your own account. Envoy sends the message text and the languages; it adds nothing
+  about you, the game or your PC (the text itself can of course contain names).
+- **Update checks** go to GitHub only (`api.github.com` and this project's release downloads), sending nothing but the
+  request and the Envoy version. See [How updates work](installing.md#how-updates-work).
+- **Text recognition (OCR) and speech** run on your PC with Windows' own engines and send nothing.
+- **Links you click** (release notes, these docs) open in your browser.
+
+There is no telemetry, no crash upload and no Envoy server.
+
+### How to turn translation off
+
+- Untick "I understand what leaves my PC" in the setup guide (About › **Run setup guide again**). Translation is off
+  again, for chat and replies, until you confirm; nothing is sent in the meantime.
+- Pause reading (tray › **Pause / resume reading**, or its hotkey) so no new chat is read or sent.
+- Google Translate (free) is always the last resort in the chain. To keep text inside your own network, choose your
+  own LibreTranslate server on the Translation page; Google is then used only when it fails.
+- **Check for updates automatically** (Appearance › Startup & updates) turns the automatic GitHub checks off.
 
 ## What Envoy stores on your PC
 

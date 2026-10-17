@@ -16,6 +16,34 @@ anywhere (a `Tools` folder or the desktop) and double-click. [Installing & updat
 Envoy lives in the system tray (the shield icon by the clock). Closing the main window doesn't quit it. To quit,
 right-click the tray icon and choose **Exit**.
 
+## The setup guide
+
+The first time Envoy starts, the **setup guide** opens instead of the main window. It walks through the steps below in
+a few minutes: **Language & privacy**, **Game & display**, **Chat area**, **Text recognition**, **Test translation**
+and **Hotkeys**. Each step writes the same settings as the main window's pages, and the list on the left shows which
+steps are done and which still need attention.
+
+- The first step shows **What leaves your PC**. Translation stays off until you tick "I understand what leaves my PC"
+  (see [Privacy](privacy.md#what-leaves-your-pc)); **Next** is enabled once you do.
+- **Game & display** says whether the game looks windowed, borderless or likely exclusive fullscreen. Press
+  **Check again** after changing the game's display mode.
+- **Chat area** hides the guide while you drag a box around the chat, then shows a live view of what Envoy reads.
+- **Text recognition** lists your language, the ones you read and the common opponent languages, each Installed or
+  Missing, with an **Install** button for missing packs.
+- **Skip setup** (or Esc, or the close button) closes the guide; the War Room then shows "Finish setting up Envoy" with
+  a button that reopens it where you left off. You can also reopen it any time from the tray (**Setup guide…**), from
+  About (**Run setup guide again**), and jump straight to the hotkey list with tray › **Hotkey cheat sheet…**.
+
+The guide never opens by itself in safe mode or when Envoy starts with `--minimized`, and existing users who already
+marked a chat area are not asked again. The rest of this page describes the same steps by hand.
+
+### Tips in the notification area
+
+Envoy can tell you about a missing text recognition pack, a translation provider that keeps failing and a new Envoy
+version with a tip by the clock. Tips wait while the game is in front and appear after you alt-tab out or the game
+ends; click one to open the right page. The War Room lists the same notices (except updates, which have their own
+banner) with **Don't remind me**. Turn tips off, or only some kinds, under **Appearance → Notifications**.
+
 ## 2. Put the game in borderless mode
 
 In the game's graphics settings, set **Display mode** to **Borderless window** (or Windowed):

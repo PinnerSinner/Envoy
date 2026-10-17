@@ -12,6 +12,22 @@ Envoy is built so there is nothing for anti-cheat to object to:
 It doesn't automate gameplay. It only reads and writes chat text, which you could do yourself with a phone
 translator. That said, it's an unofficial tool, and no studio has reviewed or endorsed it.
 
+### Is Envoy allowed in ranked/anti-cheat games?
+
+Nobody has approved it, so we can't promise that it is. What we can say is what it does and doesn't do:
+
+- **Does:** reads pixels from your screen (like OBS or Discord's screen share), recognises text with Windows' own OCR,
+  shows an overlay window on top, and types replies through `SendInput` like an on-screen keyboard, only when you
+  press the reply hotkey.
+- **Doesn't:** read or write the game's memory, inject code, hook the game, edit game files, run itself with
+  administrator rights, or automate anything in the match.
+
+No publisher (Microsoft, World's Edge, Relic Entertainment or Forgotten Empires) has reviewed or endorsed Envoy. We
+found no published third-party-tool policy for Age of Empires II: DE, III: DE, IV, Age of Mythology: Retold or Age of
+Empires: DE (checked 17 October 2026); their general community rules (the Xbox Community Standards and the World's
+Edge Code of Conduct) still apply. If a publisher publishes one, this answer will link to it. Use Envoy at your own
+judgement in ranked play.
+
 ### Does it work with every Age game?
 
 It works with any game that shows chat as text on screen in windowed or borderless mode. It auto-detects Age of
@@ -26,8 +42,10 @@ account. See [Translation providers](translation-providers.md).
 
 ### What data leaves my PC?
 
-Only the text of chat messages, sent to the translation provider you choose. Update checks and update downloads go
-to GitHub only (`api.github.com` and this project's release downloads), sending nothing but the request and the Envoy
+Only the text of chat messages and replies, sent to the translation providers you choose, and only after you confirm
+"What leaves your PC" (the setup guide's first step, or **Turn on translation** on the War Room); until then
+translation is off. The default provider is Google's unofficial keyless endpoint; see
+[Privacy](privacy.md#what-leaves-your-pc). Update checks and update downloads go to GitHub only (`api.github.com` and this project's release downloads), sending nothing but the request and the Envoy
 version; untick **Check for updates automatically** (Appearance › Startup & updates) and Envoy makes no update request
 unless you press **Check for updates** on About. Envoy collects no telemetry. Transcripts, if you enable them, stay on
 your PC in `%APPDATA%\Envoy\logs`. See [Installing & updates](installing.md).
