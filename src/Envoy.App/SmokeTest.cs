@@ -762,8 +762,8 @@ internal static class SmokeTest
         await Pump();
         Check(app.Wizard is null, "Finish did not close the guide");
         Check(host.Settings.Onboarding.Completed && host.Settings.FirstRunCompleted, "Finish did not record Completed and FirstRunCompleted");
-        Check(app.Main is { } shown && shown.PageFor(PageIds.Dashboard).IsVisible, "Finish did not open MainWindow on the War Room");
-        app.Main!.Close();
+        Check(app.OpenMainWindow is { } shown && shown.PageFor(PageIds.Dashboard).IsVisible, "Finish did not open MainWindow on the War Room");
+        app.OpenMainWindow!.Close();
         await Pump();
 
         // Start the per-palette checks as a user who has not finished the guide (the Finish-setup callout shows).
@@ -840,11 +840,11 @@ internal static class SmokeTest
     {
         app.RunNoticeAction(NoticeActions.OpenTranslation);
         await Pump();
-        Check(app.Main is { } main && main.PageFor(PageIds.Translation).IsVisible, "open-translation did not show the Translation page");
+        Check(app.OpenMainWindow is { } main && main.PageFor(PageIds.Translation).IsVisible, "open-translation did not show the Translation page");
         app.RunNoticeAction(NoticeActions.OpenCapture);
         await Pump();
-        Check(app.Main!.PageFor(PageIds.Capture).IsVisible, "open-capture did not show the Reading Chat page");
-        app.Main.Close();
+        Check(app.OpenMainWindow!.PageFor(PageIds.Capture).IsVisible, "open-capture did not show the Reading Chat page");
+        app.OpenMainWindow.Close();
         await Pump();
     }
 

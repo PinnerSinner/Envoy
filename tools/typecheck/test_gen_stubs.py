@@ -34,6 +34,12 @@ class GenStubsTests(unittest.TestCase):
         self.assertIn("public partial class SampleControl : System.Windows.Controls.UserControl", self.stub("Fixtures.Ui.SampleControl"))
         self.assertIn("public partial class SampleWindow : System.Windows.Window", self.stub("Fixtures.Ui.Windows.SampleWindow"))
 
+    def test_application_gets_generated_main(self):
+        text = self.stub("Fixtures.Ui.SampleApp")
+        self.assertIn("public partial class SampleApp : System.Windows.Application", text)
+        self.assertIn("[System.STAThread] public static void Main() {}", text)
+        self.assertNotIn("static void Main()", self.stub("Fixtures.Ui.Windows.SampleWindow"))
+
     def test_unsupported_root_fails(self):
         with self.assertRaises(gen_stubs.StubError) as ctx:
             gen_stubs.generate(os.path.join(FIXTURES, "weird"), self.out)
@@ -74,8 +80,8 @@ class GenStubsTests(unittest.TestCase):
 
     def test_file_named_by_full_class(self):
         written = self.generate_ok()
-        self.assertEqual({"Fixtures.Ui.SampleControl", "Fixtures.Ui.Windows.SampleWindow"}, set(written))
-        self.assertEqual(sorted(["Fixtures.Ui.SampleControl.g.cs", "Fixtures.Ui.Windows.SampleWindow.g.cs"]), sorted(os.listdir(self.out)))
+        self.assertEqual({"Fixtures.Ui.SampleApp", "Fixtures.Ui.SampleControl", "Fixtures.Ui.Windows.SampleWindow"}, set(written))
+        self.assertEqual(sorted(["Fixtures.Ui.SampleApp.g.cs", "Fixtures.Ui.SampleControl.g.cs", "Fixtures.Ui.Windows.SampleWindow.g.cs"]), sorted(os.listdir(self.out)))
 
     def test_duplicate_class_fails(self):
         with self.assertRaises(gen_stubs.StubError) as ctx:

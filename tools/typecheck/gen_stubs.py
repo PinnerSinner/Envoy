@@ -7,7 +7,9 @@ For every XAML file with an x:Class it writes `{namespace}.{class}.g.cs` contain
 - one field per x:Name outside templates, with its x:FieldModifier (default `internal`) (REQ-UIF-16);
 - `_ = nameof(Handler);` for every event-handler attribute, including ones inside templates, so a handler missing from
   the class fails with CS0103 (REQ-UIF-15);
-- an empty `InitializeComponent()`.
+- an empty `InitializeComponent()`;
+- for an `<Application>` root, the `public static void Main()` the markup compiler always emits (even with a
+  StartupObject), so a member named `Main` in App's code-behind fails with CS0102 here as it does on Windows.
 
 Usage: gen_stubs.py <src dir> <out dir>. Exits 1 on an unsupported root, a duplicate x:Class or a bad x:FieldModifier.
 """
@@ -130,6 +132,9 @@ def build_stub(path):
     for modifier, t, n in fields:
         lines.append(f"  {modifier} {t} {n} = null!;")
     lines.append("  public void InitializeComponent() {}")
+    if root_local == "Application":
+        lines.append("  // The WPF markup compiler emits this entry point for every ApplicationDefinition.")
+        lines.append("  [System.STAThread] public static void Main() {}")
     lines.append("  // Compile-time check that every handler named in the XAML exists (CS0103 otherwise).")
     lines.append("  private void __XamlEventHandlers()")
     lines.append("  {")

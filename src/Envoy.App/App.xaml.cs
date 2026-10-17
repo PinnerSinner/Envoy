@@ -610,7 +610,7 @@ public partial class App : Application, IShell
     internal SetupWizardWindow? Wizard => _wizard;
 
     /// <summary>The MainWindow App shows (ShowMain / ShowPage); null when closed.</summary>
-    internal MainWindow? Main => _main;
+    internal MainWindow? OpenMainWindow => _main;
 
     /// <inheritdoc />
     public void OpenSetupWizard(string? stepId = null)
