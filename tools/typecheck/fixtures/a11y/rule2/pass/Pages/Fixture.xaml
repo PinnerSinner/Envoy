@@ -1,0 +1,21 @@
+<UserControl x:Class="Envoy.App.Pages.Fixture"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:Envoy.App.Controls">
+    <StackPanel>
+        <Button Content="Save" />
+        <Button Content="&#xE8BB;" AutomationProperties.Name="Close" />
+        <Button Style="{StaticResource Button.Chrome}" Content="Close" AutomationProperties.Name="Close" />
+        <TextBlock x:Name="Label" Text="Name" />
+        <TextBox AutomationProperties.LabeledBy="{Binding ElementName=Label}" />
+        <ComboBox AutomationProperties.Name="Language" />
+        <Slider><AutomationProperties.Name>Volume</AutomationProperties.Name></Slider>
+        <c:HotkeyBox AutomationProperties.Name="Reply hotkey" />
+        <PasswordBox AutomationProperties.Name="API key" />
+        <ContentControl>
+            <ContentControl.Template>
+                <ControlTemplate TargetType="ContentControl"><ToggleButton /></ControlTemplate>
+            </ContentControl.Template>
+        </ContentControl>
+    </StackPanel>
+</UserControl>

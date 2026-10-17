@@ -26,9 +26,9 @@
             <Border Grid.ColumnSpan="2" Background="{DynamicResource Header.Gradient}" BorderBrush="{DynamicResource Accent.Dim}" BorderThickness="0,0,0,1">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
-                        <Button Style="{StaticResource Button.Chrome}" Content="&#xE921;" Click="OnMinimize" ToolTip="Minimise" />
-                        <Button Style="{StaticResource Button.Chrome}" Content="&#xE922;" Click="OnMaximize" ToolTip="Maximise" />
-                        <Button Style="{StaticResource Button.Chrome}" Content="&#xE8BB;" Click="OnClose" ToolTip="Close to tray (Envoy keeps running)" />
+                        <Button Style="{StaticResource Button.Chrome}" Content="&#xE921;" Click="OnMinimize" ToolTip="Minimise" AutomationProperties.Name="Minimise" />
+                        <Button Style="{StaticResource Button.Chrome}" Content="&#xE922;" Click="OnMaximize" ToolTip="Maximise" AutomationProperties.Name="Maximise" />
+                        <Button Style="{StaticResource Button.Chrome}" Content="&#xE8BB;" Click="OnClose" ToolTip="Close to tray (Envoy keeps running)" AutomationProperties.Name="Close" AutomationProperties.HelpText="Envoy keeps running in the tray." />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
                         <Image Source="pack://application:,,,/Envoy;component/Assets/envoy.png" Width="26" Height="26" />

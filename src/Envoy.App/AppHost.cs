@@ -20,6 +20,7 @@ using Envoy.Core.Settings;
 using Envoy.Core.Translation;
 using Envoy.Core.Translation.Resilience;
 using Envoy.Core.Updates;
+using Envoy.Core.Ux;
 
 namespace Envoy.App;
 
@@ -532,7 +533,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Watcher.Invalidate(); // 6 (05)
         Updates.Configure(UpdatePreferences.From(Settings, IsSafeMode), UpdatesToken).Forget(_updatesLog, "update channel check"); // 7 (06)
         CheckOcrReadiness(); // 8 (07a)
-        ApplyTheme();
+        ApplyTheme(); // 9: theme through ThemeResolver (07b)
         StartupRegistration.Apply(Settings.StartWithWindows);
         ScheduleSave();
         Notify(nameof(PrivacyAcknowledged));
@@ -617,12 +618,19 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         }
     }
 
+    /// <summary>
+    /// The palette through <see cref="ThemeResolver"/> (ApplySettings position 9, Start, and the high-contrast listeners in
+    /// App.OnStartup step 8). The high-contrast palette is always reloaded, because it reads Windows' colours at load. UI thread.
+    /// </summary>
+    /// <summary>Whether a Windows contrast theme is on (UI thread).</summary>
+    public bool SystemHighContrast => SystemParameters.HighContrast;
+
     public void ApplyTheme()
     {
-        var theme = Settings.Theme == ThemeManager.MatchGame
-            ? GameCatalog.Find(CurrentGameId)?.ThemeId ?? "imperial"
-            : Settings.Theme;
-        ThemeManager.Apply(theme);
+        if (_disposed) return;
+        var id = ThemeResolver.Resolve(Settings.Theme, GameCatalog.Find(CurrentGameId)?.ThemeId, SystemHighContrast,
+            Settings.Accessibility.HighContrast, ThemeManager.ThemeIds);
+        ThemeManager.Apply(id, force: id == ThemeResolver.HighContrast);
     }
 
     /// <summary>Feeds sample messages through the overlay so the user can see and position it without a game.</summary>

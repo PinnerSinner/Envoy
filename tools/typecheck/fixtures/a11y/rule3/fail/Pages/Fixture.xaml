@@ -1,0 +1,9 @@
+<UserControl x:Class="Envoy.App.Pages.Fixture"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:Envoy.App.Controls">
+    <StackPanel>
+        <CheckBox><TextBlock Text="Japanese" /></CheckBox>
+        <RadioButton IsChecked="True" />
+    </StackPanel>
+</UserControl>

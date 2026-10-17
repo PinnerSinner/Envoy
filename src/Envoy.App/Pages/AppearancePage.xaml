@@ -11,7 +11,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <RadioButton Style="{StaticResource ThemeCard}" IsChecked="{Binding IsSelected, Mode=TwoWay}" Width="250">
+                        <RadioButton Style="{StaticResource ThemeCard}" AutomationProperties.Name="{Binding Name}" AutomationProperties.HelpText="{Binding Inspiration}" IsChecked="{Binding IsSelected, Mode=TwoWay}" Width="250">
                             <StackPanel>
                                 <ItemsControl ItemsSource="{Binding Swatches}" Margin="0,0,0,8">
                                     <ItemsControl.ItemsPanel>
@@ -19,7 +19,7 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Rectangle Width="40" Height="26" Fill="{Binding}" Margin="0,0,4,0" Stroke="#40000000" />
+                                            <Rectangle Width="40" Height="26" Fill="{Binding}" Margin="0,0,4,0" Stroke="{DynamicResource Border.Subtle}" />
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -30,6 +30,25 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+
+            <!-- Accessibility (spec 07b): the high-contrast palette, between Theme and Notifications (contract §8.6). -->
+            <ContentControl x:Name="AccessibilityFrame" Style="{StaticResource OrnateFrame}" Margin="0,10,0,14">
+                <StackPanel>
+                    <TextBlock Text="Accessibility" Style="{StaticResource Text.H2}" />
+                    <Grid Style="{StaticResource SettingRow}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="High contrast" Style="{StaticResource Text.Label}" />
+                        <ComboBox x:Name="HighContrastBox" Grid.Column="1" Width="260" HorizontalAlignment="Left" ItemsSource="{Binding HighContrastModes}"
+                                  DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Accessibility.HighContrast}"
+                                  AutomationProperties.Name="High contrast"
+                                  AutomationProperties.HelpText="Use Windows' contrast theme colours instead of the game theme." />
+                    </Grid>
+                    <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="220,0,0,6"
+                               Text="Follow Windows uses your contrast theme's colours whenever a Windows contrast theme is on." />
+                    <TextBlock x:Name="HighContrastStatusText" Text="{Binding HighContrastStatus, Mode=OneWay}" Style="{StaticResource Text.Caption}"
+                               TextWrapping="Wrap" Margin="220,0,0,0" />
+                </StackPanel>
+            </ContentControl>
 
             <!-- Notifications (spec 07a): advisory tray balloons. Off keeps the War Room list (contract §2.2). -->
             <ContentControl x:Name="NotificationsFrame" Style="{StaticResource OrnateFrame}" Margin="0,10,0,14">

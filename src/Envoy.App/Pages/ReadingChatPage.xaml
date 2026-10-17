@@ -25,7 +25,7 @@
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Game" Style="{StaticResource Text.Label}" />
-                        <ComboBox Grid.Column="1" ItemsSource="{Binding Games}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Game}" />
+                        <ComboBox AutomationProperties.Name="Game" Grid.Column="1" ItemsSource="{Binding Games}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Game}" />
                     </Grid>
                     <TextBlock Text="Each game remembers its own chat area, so switching between AoE II and AoE IV just works." Style="{StaticResource Text.Caption}" Margin="220,0,0,0" />
                 </StackPanel>
@@ -46,9 +46,9 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <DockPanel Margin="0,2,16,2">
-                                    <Button DockPanel.Dock="Right" Content="Install" Padding="10,2" FontSize="11" Command="{Binding DataContext.InstallOcrCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Code}"
+                                    <Button DockPanel.Dock="Right" Content="Install" AutomationProperties.Name="{Binding Name, StringFormat='Install {0} text recognition'}" Padding="10,2" FontSize="11" Command="{Binding DataContext.InstallOcrCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Code}"
                                             Visibility="{Binding Installed, Converter={StaticResource InverseBoolToVisibility}}" />
-                                    <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanToggle}">
+                                    <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanToggle}" AutomationProperties.Name="{Binding Name}" AutomationProperties.HelpText="{Binding StatusText}">
                                         <StackPanel>
                                             <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource Text.Muted}" FontSize="11" />
@@ -83,19 +83,19 @@
                     <Grid Style="{StaticResource SettingRow}" Visibility="{Binding Settings.Capture.AdaptivePolling, Converter={StaticResource InverseBoolToVisibility}}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Check for new messages every" Style="{StaticResource Text.Label}" />
-                        <Slider Grid.Column="1" Minimum="250" Maximum="3000" TickFrequency="50" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.IntervalMs}" />
+                        <Slider AutomationProperties.Name="Check for new messages every" Grid.Column="1" Minimum="250" Maximum="3000" TickFrequency="50" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.IntervalMs}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.IntervalMs, StringFormat='{}{0} ms'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Enlarge before reading" Style="{StaticResource Text.Label}" />
-                        <Slider Grid.Column="1" Minimum="1" Maximum="4" TickFrequency="0.25" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.Upscale}" />
+                        <Slider AutomationProperties.Name="Enlarge before reading" Grid.Column="1" Minimum="1" Maximum="4" TickFrequency="0.25" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.Upscale}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.Upscale, StringFormat='{}{0:0.##}×'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Contrast" Style="{StaticResource Text.Label}" />
-                        <Slider Grid.Column="1" Minimum="0.5" Maximum="3" TickFrequency="0.1" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.Contrast}" />
+                        <Slider AutomationProperties.Name="Contrast" Grid.Column="1" Minimum="0.5" Maximum="3" TickFrequency="0.1" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.Contrast}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.Contrast, StringFormat='{}{0:0.0}'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <CheckBox Content="Greyscale" IsChecked="{Binding Settings.Capture.Grayscale}" />
@@ -159,7 +159,7 @@
                     <Border BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="1" Background="{DynamicResource Bg.Input}" MinHeight="80">
                         <Image x:Name="PreviewImage" Source="{Binding CapturePreview.Image}" Stretch="Uniform" MaxHeight="240" HorizontalAlignment="Left" RenderOptions.BitmapScalingMode="HighQuality" />
                     </Border>
-                    <TextBox x:Name="PreviewText" c:AutoApply.Ignore="True" Text="{Binding CapturePreview.Text, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" Margin="0,8,0,0" VerticalContentAlignment="Top" />
+                    <TextBox x:Name="PreviewText" AutomationProperties.Name="Text Envoy read" c:AutoApply.Ignore="True" Text="{Binding CapturePreview.Text, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" Margin="0,8,0,0" VerticalContentAlignment="Top" />
                     <TextBlock x:Name="PreviewUnderstood" Text="{Binding CapturePreview.UnderstoodText, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,8,0,0" />
                     <DockPanel Margin="0,8,0,0" Visibility="{Binding CapturePreview.CanCopy, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                         <Button x:Name="CopyTestCapture" Content="Copy as test capture" Command="{Binding CapturePreview.CopyAsTestCaptureCommand}"

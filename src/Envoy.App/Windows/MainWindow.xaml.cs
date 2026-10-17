@@ -44,6 +44,7 @@ public partial class MainWindow : Window
         AddHandler(ToggleButton.UncheckedEvent, new RoutedEventHandler(OnEdited));
         AddHandler(RangeBase.ValueChangedEvent, new RoutedEventHandler(OnEdited));
         AddHandler(PasswordBox.PasswordChangedEvent, new RoutedEventHandler(OnEdited));
+        PreviewKeyDown += OnPagesKeyDown; // Ctrl+Tab / Ctrl+Shift+Tab (REQ-OUXB-30)
 #if DEBUG
         // Manual step M4 (docs/specs/02-reliability-observability.md): Ctrl+Alt+Shift+F12 throws on the UI thread.
         InputBindings.Add(new KeyBinding(new Core.Mvvm.RelayCommand(() => throw new InvalidOperationException("Test error from MainWindow.")),
@@ -72,6 +73,26 @@ public partial class MainWindow : Window
     public void Navigate(string page)
     {
         if (FindName("Nav" + page) is RadioButton nav) nav.IsChecked = true;
+    }
+
+    /// <summary>The page whose sidebar item is checked, or null before the first navigation.</summary>
+    public string? CurrentPage => PageIds.All.FirstOrDefault(p => FindName("Nav" + p) is RadioButton { IsChecked: true });
+
+    /// <summary>Moves to the next (or previous) page, wrapping at both ends, and focuses its sidebar item.</summary>
+    public void NavigateRelative(int step)
+    {
+        var pages = PageIds.All;
+        var current = CurrentPage is { } page ? pages.ToList().IndexOf(page) : 0;
+        var next = pages[(((current + step) % pages.Count) + pages.Count) % pages.Count];
+        Navigate(next);
+        if (FindName("Nav" + next) is RadioButton nav) nav.Focus();
+    }
+
+    private void OnPagesKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Tab || (Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
+        NavigateRelative((Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? -1 : 1);
+        e.Handled = true;
     }
 
     /// <summary>The page instance hosted for a <see cref="PageIds"/> id.</summary>

@@ -8,13 +8,15 @@
         Width="560" MinHeight="10">
     <Grid x:Name="Root">
         <!-- Edit-mode chrome: visible only while positioning the overlay. -->
-        <Border x:Name="EditFrame" Visibility="Collapsed" BorderBrush="{DynamicResource Accent}" BorderThickness="1" Background="#33000000" CornerRadius="3" />
+        <Border x:Name="EditFrame" Visibility="Collapsed" BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="3">
+            <Border Background="{DynamicResource Overlay.Bg}" Opacity="0.2" CornerRadius="3" />
+        </Border>
 
         <StackPanel Margin="4">
             <Border x:Name="EditBar" Visibility="Collapsed" Background="{DynamicResource Accent.Gradient}" Padding="10,5" Margin="0,0,0,4" Cursor="SizeAll"
                     MouseLeftButtonDown="OnDragStart">
                 <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="Done" Style="{StaticResource Button.Ghost}" Foreground="{DynamicResource Text.OnAccent}" Click="OnDoneEditing" Padding="8,0" />
+                    <Button DockPanel.Dock="Right" Content="Done" AutomationProperties.Name="Done" Style="{StaticResource Button.Ghost}" Foreground="{DynamicResource Text.OnAccent}" Click="OnDoneEditing" Padding="8,0" />
                     <TextBlock Text="Drag to move · use the edge to resize · Done to lock" Foreground="{DynamicResource Text.OnAccent}"
                                FontFamily="{StaticResource Font.Display}" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                 </DockPanel>
@@ -62,7 +64,7 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <Border x:Name="EmptyHint" Visibility="Collapsed" Padding="12,8" Background="#99000000" CornerRadius="2">
+            <Border x:Name="EmptyHint" Visibility="Collapsed" Padding="12,8" Background="{DynamicResource Overlay.Bg}" CornerRadius="2">
                 <TextBlock Text="Translated chat will appear here." Foreground="{DynamicResource Overlay.Original}" FontStyle="Italic" />
             </Border>
         </StackPanel>

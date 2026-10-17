@@ -154,6 +154,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RefreshChatUnderstanding();
         RefreshTroubleshooting();
         RefreshHints();
+        RefreshAccessibility();
     }
 
     /// <summary>

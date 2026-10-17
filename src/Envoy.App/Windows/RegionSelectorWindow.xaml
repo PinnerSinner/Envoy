@@ -2,11 +2,11 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Select chat area"
-        WindowStyle="None" AllowsTransparency="True" Background="#01000000"
+        WindowStyle="None" AllowsTransparency="True" Background="{DynamicResource Overlay.HitTest}"
         Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize" Cursor="Cross">
     <Grid>
         <!-- Dimmed screen with a hole where the selection is. -->
-        <Path x:Name="Dim" Fill="#99000000">
+        <Path x:Name="Dim" Fill="{DynamicResource Overlay.Dim}">
             <Path.Data>
                 <CombinedGeometry GeometryCombineMode="Exclude">
                     <CombinedGeometry.Geometry1>

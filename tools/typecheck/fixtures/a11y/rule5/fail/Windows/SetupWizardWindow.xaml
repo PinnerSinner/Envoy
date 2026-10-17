@@ -1,0 +1,9 @@
+<Window x:Class="Envoy.App.Windows.SetupWizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        KeyboardNavigation.TabNavigation="Continue"
+        Title="Fixture">
+    <Grid>
+
+    </Grid>
+</Window>

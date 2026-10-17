@@ -13,7 +13,7 @@
         <ContentControl Style="{StaticResource OrnateFrame}" Margin="0" Padding="18,12,18,14">
             <StackPanel>
                 <DockPanel Margin="0,0,0,8" MouseLeftButtonDown="OnDrag" Background="Transparent">
-                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Chrome}" Content="&#xE8BB;" ToolTip="Close (Esc)" Click="OnClose" Width="32" Height="28" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Chrome}" Content="&#xE8BB;" ToolTip="Close (Esc)" Click="OnClose" Width="32" Height="28" AutomationProperties.Name="Close" />
                     <TextBlock Text="Scouting report" Style="{StaticResource Text.H2}" Margin="0" VerticalAlignment="Center" />
                     <TextBlock x:Name="Languages" Style="{StaticResource Text.Caption}" Margin="10,2,0,0" VerticalAlignment="Center" />
                 </DockPanel>

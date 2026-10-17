@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
@@ -14,6 +15,7 @@ using Envoy.Core.Onboarding;
 using Envoy.Core.Security;
 using Envoy.Core.Settings;
 using Envoy.Core.Updates;
+using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 
 namespace Envoy.App;
@@ -142,7 +144,7 @@ public partial class App : Application, IShell
             Host.Settings.StartCapturingAutomatically);
 
         // 8. Notification services: toasts and the throttle always; the advisory notifier (07a) unless in safe mode (the
-        //    host creates NoticeCenter only then). [07b high-contrast listeners]
+        //    host creates NoticeCenter only then). Then the high-contrast listeners (07b), also in safe mode.
         _toasts = new ToastService(Dispatcher, Host.Notifications, () => Host.Settings.Diagnostics.ShowErrorToasts,
             () => Host.Game?.MainWindow ?? IntPtr.Zero, OpenTroubleshooting, hub.For("Toast"));
         _handlers.ShowProblem = _toasts.Show;
@@ -153,6 +155,8 @@ public partial class App : Application, IShell
             _notifier = new TrayNotifier(RunNoticeAction, hub.For("Notices"));
             Host.NoticeReady += _notifier.Show;
         }
+        SystemParameters.StaticPropertyChanged += OnSystemParameterChanged;
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
         // 9. Start (no automatic capture in safe mode), then automatic update checks unless in safe mode (06). The
         //    coordinator exists either way, so About's "Check for updates" works in safe mode too.
@@ -210,6 +214,25 @@ public partial class App : Application, IShell
     }
 
     private void OnMainClosed(object? sender, EventArgs e) => _main = null;
+
+    /// <summary>Windows high contrast turned on or off (UI thread; REQ-OUXB-33). Queued, so it never re-enters a layout pass.</summary>
+    private void OnSystemParameterChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SystemParameters.HighContrast)) Dispatcher.InvokeAsync(ReapplyTheme);
+    }
+
+    /// <summary>The contrast theme or a system colour changed (a system thread): re-apply on the UI thread.</summary>
+    private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category == UserPreferenceCategory.Color) Dispatcher.InvokeAsync(ReapplyTheme);
+    }
+
+    private void ReapplyTheme()
+    {
+        if (_exiting) return;
+        _log.Info("Contrast settings changed", LogField.Of("highContrast", SystemParameters.HighContrast));
+        Host.ApplyTheme();
+    }
 
     /// <summary>The toast's Details button: MainWindow on About › Troubleshooting.</summary>
     private void OpenTroubleshooting()
@@ -362,6 +385,8 @@ public partial class App : Application, IShell
             _notifier = null;
         }
         _toasts?.CloseAll();
+        SystemParameters.StaticPropertyChanged -= OnSystemParameterChanged;
+        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
         Host.PropertyChanged -= OnHostPropertyChanged;
         _restartToUpdateItem = null;
         _tray?.Dispose();

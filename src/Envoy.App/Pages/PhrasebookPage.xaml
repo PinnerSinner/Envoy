@@ -15,7 +15,7 @@
                     <DockPanel Margin="0,0,0,10">
                         <Button DockPanel.Dock="Right" Content="Edit my phrases" Command="{Binding EditPhrasesCommand}" />
                         <TextBlock Text="Preview in" Style="{StaticResource Text.Label}" Margin="0,0,10,0" />
-                        <ComboBox x:Name="PhrasePreviewLanguage" Width="240" HorizontalAlignment="Left" ItemsSource="{Binding Languages}" DisplayMemberPath="DisplayName"
+                        <ComboBox AutomationProperties.Name="Preview in" x:Name="PhrasePreviewLanguage" Width="240" HorizontalAlignment="Left" ItemsSource="{Binding Languages}" DisplayMemberPath="DisplayName"
                                   SelectedItem="{Binding PhrasePreviewLanguage}" c:AutoApply.Ignore="True" />
                     </DockPanel>
                     <ItemsControl x:Name="PhraseList" ItemsSource="{Binding PhraseRows}">

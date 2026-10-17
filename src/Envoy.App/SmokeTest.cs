@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Envoy.App.Controls;
@@ -26,6 +27,7 @@ using Envoy.Core.Settings;
 using Envoy.Core.Translation;
 using Envoy.Core.Translation.Resilience;
 using Envoy.Core.Updates;
+using Envoy.Core.Ux;
 using Forms = System.Windows.Forms;
 
 namespace Envoy.App;
@@ -246,8 +248,19 @@ internal static class SmokeTest
     {
         var paletteTime = Stopwatch.StartNew();
         var sw = Stopwatch.StartNew();
-        host.Settings.Theme = palette; // so a settings re-apply doesn't switch back to "match game"
-        ThemeManager.Apply(palette);
+        var highContrast = palette == ThemeResolver.HighContrast;
+        if (highContrast)
+        {
+            // 07b: high contrast is chosen by the resolver, never by Settings.Theme; Always keeps it through a re-apply.
+            host.Settings.Accessibility.HighContrast = HighContrastMode.Always;
+            ThemeManager.Apply(palette, force: true);
+        }
+        else
+        {
+            host.Settings.Theme = palette; // so a settings re-apply doesn't switch back to "match game"
+            ThemeManager.Apply(palette);
+        }
+        Check(ThemeManager.CurrentId == palette, $"palette {palette} did not load (current: {ThemeManager.CurrentId})");
 
         var listener = new BindingErrorListener();
         PresentationTraceSources.DataBindingSource.Listeners.Add(listener);
@@ -303,6 +316,17 @@ internal static class SmokeTest
                 Section("page-order", sw);
             }
 
+            // ---- 07b: the focus ring, then (first palette) the accessible-name audit of every page ----
+            CheckFocusVisual(main);
+            Section($"focus-visual({palette})", sw);
+            if (first)
+            {
+                await CheckPagesNamedAsync(main);
+                Section("a11y-audit(pages)", sw);
+                await CheckPageKeysAsync(main);
+                Section("page-keys", sw);
+            }
+
             // ---- close ----
             if (first)
             {
@@ -328,6 +352,11 @@ internal static class SmokeTest
             Section($"guide({palette})", sw);
             if (first)
             {
+                await CheckKeyboardAsync(app, host);
+                Section("keyboard", sw);
+            }
+            if (first)
+            {
                 CheckTrayNotifier();
                 Section("tray-notifier", sw);
             }
@@ -339,9 +368,15 @@ internal static class SmokeTest
             if (shots is not null) Save(overlay, Path.Combine(shots, $"{palette}-overlay.png"), Backdrop());
             overlay.ToggleEditMode();
             await Pump();
+            if (first) AuditNames(overlay, "overlay edit mode");
             overlay.ToggleEditMode();
             overlay.Close();
             Section($"overlay({palette})", sw);
+            var readable = new OverlayWindow(host);
+            readable.Show();
+            await CheckOverlayReadableAsync(host, readable, palette);
+            readable.Close();
+            Section($"overlay-readable({palette})", sw);
 
             var compose = new ComposeWindow(host);
             compose.Open(IntPtr.Zero);
@@ -356,6 +391,7 @@ internal static class SmokeTest
             }
             await Pump();
             if (shots is not null) Save(compose, Path.Combine(shots, $"{palette}-reply.png"), Backdrop());
+            if (first) AuditWindow(compose, "compose");
             compose.Close();
             Section($"compose({palette})", sw);
 
@@ -364,6 +400,7 @@ internal static class SmokeTest
             lookup.ShowResult("[全部] 天下第一：这张地图的金矿在中间\n小心早期快攻", "[All] Number One Under Heaven: the gold on this map is in the middle\nWatch out for an early rush", "zh-CN");
             await Pump();
             if (shots is not null) Save(lookup, Path.Combine(shots, $"{palette}-scan.png"), Backdrop());
+            if (first) AuditNames(lookup, "lookup");
             lookup.Close();
             Section($"lookup({palette})", sw);
 
@@ -377,6 +414,7 @@ internal static class SmokeTest
         finally
         {
             PresentationTraceSources.DataBindingSource.Listeners.Remove(listener);
+            if (highContrast) host.Settings.Accessibility.HighContrast = HighContrastMode.FollowWindows;
         }
 
         var errors = listener.Errors.Where(e => !BindingErrorAllowlist.Contains(e)).ToList();
@@ -854,7 +892,7 @@ internal static class SmokeTest
         main.Navigate(PageIds.Appearance);
         await Pump();
         var appearance = (AppearancePage)main.PageFor(PageIds.Appearance);
-        CheckOrder(appearance, "Appearance", appearance.ThemesList, appearance.NotificationsFrame, appearance.StartupFrame);
+        CheckOrder(appearance, "Appearance", appearance.ThemesList, appearance.AccessibilityFrame, appearance.NotificationsFrame, appearance.StartupFrame);
         main.Navigate(PageIds.About);
         await Pump();
         var about = (AboutPage)main.PageFor(PageIds.About);
@@ -868,6 +906,141 @@ internal static class SmokeTest
         var ys = elements.Select(e => e.TranslatePoint(new Point(0, 0), page).Y).ToList();
         for (var i = 1; i < ys.Count; i++)
             Check(ys[i] > ys[i - 1], $"{name}: {elements[i].Name} (y={ys[i]:0}) is not below {elements[i - 1].Name} (y={ys[i - 1]:0})");
+    }
+
+    // ---------------- 07b: accessibility ----------------
+
+    /// <summary>
+    /// AC-OUXB-1: the resolved Button, CheckBox, Slider and NavItem styles carry a focus visual, and the palette defines
+    /// Focus.Ring as a brush.
+    /// </summary>
+    private static void CheckFocusVisual(MainWindow main)
+    {
+        foreach (var (name, key) in new (string, object)[] { ("Button", typeof(Button)), ("CheckBox", typeof(CheckBox)), ("Slider", typeof(Slider)), ("NavItem", "NavItem") })
+        {
+            var style = main.TryFindResource(key) as Style;
+            Check(style is not null, $"no {name} style");
+            Check(FocusVisualOf(style!) is not null, $"the {name} style has no FocusVisualStyle");
+        }
+        Check(main.TryFindResource("Focus.Ring") is SolidColorBrush, "Focus.Ring is not a SolidColorBrush");
+    }
+
+    private static Style? FocusVisualOf(Style style)
+    {
+        for (var s = style; s is not null; s = s.BasedOn)
+        {
+            var setter = s.Setters.OfType<Setter>().FirstOrDefault(x => x.Property == FrameworkElement.FocusVisualStyleProperty);
+            if (setter is not null) return setter.Value as Style;
+        }
+        return null;
+    }
+
+    /// <summary>REQ-OUXB-27: every visible, enabled, focusable control on every page has a UI Automation name.</summary>
+    private static async Task CheckPagesNamedAsync(MainWindow main)
+    {
+        var total = 0;
+        foreach (var page in PageIds.All)
+        {
+            main.Navigate(page);
+            await Pump();
+            AuditNames(main, $"page {page}");
+            total += AccessibilityAudit.Audited(main).Count;
+        }
+        main.Navigate(PageIds.Dashboard);
+        await Pump();
+        Log($"[smoke] a11y: ok ({total} controls)");
+    }
+
+    /// <summary>REQ-OUXB-30: Ctrl+Tab and Ctrl+Shift+Tab move through the pages and wrap at both ends.</summary>
+    private static async Task CheckPageKeysAsync(MainWindow main)
+    {
+        main.Navigate(PageIds.All[^1]);
+        await Pump();
+        main.NavigateRelative(1);
+        await Pump();
+        Check(main.CurrentPage == PageIds.All[0], $"Ctrl+Tab from the last page went to {main.CurrentPage}");
+        main.NavigateRelative(-1);
+        await Pump();
+        Check(main.CurrentPage == PageIds.All[^1], $"Ctrl+Shift+Tab from the first page went to {main.CurrentPage}");
+        main.Navigate(PageIds.Dashboard);
+        await Pump();
+    }
+
+    private static void AuditNames(DependencyObject root, string where)
+    {
+        var unnamed = AccessibilityAudit.FindUnnamed(root);
+        foreach (var control in unnamed) Log($"[smoke] unnamed control ({where}): {control}");
+        Check(unnamed.Count == 0, $"{unnamed.Count} control(s) without an accessible name on {where}");
+    }
+
+    /// <summary>REQ-OUXB-27, 31: names, then Tab reaches every control (a window that cannot take focus logs a warning).</summary>
+    private static void AuditWindow(Window window, string where)
+    {
+        AuditNames(window, where);
+        var unreachable = AccessibilityAudit.FindUnreachable(window);
+        if (unreachable is null)
+        {
+            Warn($"a11y: {where} could not take keyboard focus; Tab reachability not checked");
+            return;
+        }
+        foreach (var control in unreachable) Log($"[smoke] not reachable with Tab ({where}): {control}");
+        Check(unreachable.Count == 0, $"{unreachable.Count} control(s) on {where} are not reachable with Tab");
+    }
+
+    /// <summary>AC-OUXB-4: the guide's Next is the default and Skip the cancel button; compose cycles Tab.</summary>
+    private static async Task CheckKeyboardAsync(App app, AppHost host)
+    {
+        var wizard = new SetupWizardWindow(host, app, OnboardingStep.Language);
+        wizard.Show();
+        await Pump();
+        Check(KeyboardNavigation.GetTabNavigation(wizard) == KeyboardNavigationMode.Cycle, "the guide's root does not cycle Tab");
+        Check(wizard.NextButton.IsDefault, "the guide's Next is not the default button");
+        Check(wizard.SkipButton.IsCancel, "the guide's Skip is not the cancel button");
+        wizard.Close();
+        await Pump();
+
+        var compose = new ComposeWindow(host);
+        compose.Open(IntPtr.Zero);
+        await Pump();
+        Check(KeyboardNavigation.GetTabNavigation(compose) == KeyboardNavigationMode.Cycle, "the reply box's root does not cycle Tab");
+        Check(!compose.SendButton.IsDefault, "the reply box's Send must not be IsDefault (Enter in the input sends)");
+        Check(compose.Input.TabIndex < compose.CopyButton.TabIndex && compose.CopyButton.TabIndex < compose.SendButton.TabIndex
+              && compose.SendButton.TabIndex < compose.TargetLanguage.TabIndex && compose.TargetLanguage.TabIndex < compose.CloseButton.TabIndex,
+            "the reply box's tab order is not input, phrases, Copy, Send, language, Close");
+        compose.Close();
+        await Pump();
+    }
+
+    /// <summary>
+    /// AC-OUXB-8: at 20% background the readable-text floor raises the card to at least the palette's minimum alpha (1 in
+    /// high contrast); with the floor off the card keeps 20%.
+    /// </summary>
+    private static async Task CheckOverlayReadableAsync(AppHost host, OverlayWindow overlay, string palette)
+    {
+        var o = host.Settings.Overlay;
+        var (opacity, readable) = (o.BackgroundOpacity, o.EnsureReadableText);
+        try
+        {
+            o.BackgroundOpacity = 0.2;
+            o.EnsureReadableText = true;
+            overlay.ApplySettings();
+            await Pump();
+            var minimum = palette == ThemeResolver.HighContrast ? 1.0 : ThemeManager.OverlayMinimumAlpha();
+            var alpha = ((SolidColorBrush)overlay.CardBackground).Color.A / 255.0;
+            Check(alpha + 0.5 / 255 >= minimum, $"overlay card alpha {alpha:0.00} is below the readable minimum {minimum:0.00} ({palette})");
+
+            o.EnsureReadableText = false;
+            overlay.ApplySettings();
+            await Pump();
+            alpha = ((SolidColorBrush)overlay.CardBackground).Color.A / 255.0;
+            var expected = palette == ThemeResolver.HighContrast ? 1.0 : 0.2;
+            Check(Math.Abs(alpha - expected) < 1.0 / 255 + 1e-9, $"overlay card alpha {alpha:0.00} is not {expected:0.00} with the floor off ({palette})");
+        }
+        finally
+        {
+            (o.BackgroundOpacity, o.EnsureReadableText) = (opacity, readable);
+            overlay.ApplySettings();
+        }
     }
 
     /// <summary>
@@ -892,7 +1065,8 @@ internal static class SmokeTest
             Check(wizard.StepCounter.Text == $"Step {i + 1} of {vm.StepCount}", $"step {step}: the counter reads '{wizard.StepCounter.Text}'");
             var chat = step == OnboardingStep.ChatArea;
             Check(vm.CapturePreview.IsActive == chat && host.Watcher.IsPreviewing == chat, $"step {step}: live view active={vm.CapturePreview.IsActive}, lease={host.Watcher.IsPreviewing}");
-            if (shots is not null && palette == "imperial") Save(wizard, Path.Combine(shots, $"{palette}-setup-{step.ToString().ToLowerInvariant()}.png"));
+            if (first) AuditWindow(wizard, $"guide step {step}");
+            if (shots is not null && palette is "imperial" or ThemeResolver.HighContrast) Save(wizard, Path.Combine(shots, $"{palette}-setup-{step.ToString().ToLowerInvariant()}.png"));
         }
         Check(vm.Steps.All(s => s.Status != StepStatus.NotVisited), "a visited step still reads Not visited");
 

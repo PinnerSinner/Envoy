@@ -14,13 +14,13 @@
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Position" Style="{StaticResource Text.Label}" />
-                        <ComboBox Grid.Column="1" ItemsSource="{Binding Anchors}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Overlay.Anchor}" />
+                        <ComboBox AutomationProperties.Name="Position" Grid.Column="1" ItemsSource="{Binding Anchors}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Overlay.Anchor}" />
                         <Button Grid.Column="2" Content="Drag to place" Command="{Binding MoveOverlayCommand}" Margin="8,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Width" Style="{StaticResource Text.Label}" />
-                        <Slider Grid.Column="1" Minimum="240" Maximum="1200" TickFrequency="10" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.Width}" />
+                        <Slider AutomationProperties.Name="Width" Grid.Column="1" Minimum="240" Maximum="1200" TickFrequency="10" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.Width}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.Width, StringFormat='{}{0:0} px'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <CheckBox Content="Show the overlay" IsChecked="{Binding Settings.Overlay.Visible}" />
@@ -33,25 +33,31 @@
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Text size" Style="{StaticResource Text.Label}" />
-                        <Slider Grid.Column="1" Minimum="10" Maximum="32" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.FontSize}" />
+                        <Slider AutomationProperties.Name="Text size" Grid.Column="1" Minimum="10" Maximum="32" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.FontSize}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.FontSize, StringFormat='{}{0:0} pt'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Background" Style="{StaticResource Text.Label}" />
-                        <Slider Grid.Column="1" Minimum="0" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.BackgroundOpacity}" />
+                        <Slider AutomationProperties.Name="Background" Grid.Column="1" Minimum="0" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.BackgroundOpacity}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.BackgroundOpacity, StringFormat='{}{0:P0}'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
+                    <!-- REQ-OUXB-37: says when "Keep text readable" raised the background above the slider. -->
+                    <TextBlock x:Name="OpacityNote" Text="{Binding OverlayOpacityNote, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="220,0,0,4"
+                               Visibility="{Binding OverlayOpacityNote, Mode=OneWay, Converter={StaticResource NullToCollapsed}}" />
+                    <CheckBox x:Name="EnsureReadableBox" Content="Keep text readable" IsChecked="{Binding Settings.Overlay.EnsureReadableText}"
+                              AutomationProperties.Name="Keep text readable"
+                              AutomationProperties.HelpText="Raises the background when it is too transparent for the text to stay readable over bright terrain." />
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Overall opacity" Style="{StaticResource Text.Label}" />
-                        <Slider Grid.Column="1" Minimum="0.2" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.Opacity}" />
+                        <Slider AutomationProperties.Name="Overall opacity" Grid.Column="1" Minimum="0.2" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.Opacity}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.Opacity, StringFormat='{}{0:P0}'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Font (blank = theme default)" Style="{StaticResource Text.Label}" />
-                        <TextBox Grid.Column="1" Text="{Binding Settings.Overlay.FontFamily, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBox AutomationProperties.Name="Overlay font" AutomationProperties.HelpText="Leave blank to use the theme default." Grid.Column="1" Text="{Binding Settings.Overlay.FontFamily, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <CheckBox Content="Show the original text under the translation" IsChecked="{Binding Settings.Overlay.ShowOriginal}" />
                     <CheckBox Content="Show player names and channel" IsChecked="{Binding Settings.Overlay.ShowSender}" />
@@ -66,13 +72,13 @@
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Keep each message for" Style="{StaticResource Text.Label}" />
-                        <Slider Grid.Column="1" Minimum="5" Maximum="120" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.MessageLifetimeSeconds}" />
+                        <Slider AutomationProperties.Name="Keep each message for" Grid.Column="1" Minimum="5" Maximum="120" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.MessageLifetimeSeconds}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.MessageLifetimeSeconds, StringFormat='{}{0} s'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Most messages shown" Style="{StaticResource Text.Label}" />
-                        <Slider Grid.Column="1" Minimum="1" Maximum="20" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.MaxMessages}" />
+                        <Slider AutomationProperties.Name="Most messages shown" Grid.Column="1" Minimum="1" Maximum="20" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.MaxMessages}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.MaxMessages}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Button Content="Show sample messages" Command="{Binding ShowSampleMessagesCommand}" HorizontalAlignment="Left" Margin="0,8,0,0" />
@@ -88,19 +94,19 @@
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Voice" Style="{StaticResource Text.Label}" />
-                        <ComboBox Grid.Column="1" ItemsSource="{Binding Voices}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Overlay.SpeechVoiceId}" />
+                        <ComboBox AutomationProperties.Name="Voice" Grid.Column="1" ItemsSource="{Binding Voices}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Overlay.SpeechVoiceId}" />
                         <Button Grid.Column="2" Content="Test" Command="{Binding TestVoiceCommand}" Margin="8,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Volume" Style="{StaticResource Text.Label}" />
-                        <Slider Grid.Column="1" Minimum="0" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.SpeechVolume}" />
+                        <Slider AutomationProperties.Name="Volume" Grid.Column="1" Minimum="0" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.SpeechVolume}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.SpeechVolume, StringFormat='{}{0:P0}'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Speed" Style="{StaticResource Text.Label}" />
-                        <Slider Grid.Column="1" Minimum="0.5" Maximum="2.5" TickFrequency="0.1" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.SpeechRate}" />
+                        <Slider AutomationProperties.Name="Speed" Grid.Column="1" Minimum="0.5" Maximum="2.5" TickFrequency="0.1" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.SpeechRate}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.SpeechRate, StringFormat='{}{0:0.0}×'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                 </StackPanel>

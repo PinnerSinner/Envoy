@@ -13,32 +13,32 @@
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Open the reply box" Style="{StaticResource Text.Label}" />
-                        <c:HotkeyBox Grid.Column="1" Text="{Binding Settings.Hotkeys.Compose}" />
+                        <c:HotkeyBox AutomationProperties.Name="Open the reply box" Grid.Column="1" Text="{Binding Settings.Hotkeys.Compose}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Show / hide the overlay" Style="{StaticResource Text.Label}" />
-                        <c:HotkeyBox Grid.Column="1" Text="{Binding Settings.Hotkeys.ToggleOverlay}" />
+                        <c:HotkeyBox AutomationProperties.Name="Show / hide the overlay" Grid.Column="1" Text="{Binding Settings.Hotkeys.ToggleOverlay}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Pause / resume reading chat" Style="{StaticResource Text.Label}" />
-                        <c:HotkeyBox Grid.Column="1" Text="{Binding Settings.Hotkeys.ToggleCapture}" />
+                        <c:HotkeyBox AutomationProperties.Name="Pause / resume reading chat" Grid.Column="1" Text="{Binding Settings.Hotkeys.ToggleCapture}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Select the chat area" Style="{StaticResource Text.Label}" />
-                        <c:HotkeyBox Grid.Column="1" Text="{Binding Settings.Hotkeys.SelectRegion}" />
+                        <c:HotkeyBox AutomationProperties.Name="Select the chat area" Grid.Column="1" Text="{Binding Settings.Hotkeys.SelectRegion}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Scan &amp; translate any part of the screen" Style="{StaticResource Text.Label}" />
-                        <c:HotkeyBox Grid.Column="1" Text="{Binding Settings.Hotkeys.ScanAndTranslate}" />
+                        <c:HotkeyBox AutomationProperties.Name="Scan &amp; translate any part of the screen" Grid.Column="1" Text="{Binding Settings.Hotkeys.ScanAndTranslate}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Move the overlay" Style="{StaticResource Text.Label}" />
-                        <c:HotkeyBox Grid.Column="1" Text="{Binding Settings.Hotkeys.OverlayEditMode}" />
+                        <c:HotkeyBox AutomationProperties.Name="Move the overlay" Grid.Column="1" Text="{Binding Settings.Hotkeys.OverlayEditMode}" />
                     </Grid>
                     <TextBlock Text="{Binding HotkeyErrors}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Danger}" Margin="0,8,0,0" />
                 </StackPanel>

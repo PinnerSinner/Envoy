@@ -1,0 +1,8 @@
+<Window x:Class="Envoy.App.Windows.Fixture"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Fixture">
+    <Grid>
+        <Border Background="#33000000" />
+    </Grid>
+</Window>

@@ -21,7 +21,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="Main provider" Style="{StaticResource Text.Label}" />
-                        <ComboBox Grid.Column="1" ItemsSource="{Binding Providers}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding PrimaryProvider}" />
+                        <ComboBox AutomationProperties.Name="Main provider" AutomationProperties.HelpText="{Binding PrimaryInfo.Blurb, Mode=OneWay}" Grid.Column="1" ItemsSource="{Binding Providers}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding PrimaryProvider}" />
                     </Grid>
                     <TextBlock Text="{Binding PrimaryInfo.Blurb}" Style="{StaticResource Text.Caption}" Margin="220,0,0,8" />
                     <Grid Style="{StaticResource SettingRow}">
@@ -30,7 +30,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="If it fails, try" Style="{StaticResource Text.Label}" />
-                        <ComboBox Grid.Column="1" ItemsSource="{Binding FallbackOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding FallbackProvider}" />
+                        <ComboBox AutomationProperties.Name="If it fails, try" Grid.Column="1" ItemsSource="{Binding FallbackOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding FallbackProvider}" />
                     </Grid>
                     <TextBlock Text="{Binding Host.ProviderStatus}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Accent}" Margin="220,4,0,0" />
                 </StackPanel>
@@ -103,7 +103,7 @@
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="API key" Style="{StaticResource Text.Label}" />
-                        <PasswordBox Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.DeepLKey}" />
+                        <PasswordBox AutomationProperties.Name="API key" Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.DeepLKey}" />
                     </Grid>
                     <TextBlock Style="{StaticResource Text.Caption}" Margin="220,0,0,0">
                         Free plan: 500,000 characters a month. <Hyperlink NavigateUri="https://www.deepl.com/pro-api" Command="{Binding OpenLinkCommand}" CommandParameter="https://www.deepl.com/pro-api">Get a key</Hyperlink>
@@ -117,12 +117,12 @@
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Anthropic API key" Style="{StaticResource Text.Label}" />
-                        <PasswordBox Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.ClaudeKey}" />
+                        <PasswordBox AutomationProperties.Name="Anthropic API key" Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.ClaudeKey}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Model" Style="{StaticResource Text.Label}" />
-                        <ComboBox Grid.Column="1" ItemsSource="{Binding ClaudeModels}" IsEditable="False" SelectedItem="{Binding Settings.Translation.ClaudeModel}" />
+                        <ComboBox AutomationProperties.Name="Model" Grid.Column="1" ItemsSource="{Binding ClaudeModels}" IsEditable="False" SelectedItem="{Binding Settings.Translation.ClaudeModel}" />
                     </Grid>
                     <TextBlock Style="{StaticResource Text.Caption}" Margin="220,0,0,0" TextWrapping="Wrap">
                         Haiku costs a fraction of a cent per message and is plenty for chat; Opus is the most capable.
@@ -137,17 +137,17 @@
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Access key ID" Style="{StaticResource Text.Label}" />
-                        <TextBox Grid.Column="1" Text="{Binding Settings.Translation.AwsAccessKeyId, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBox AutomationProperties.Name="Access key ID" Grid.Column="1" Text="{Binding Settings.Translation.AwsAccessKeyId, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Secret access key" Style="{StaticResource Text.Label}" />
-                        <PasswordBox Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.AwsSecretAccessKey}" />
+                        <PasswordBox AutomationProperties.Name="Secret access key" Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.AwsSecretAccessKey}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Region" Style="{StaticResource Text.Label}" />
-                        <TextBox Grid.Column="1" Width="200" HorizontalAlignment="Left" Text="{Binding Settings.Translation.AwsRegion, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBox AutomationProperties.Name="Region" Grid.Column="1" Width="200" HorizontalAlignment="Left" Text="{Binding Settings.Translation.AwsRegion, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <TextBlock Style="{StaticResource Text.Caption}" Margin="220,0,0,0" TextWrapping="Wrap">
                         Use an IAM user that can only call translate:TranslateText, and set a billing alarm in AWS for peace of mind.
@@ -161,12 +161,12 @@
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Server URL" Style="{StaticResource Text.Label}" />
-                        <TextBox Grid.Column="1" Text="{Binding Settings.Translation.LibreTranslateUrl, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBox AutomationProperties.Name="Server URL" Grid.Column="1" Text="{Binding Settings.Translation.LibreTranslateUrl, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="API key (if required)" Style="{StaticResource Text.Label}" />
-                        <PasswordBox Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.LibreTranslateKey}" />
+                        <PasswordBox AutomationProperties.Name="API key (if required)" Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.LibreTranslateKey}" />
                     </Grid>
                 </StackPanel>
             </ContentControl>
@@ -179,7 +179,7 @@
                     <Grid Style="{StaticResource SettingRow}" Margin="0,12,0,0">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Daily cap for paid providers" Style="{StaticResource Text.Label}" />
-                        <Slider Grid.Column="1" Minimum="0" Maximum="500000" SmallChange="5000" LargeChange="25000" TickFrequency="5000" IsSnapToTickEnabled="True"
+                        <Slider AutomationProperties.Name="Daily cap for paid providers" AutomationProperties.HelpText="When the cap is reached Envoy switches to the free provider until tomorrow. 0 means no cap." Grid.Column="1" Minimum="0" Maximum="500000" SmallChange="5000" LargeChange="25000" TickFrequency="5000" IsSnapToTickEnabled="True"
                                 Value="{Binding Settings.Translation.DailyCharacterLimit}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Translation.DailyCharacterLimit, StringFormat='{}{0:N0} chars'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
@@ -216,12 +216,12 @@
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Translate" Style="{StaticResource Text.Label}" />
-                        <ComboBox Grid.Column="1" ItemsSource="{Binding ChannelOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Channels}" />
+                        <ComboBox AutomationProperties.Name="Translate" Grid.Column="1" ItemsSource="{Binding ChannelOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Channels}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Muted players" Style="{StaticResource Text.Label}" />
-                        <TextBox Grid.Column="1" Text="{Binding MutedPlayersText, UpdateSourceTrigger=LostFocus}" />
+                        <TextBox AutomationProperties.Name="Muted players" Grid.Column="1" Text="{Binding MutedPlayersText, UpdateSourceTrigger=LostFocus}" />
                     </Grid>
                     <TextBlock Text="Comma-separated names. Their messages are hidden and never sent for translation." Style="{StaticResource Text.Caption}" Margin="220,0,0,0" />
                 </StackPanel>
@@ -232,7 +232,7 @@
                     <TextBlock Text="Try it" Style="{StaticResource Text.H2}" />
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="Translate" Command="{Binding TestTranslateCommand}" Margin="8,0,0,0" />
-                        <TextBox x:Name="TestInput" c:AutoApply.Ignore="True" Text="{Binding TranslationTestInput, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBox x:Name="TestInput" AutomationProperties.Name="Text to translate" c:AutoApply.Ignore="True" Text="{Binding TranslationTestInput, UpdateSourceTrigger=PropertyChanged}" />
                     </DockPanel>
                     <TextBlock x:Name="TestOutput" Text="{Binding TranslationTestOutput}" Style="{StaticResource Text.Label}" Margin="0,10,0,0" FontSize="15" />
                 </StackPanel>

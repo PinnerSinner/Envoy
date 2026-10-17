@@ -1,7 +1,9 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Envoy.App.Services;
+using Envoy.Core.Ux;
 
 namespace Envoy.App.Controls;
 
@@ -14,6 +16,9 @@ public sealed class HotkeyBox : TextBox
         IsReadOnlyCaretVisible = false;
         Cursor = Cursors.Hand;
         ToolTip = "Click, then press the key combination you want";
+        // Screen readers announce how to enter and clear a combination (REQ-OUXB-28); the focus border comes from the
+        // TextBox style it inherits (Focus.Ring).
+        AutomationProperties.SetHelpText(this, AccessibilityText.HotkeyBoxHelp);
     }
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)

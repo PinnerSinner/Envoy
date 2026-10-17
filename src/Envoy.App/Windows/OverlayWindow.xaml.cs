@@ -8,8 +8,10 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Envoy.App.Interop;
+using Envoy.App.Services;
 using Envoy.Core.Pipeline;
 using Envoy.Core.Settings;
+using Envoy.Core.Ux;
 
 namespace Envoy.App.Windows;
 
@@ -33,6 +35,7 @@ public partial class OverlayWindow : Window, INotifyPropertyChanged
 
         _host.MessageArrived += OnMessage;
         _host.SettingsApplied += ApplySettings;
+        ThemeManager.Applied += OnPaletteApplied;
         SizeChanged += (_, _) => { if (!_editMode) Reposition(); };
 
         _tick = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => Tick(), Dispatcher);
@@ -53,12 +56,18 @@ public partial class OverlayWindow : Window, INotifyPropertyChanged
         get
         {
             var color = TryFindResource("Overlay.Bg.Color") is Color c ? c : Colors.Black;
-            color.A = (byte)(Math.Clamp(S.BackgroundOpacity, 0, 1) * 255);
+            color.A = (byte)Math.Round(CardBackgroundAlpha * 255);
             var brush = new SolidColorBrush(color);
             brush.Freeze();
             return brush;
         }
     }
+
+    /// <summary>
+    /// The card background alpha (REQ-OUXB-36): the user's value, raised so Overlay.Text stays at 4.5:1 over any backdrop
+    /// when "Keep text readable" is on; always opaque in high contrast.
+    /// </summary>
+    public double CardBackgroundAlpha => ThemeManager.OverlayCardAlpha(S);
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -77,6 +86,9 @@ public partial class OverlayWindow : Window, INotifyPropertyChanged
         TrimToMax();
         Reposition();
     }
+
+    /// <summary>A palette change (including a live high-contrast switch) recomputes the card brush.</summary>
+    private void OnPaletteApplied() => Notify(nameof(CardBackground));
 
     private void OnMessage(IncomingMessage message, bool isNew)
     {
@@ -198,6 +210,7 @@ public partial class OverlayWindow : Window, INotifyPropertyChanged
         _tick.Stop();
         _host.MessageArrived -= OnMessage;
         _host.SettingsApplied -= ApplySettings;
+        ThemeManager.Applied -= OnPaletteApplied;
         base.OnClosed(e);
     }
 

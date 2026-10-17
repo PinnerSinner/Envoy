@@ -1,0 +1,17 @@
+<UserControl x:Class="Envoy.App.Pages.Fixture"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:Envoy.App.Controls">
+    <StackPanel>
+        <Button Content="&#xE8BB;" />
+        <Button Style="{StaticResource Button.Chrome}" Content="Close" />
+        <Button Content="{Binding Label}" />
+        <Button><TextBlock Text="Go" /></Button>
+        <ToggleButton Content="Pin" />
+        <TextBox />
+        <PasswordBox />
+        <ComboBox />
+        <Slider />
+        <c:HotkeyBox />
+    </StackPanel>
+</UserControl>

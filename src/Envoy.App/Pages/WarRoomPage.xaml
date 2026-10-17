@@ -154,7 +154,7 @@
                             <TextBlock Text="2 · Choose your language" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
                             <TextBlock Text="Incoming chat is translated into this; your replies are written in it." Style="{StaticResource Text.Caption}" />
                         </StackPanel>
-                        <ComboBox Grid.Column="1" Width="260" ItemsSource="{Binding Languages}" DisplayMemberPath="DisplayName"
+                        <ComboBox AutomationProperties.Name="Your language" AutomationProperties.HelpText="Incoming chat is translated into this; your replies are written in it." Grid.Column="1" Width="260" ItemsSource="{Binding Languages}" DisplayMemberPath="DisplayName"
                                   SelectedValuePath="Code" SelectedValue="{Binding Settings.MyLanguage}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
@@ -166,7 +166,7 @@
                             <TextBlock Text="3 · Your in-game name (optional)" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
                             <TextBlock Text="So your own messages aren't translated back to you." Style="{StaticResource Text.Caption}" />
                         </StackPanel>
-                        <TextBox Grid.Column="1" Width="260" Text="{Binding Settings.MyPlayerName, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBox AutomationProperties.Name="Your in-game name" AutomationProperties.HelpText="So your own messages aren't translated back to you." Grid.Column="1" Width="260" Text="{Binding Settings.MyPlayerName, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions>
