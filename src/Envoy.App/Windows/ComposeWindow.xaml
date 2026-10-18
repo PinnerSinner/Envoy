@@ -73,8 +73,8 @@
 
                     <StackPanel DockPanel.Dock="Bottom">
                     <Control Style="{StaticResource Fleuron}" Margin="0,8,0,8" />
-                    <!-- Footer: the counter and the hint, Copy, and the wax "Seal and send" -->
-                    <DockPanel>
+                    <!-- Footer: the counter and the hint, Copy, and the wax "Seal and send"; indented to clear the bottom filigree corners -->
+                    <DockPanel Margin="36,0,36,0">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                             <Button x:Name="CopyButton" Content="Copy" Click="OnCopy" TabIndex="2" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="Copy the translation (Ctrl+Enter)" />
                             <Button x:Name="SendButton" Content="Seal and send" TabIndex="3" Style="{StaticResource Button.Primary}" Click="OnSend" ToolTip="Send to game (Enter)"
