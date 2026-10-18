@@ -42,13 +42,13 @@ never costs accessibility or game performance.
 | REQ-MOT-5 | MUST | Overlay: each dispatch unfurls from the top rod, its seal stamps in 0.3 s later, and it fades out like ink at the end of its linger time. Both `FullItem` and `CompactItem`. |
 | REQ-MOT-6 | MUST | Reply desk: the translation writes itself left to right (`OpacityMask` sweep, `Ink`) each time it changes; "Seal & send" presses, and on a successful send the desk folds toward the chat and closes; the candle on the desk flickers. |
 | REQ-MOT-7 | MUST | Provider health candles on the Interpreters page: lit flame flickers, a resting provider's flame gutters, a refused key's candle is snuffed with rising smoke; "Relight" relights it with a pop. Setup guide: completed seals stamp in, the current seal pulses, and step pages turn with a short slide. |
-| REQ-MOT-8 | SHOULD | War Room wall: the oak and damask background is lit by two flickering torches (animated radial brushes and a few rising embers), Full only, paused while the window is not visible. |
+| REQ-MOT-8 | SHOULD | War Room wall: the oak and damask background is lit by two torches, Full only, paused while the window is not visible. The flame must look real: a particle flame (12 to 16 soft blobs that rise, shrink and cool from white-gold to deep red, merged by blur, each with its own duration so the pattern never visibly loops), a little smoke and the odd spark, and light that wavers through two or three slow overlapping oscillations. No uniform scale pulsing and no per-frame random jitter. The reference is `docs/media/readme/flame.py`. |
 
 ### The Tale
 
 | Id | Priority | Requirement |
 | --- | --- | --- |
-| REQ-MOT-9 | MUST | `Windows/TaleWindow.xaml` plays the six chapters of `Explainer.dc.html`: 1 foreign chat on the field, 2 Envoy reads only the screen, 3 a dispatch unfurls with the translation, 4 Ctrl ⇧ T and the desk writing Korean, 5 the reply is typed into game chat, 6 free to use, a livery for every Age, never touches the game, with "Set up Envoy" and "Watch again". Drawings draw themselves (`StrokeDashOffset`); captions are a heading plus one plain sentence from Core `TaleText` (no em dashes). Controls: play/pause, six chapter seals on a progress rope, Skip. Keys: Space, Left, Right, Esc. Captions are an automation live region. |
+| REQ-MOT-9 | MUST | `Windows/TaleWindow.xaml` plays the six chapters of `Explainer.dc.html`: 1 foreign chat on the field, 2 Envoy reads only the screen, 3 a dispatch unfurls with the translation, 4 Ctrl ⇧ T and the desk writing Korean, 5 the reply is typed into game chat, 6 free to use, a livery for every Age, private by default, with "Set up Envoy" and "Watch again". Drawings draw themselves (`StrokeDashOffset`); captions are a heading plus one plain sentence from Core `TaleText` (no em dashes). Controls: play/pause, six chapter seals on a progress rope, Skip. Keys: Space, Left, Right, Esc. Captions are an automation live region. |
 | REQ-MOT-10 | MUST | The Tale opens once after the setup guide finishes (offered, not forced: "Watch a one-minute tour" on the last step), and any time from Chronicle / About ("Play the tale") and the tray menu. Under `Reduced` or `Off` it shows each chapter's finished frame and moves on Next only. |
 | REQ-MOT-11 | COULD | A `Viewport3D` wax seal on the Livery page that turns slowly and takes the livery's colour. |
 
@@ -56,6 +56,7 @@ never costs accessibility or game performance.
 
 | Id | Priority | Requirement |
 | --- | --- | --- |
+| REQ-MOT-13 | MUST | Remove the slogan "never touch(es) the game" (and "not the game") from every user-facing string and doc, and add `never touch` to R15's banned phrases. Safety is explained plainly where it is asked about (FAQ, privacy, the Safe for ranked play section): Envoy reads the screen like OBS and presses keys like a keyboard. |
 | REQ-MOT-12 | MUST | Smoke: every animated window renders with `Motion` `Off` and `Full` under every palette, with zero binding errors; the Tale is stepped through all six chapters under each palette; `MotionPolicyTests` and `TaleTextTests` (six chapters, no U+2014 or U+2013, each sentence under 120 characters). `TaleWindow` joins `SmokeTest.cs` in the per-palette phase. |
 
 ## Acceptance

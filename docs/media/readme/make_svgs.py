@@ -6,6 +6,8 @@ Usage: python3 make_svgs.py <fonts dir> <out dir>
 import base64, io, os, sys
 from fontTools import subset
 from fontTools.ttLib import TTFont
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from flame import flame, flame_defs
 
 FONTS, OUT = sys.argv[1], sys.argv[2]
 os.makedirs(OUT, exist_ok=True)
@@ -61,19 +63,17 @@ def defs(uid):
   <pattern id="knotH{uid}" width="28" height="18" patternUnits="userSpaceOnUse"><rect width="28" height="18" fill="{GULES_D}"/><path d="M0 9C7 -1 21 -1 28 9M0 9C7 19 21 19 28 9" fill="none" stroke="{OR}" stroke-width="1.6"/><circle cx="14" cy="9" r="2" fill="#F3D98C"/><circle cx="0" cy="9" r="1.4" fill="#F3D98C"/><circle cx="28" cy="9" r="1.4" fill="#F3D98C"/></pattern>
   <radialGradient id="waxR{uid}" cx="36%" cy="30%" r="70%"><stop offset="0" stop-color="#D45542"/><stop offset=".55" stop-color="#9B2C1F"/><stop offset="1" stop-color="#6E1A10"/></radialGradient>
   <radialGradient id="flame{uid}" cx="50%" cy="80%" r="70%"><stop offset="0" stop-color="#FFF6D0"/><stop offset=".3" stop-color="#FFC45A"/><stop offset=".65" stop-color="#F07A22" stop-opacity=".75"/><stop offset="1" stop-color="#C83C0A" stop-opacity="0"/></radialGradient>
-  <radialGradient id="glow{uid}"><stop offset="0" stop-color="#FFA646" stop-opacity=".55"/><stop offset=".45" stop-color="#B4501E" stop-opacity=".18"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+  {flame_defs(uid)}
+  <radialGradient id="glowold{uid}"><stop offset="0" stop-color="#FFA646" stop-opacity=".55"/><stop offset=".45" stop-color="#B4501E" stop-opacity=".18"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
 </defs>'''
 
-def torch(x, y, uid, delay=0.0, s=1.0):
+def torch(x, y, uid, delay=0.0, s=1.0, seed=1):
     return f'''<g transform="translate({x} {y}) scale({s})">
-  <circle r="230" cy="-40" fill="url(#glow{uid})"><animate attributeName="opacity" values=".85;.62;.95;.7;1;.8;.85" keyTimes="0;.17;.33;.48;.63;.82;1" dur="2.6s" begin="{delay}s" repeatCount="indefinite"/></circle>
-  <rect x="-12" y="74" width="24" height="34" rx="3" fill="#1e1a17"/>
-  <rect x="-5" y="4" width="10" height="84" fill="#4a321c"/>
-  <path d="M-21 -6H21L14 18H-14Z" fill="#2a2420"/>
-  <g><animateTransform attributeName="transform" type="scale" values="1 1;.94 1.08;1.05 .95;.97 1.12;1.03 .97;.95 1.06;1 1" dur="1.1s" begin="{delay}s" repeatCount="indefinite"/>
-    <path d="M-17 -4C-21 -36 -6 -58 2 -86C10 -60 22 -38 17 -4Z" fill="url(#flame{uid})"/>
-    <path d="M-8 -4C-10 -22 -2 -34 1 -50C5 -34 11 -22 8 -4Z" fill="#FFF3C4" fill-opacity=".85"/>
-  </g>
+  <rect x="-13" y="80" width="26" height="40" rx="3" fill="#1b1714"/><rect x="-13" y="80" width="26" height="4" fill="#3a332c"/>
+  <path d="M-6 4L-4 96H4L6 4Z" fill="#3e2a17"/><path d="M-2 6L-1 94" stroke="#6b4a2a" stroke-width="1.2"/>
+  <path d="M-19 -2C-19 10 -12 16 0 16C12 16 19 10 19 -2Z" fill="#26201b"/><path d="M-19 -2H19" stroke="#4a4038" stroke-width="2.5"/>
+  <path d="M-15 -4C-13 -10 13 -10 15 -4" fill="#2d1a0c"/>
+  <g transform="translate(0 -4)">{flame(uid, seed)}</g>
 </g>'''
 
 def embers(n, xs, y0, rise, uid, seed=1):
@@ -117,14 +117,14 @@ def write(name, content):
 # ======================= hero =======================
 W, H = 1280, 460
 tag = 'Live chat translation for Age of Empires and Age of Mythology'
-sub = 'Read what they write. Answer in their tongue. Never touch the game.'
+sub = 'Read what they write. Answer in their tongue.'
 body = defs('h') + f'''
 <rect width="{W}" height="{H}" fill="url(#oakh)"/>
 <rect width="{W}" height="{H}" fill="url(#damh)"/>
-{torch(150, 250, 'h', 0)}
-{torch(1130, 250, 'h', -1.3)}
+{torch(150, 250, 'h', 0, seed=4)}
+{torch(1130, 250, 'h', -1.3, seed=9)}
 <rect width="{W}" height="{H}" fill="url(#vigh)"/>
-{embers(36, [150, 1130], 200, 240, 'h')}
+{embers(14, [150, 1130], 170, 200, 'h')}
 {knot_frame(W, H, 'h')}
 {boss(9, 9)}{boss(W - 9, 9)}{boss(9, H - 9)}{boss(W - 9, H - 9)}
 <linearGradient id="goldh" gradientUnits="userSpaceOnUse" x1="300" y1="0" x2="980" y2="0">
@@ -201,7 +201,7 @@ body = defs('w') + f'''
 </g>
 <g transform="translate(450 0)">
   <rect x="20" y="300" width="340" height="150" rx="3" fill="none" stroke="{OR_D}" stroke-width="3" stroke-dasharray="12 7" opacity="0">{kt((0, 0), (2.2, 0), (2.5, 1), (11.4, 1), (11.8, 0), (12, 0))}</rect>
-  <text x="190" y="380" text-anchor="middle" class="it" font-size="17" fill="{INK_S}" opacity="0">{kt((0, 0), (2.4, 0), (2.7, 1), (11.4, 1), (11.8, 0), (12, 0))}Envoy reads the pixels, not the game</text>
+  <text x="190" y="380" text-anchor="middle" class="it" font-size="17" fill="{INK_S}" opacity="0">{kt((0, 0), (2.4, 0), (2.7, 1), (11.4, 1), (11.8, 0), (12, 0))}Envoy reads the chat from your screen</text>
   <g opacity="0">{kt((0, 0), (3.0, 0), (3.3, 1), (11.4, 1), (11.8, 0), (12, 0))}
     <rect x="22" y="{scroll_y}" width="336" height="10" rx="5" fill="{OR_D}"/>
     <rect x="28" y="{scroll_y + 10}" width="324" height="110" fill="url(#velw)" stroke="#C4A673"/>
@@ -231,7 +231,7 @@ body = defs('w') + f'''
 </g>
 '''
 write('how.svg', svg(W, H, body, ['They write', 'Envoy translates', 'You answer', 'Chinese', 'Korean', 'Russian', 'and more', 'the game chat, on your screen',
-                                  'Envoy reads the pixels, not the game', 'All Chinese', 'Hello! Another round?', 'Ctrl', 'T', 'Your words', 'gg wp, rematch?',
+                                  'Envoy reads the chat from your screen', 'All Chinese', 'Hello! Another round?', 'Ctrl', 'T', 'Your words', 'gg wp, rematch?',
                                   'The scribe writes', 'Seal & send', 'Typed into game chat for you.', '123'], 'How Envoy works: they write, Envoy translates, you answer'))
 
 # ======================= setup: six seals =======================
@@ -257,7 +257,7 @@ write('setup.svg', svg(W, H, body, ['The setup guide walks you through six steps
 W, H = 1280, 600
 FEAT = [
     ('Free to use', 'Google and Microsoft need no account. Paid translators use your own key.', '<circle cx="40" cy="44" r="24"/><circle cx="40" cy="44" r="15"/><path d="M40 34v20M33 40h14"/>'),
-    ('Screen only', 'It reads pixels and presses keys. It never touches the game.', '<path d="M8 44c14-22 50-22 64 0c-14 22-50 22-64 0z"/><circle cx="40" cy="44" r="11"/>'),
+    ('Reads your screen', 'It reads chat the way OBS sees it and types your reply for you.', '<path d="M8 44c14-22 50-22 64 0c-14 22-50 22-64 0z"/><circle cx="40" cy="44" r="11"/>'),
     ('Every Age', 'Age of Empires I, II, III, IV and Age of Mythology.', '<path d="M14 16h52v28c0 20-14 30-26 36c-12-6-26-16-26-36z"/><path d="M14 16l52 52"/>'),
     ('Gamer slang', '666, ㅈㅈ, изи and kkkk, explained offline.', '<path d="M16 22h40c6 0 8 6 8 10v32c0 4-2 8-8 8H24"/><path d="M16 22c-6 0-8 6-8 10s2 8 8 8h8V30c0-4-2-8-8-8z"/><path d="M30 42h22M30 52h22M30 62h14"/>'),
     ('Phrasebook', 'gl hf, gg wp, rematch? Ready in 13 languages.', '<path d="M12 20c12-6 22-6 28 2c6-8 16-8 28-2v46c-12-6-22-6-28 2c-6-8-16-8-28-2z"/><path d="M40 22v46"/>'),
