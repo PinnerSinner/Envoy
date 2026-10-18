@@ -26,7 +26,7 @@ public partial class LookupWindow : Window
     public static async Task ScanAsync(AppHost host)
     {
         var region = await RegionSelectorWindow.SelectAsync(null, "Scan & translate",
-            "Drag a box around any text on screen — names, map descriptions, menus — to translate it. Esc cancels.");
+            "Drag a box around any text on screen (names, map descriptions, menus) to translate it. Esc cancels.");
         if (region is null) return;
 
         var window = new LookupWindow(host);
@@ -96,7 +96,7 @@ public partial class LookupWindow : Window
     private void TryCopy(string text)
     {
         if (string.IsNullOrEmpty(text)) return;
-        Status.Text = ClipboardHelper.TrySetText(text) ? "Copied." : "Clipboard is busy — try again.";
+        Status.Text = ClipboardHelper.TrySetText(text) ? "Copied." : "Clipboard is busy. Try again.";
     }
 
     private void OnDrag(object sender, MouseButtonEventArgs e)

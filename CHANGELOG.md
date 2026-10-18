@@ -30,7 +30,7 @@ versioning: [SemVer](https://semver.org/).
 - Start-up tells you once if Envoy closed unexpectedly last time or the settings file had to be recovered.
 - **Provider health** (Translation page): one row per provider in the order Envoy tries them, with a coloured state,
   speed, last translation and a **Retry now** button. The War Room line says which provider is translating right now.
-- **Give up after** (Translation → Behaviour, 5–30 s, default 15): the time limit for a chat line, across retries and
+- **Give up after** (Translation → Behaviour, 5 to 30 s, default 15): the time limit for a chat line, across retries and
   the fallback provider.
 - **Remember translations between sessions** (off by default): keeps the translation cache in
   `translation-cache.json` (2,000 entries, 30 days, original lines stored only as a one-way fingerprint), with
@@ -244,7 +244,7 @@ versioning: [SemVer](https://semver.org/).
   safe mode, `DiagnosticsReport`, `DataInventory`) and `Envoy.Core.Notifications.NotificationThrottle`;
   `AppHostOptions` and per-instance data paths; `App.OnStartup`/`ExitApp` in the contract §4 order; settings markers
   `[Personal]`/`[Location]`; the smoke test runs on temporary data folders and checks the safe-mode banner, toasts,
-  handler wiring, diagnostics and the log; typecheck rules R8–R10.
+  handler wiring, diagnostics and the log; typecheck rules R8 to R10.
 - Settings pages are now one `UserControl` each under `Pages/`, driven by commands on a shared `MainViewModel`
   (new `Envoy.Core.Mvvm` toolkit). Page logic and text moved into tested Core classes, app actions go through
   `IShell`, message boxes through `DialogService`, and the live view through preview leases
@@ -259,7 +259,9 @@ versioning: [SemVer](https://semver.org/).
   app's warning count. `.config/dotnet-tools.json` is the one place to pin .NET tools. Culture-sensitive formatting
   fixed (transcript timestamps, hotkey names).
 
-## [0.1.0] — first release
+## [0.1.0]
+
+First release.
 
 ### Reading chat
 - Screen OCR with the built-in Windows engine. It runs several languages at once and keeps the best reading per line.

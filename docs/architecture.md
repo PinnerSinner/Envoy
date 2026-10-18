@@ -74,7 +74,7 @@ Everything here is covered by `tests/Envoy.Core.Tests` and runs on any OS.
    `A: gg` and `B: gg` are two messages while OCR jitter like `rushing`/`rushlng` is not new. A fragment contained in a
    remembered message (a tail whose head scrolled away) is dropped. Every entry is remembered, including the ones the
    filters drop next, so your own and muted players' tails stay hidden too.
-5. Filters: hidden notices, noise, your own messages, muted players and filtered channels are dropped — judged on the
+5. Filters: hidden notices, noise, your own messages, muted players and filtered channels are dropped. Each is judged on the
    whole joined message.
 6. `Classify`: a notice is *Untranslated* and never sent anywhere. A whole-message slang hit is answered from the
    glossary. A non-Latin script that matches your language is marked *Untranslated*. Everything else stays *Pending*.
@@ -85,7 +85,7 @@ Everything here is covered by `tests/Envoy.Core.Tests` and runs on any OS.
    shows the original line without a spinner or error row.
 9. `PlayerDirectory` records the sender's language. `SuggestedReplyLanguage` uses it to pick the reply language.
 
-The golden corpus in `tests/Envoy.Core.Tests/Golden/Captures` replays recorded multi-frame captures through steps 1–7;
+The golden corpus in `tests/Envoy.Core.Tests/Golden/Captures` replays recorded multi-frame captures through steps 1 to 7;
 [chat formats](chat-formats.md) describes the format.
 
 ## Envoy.App
@@ -189,7 +189,7 @@ launcher in Envoy's own code.
 5. capture into a pooled `FrameBuffer` through the `ICaptureBackend`;
 6. fingerprint the raw pixels and skip unchanged frames (unless a Live view is open) or while OCR is still busy;
 7. preprocess in place; 8. OCR through `SingleFlight` with `OcrTimeoutMs`; 9. `OcrMerger.MergeLines`;
-10. `ChatPipeline.ProcessAsync(lines, CancellationToken.None)` — stopping or restarting capture never strands a
+10. `ChatPipeline.ProcessAsync(lines, CancellationToken.None)`, so stopping or restarting capture never strands a
     translation; 11. an exact-length copy to `FrameCaptured` while previewing;
 12. return the buffer, record `CaptureMetrics` and wait `AdaptivePollPolicy`'s delay (fast after a change, slower
     while quiet, doubling after failures, 1 s while paused).

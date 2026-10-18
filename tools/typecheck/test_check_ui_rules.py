@@ -336,5 +336,58 @@ namespace Envoy.App.Services; class ChatWatcher
         self.assertUpd("UPD2", "Program.cs")
 
 
+    # R15 (spec 09a, REQ-HRD-10): plain writing in user-facing text.
+    def repo_write(self, rel, content):
+        path = os.path.join(self.base, *rel.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def assertR15(self, path_fragment, count=1):
+        problems = [p for p in check_ui_rules.check(self.root) if ": UIF-R15 " in p]
+        self.assertEqual(count, len(problems), problems)
+        for p in problems:
+            self.assertIn(path_fragment, p)
+
+    def test_r15_em_dash_in_xaml(self):
+        self.write("Windows/MainWindow.xaml", MAIN_WINDOW.replace("<ContentControl />", '<TextBlock Text="Envoy \u2014 Reply" />'))
+        self.assertR15("src/Envoy.App/Windows/MainWindow.xaml:4")
+
+    def test_r15_en_dash_in_core_text_and_ux(self):
+        self.repo_write("src/Envoy.Core/Ux/PageHintText.cs", 'class PageHintText { const string A = "2\u20135"; }\n')
+        self.repo_write("src/Envoy.Core/Notices/NoticeText.cs", 'class NoticeText { const string A = "ok \u2014 then"; }\n')
+        problems = [p for p in check_ui_rules.check(self.root) if ": UIF-R15 " in p]
+        self.assertEqual(2, len(problems), problems)
+        self.assertTrue(any("en dash" in p and "PageHintText.cs:1" in p for p in problems), problems)
+        self.assertTrue(any("em dash" in p and "NoticeText.cs:1" in p for p in problems), problems)
+
+    def test_r15_docs_changelog_and_readme(self):
+        self.repo_write("docs/privacy.md", "# Privacy\n\nIt reads pixels \u2014 nothing else.\n")
+        self.assertR15("docs/privacy.md:3")
+        os.remove(os.path.join(self.base, "docs", "privacy.md"))
+        self.repo_write("CHANGELOG.md", "## [1.0.0]\n- A seamless reply box.\n")
+        self.assertR15("CHANGELOG.md:2")
+        os.remove(os.path.join(self.base, "CHANGELOG.md"))
+        self.repo_write("README.md", "Envoy is Robust.\n")
+        self.assertR15("README.md:1")
+
+    def test_r15_each_filler_word(self):
+        for word in check_ui_rules.FILLER_WORDS:
+            self.repo_write("docs/faq.md", f"Envoy will {word.upper()} your chat.\n")
+            problems = [p for p in check_ui_rules.check(self.root) if ": UIF-R15 " in p]
+            self.assertEqual(1, len(problems), (word, problems))
+
+    def test_r15_specs_design_and_other_code_are_exempt(self):
+        self.repo_write("docs/specs/09a.md", "History \u2014 kept as written; robust.\n")
+        self.repo_write("docs/design/herald/Main.dc.html", "<p>\u2014</p>\n")
+        self.repo_write("src/Envoy.Core/Chat/ChatParser.cs", "// 1\u20135 lines; robust\n")
+        self.repo_write("src/Envoy.App/obj/Debug/Generated.xaml", "<x>\u2014</x>\n")
+        self.assertEqual([], [p for p in check_ui_rules.check(self.root) if ": UIF-R15 " in p])
+
+    def test_r15_hyphens_and_words_containing_filler_are_fine(self):
+        self.repo_write("docs/faq.md", "Built-in OCR, 2-5 lines. Robustness and leveraged are other words.\n")
+        self.assertEqual([], [p for p in check_ui_rules.check(self.root) if ": UIF-R15 " in p])
+
+
 if __name__ == "__main__":
     unittest.main()

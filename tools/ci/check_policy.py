@@ -415,7 +415,7 @@ TEST_CLASS = re.compile(r"\bclass\s+(?P<name>\w+Tests)\b")
 TEST_METHOD = re.compile(r"\b(?:void|Task)\s+(?P<name>\w+)\s*\(")
 REPO_PREFIXES = ("src/", "tests/", "tools/", "docs/", ".github/")
 EMPTY_CELLS = {"", "-", "—", "–", "n/a", "tbd", "todo"}
-COMPAT_CELL = re.compile(r"^(?:—|✓ v\d+\.\d+\.\d+\S*|✗ v\d+\.\d+\.\d+\S* \(.+\))$")
+COMPAT_CELL = re.compile(r"^(?:untested|✓ v\d+\.\d+\.\d+\S*|✗ v\d+\.\d+\.\d+\S* \(.+\))$")
 
 
 def _indent(line: str) -> int:
@@ -606,7 +606,7 @@ def check_required_docs(root: Path, policy: dict) -> list[Violation]:
                     bad = [v for v in values if not COMPAT_CELL.match(v)]
                     if not values or bad:
                         out.append(Violation(rel, i + 1, "required-docs",
-                                             f"{title} / {mode}: each cell is '✓ vX.Y.Z', '✗ vX.Y.Z (note)' or '—'"
+                                             f"{title} / {mode}: each cell is '✓ vX.Y.Z', '✗ vX.Y.Z (note)' or 'untested'"
                                              + (f", not {bad[0]!r}" if bad else "")))
     return out
 

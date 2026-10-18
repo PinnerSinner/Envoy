@@ -1,7 +1,7 @@
 <Window x:Class="Envoy.App.Windows.LookupWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Envoy — Scan &amp; translate"
+        Title="Envoy: scan and translate"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
         SizeToContent="Height" Width="520" MaxHeight="640"

@@ -1,7 +1,7 @@
 # OCR languages
 
 Envoy reads chat with the text recognition engine built into Windows 10 and 11 (`Windows.Media.Ocr`). It's free,
-offline and fast, typically 20–60 ms per read. It can only recognise scripts whose **OCR language pack** is
+offline and fast, typically 20 to 60 ms per read. It can only recognise scripts whose **OCR language pack** is
 installed.
 
 ## Which ones do I need?
@@ -57,7 +57,7 @@ tolerates small misreads between frames, so a line is only translated once.
 
 Open **Reading Chat → Live view** with chat on screen, then adjust:
 
-- **Enlarge before reading.** 2× is the default. Small chat fonts at 1080p often read better at 2.5–3×.
+- **Enlarge before reading.** 2× is the default. Small chat fonts at 1080p often read better at 2.5 to 3×.
 - **Contrast.** Raise it if letters run together.
 - **Invert colours.** Windows OCR prefers dark text on a light background. Try it if light-on-dark chat reads poorly.
 - **The chat area.** Tighter is better. Avoid including the minimap, portraits or the resource bar.

@@ -20,6 +20,6 @@ public enum Script
 /// <param name="OcrTag">BCP-47 tag Windows OCR expects for this language.</param>
 public sealed record Language(string Code, string EnglishName, string NativeName, string OcrTag, Script Script)
 {
-    public string DisplayName => EnglishName == NativeName ? EnglishName : $"{EnglishName} — {NativeName}";
+    public string DisplayName => EnglishName == NativeName ? EnglishName : $"{EnglishName} ({NativeName})";
     public override string ToString() => DisplayName;
 }

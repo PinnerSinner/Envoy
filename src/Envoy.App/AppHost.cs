@@ -639,7 +639,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         var samples = new (string Sender, string Original, string Translation, string Lang)[]
         {
             ("龙骑士", "你好，玩得开心！", "Hello, have fun!", "zh-CN"),
-            ("전략가", "ㅈㅈ", "GG — I give up", "ko"),
+            ("전략가", "ㅈㅈ", "GG, I give up", "ko"),
             ("Сокол", "хорошая стена, но я иду на таран", "nice wall, but I'm coming with rams", "ru"),
         };
         foreach (var s in samples)

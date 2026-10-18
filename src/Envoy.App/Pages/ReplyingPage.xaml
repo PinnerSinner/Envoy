@@ -7,7 +7,7 @@
             <TextBlock Text="Replying" Style="{StaticResource Text.H1}" />
             <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,18">
                 Press <Run Text="{Binding Settings.Hotkeys.Compose, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Accent}" /> in game,
-                type in your language, and Envoy types the translation into the game's chat for you — the same way an on-screen keyboard would.
+                type in your language, and Envoy types the translation into the game's chat for you, the same way an on-screen keyboard would.
             </TextBlock>
 
             <!-- The page callout (spec 07a, REQ-OUXA-22). -->

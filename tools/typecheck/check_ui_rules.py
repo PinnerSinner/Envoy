@@ -21,6 +21,9 @@ R12 ViewModels/SetupWizardViewModel.cs contains no `new AppSettings` and no `Sav
 R13 ReplyHistory never appears in Envoy.Core/Settings/SettingsStore.cs or AppSettings.cs, and no logging call in
     Windows/ComposeWindow.xaml.cs mentions History (reply history is memory only)          AC-OUXC-1
 R14 Clipboard.SetText only in Services/ClipboardHelper.cs (use ClipboardHelper.TrySetText)  spec 07c
+R15 No em dash (U+2014) or en dash (U+2013) and no filler word (seamless, leverage, robust, ...) in user-facing text:
+    src/**/*.xaml, src/Envoy.Core/**/*Text.cs, src/Envoy.Core/Ux/*.cs, docs/*.md, CHANGELOG.md and README.md (paths
+    from the repository root, two folders above the app dir; docs/specs/ and docs/design/ are exempt)  REQ-HRD-10
 UPD1 `new UpdateManager(`, `UpdateManager m = new(` and `: UpdateManager` only in
     Services/VelopackUpdateBackend.cs; VelopackFlowSource and ApplyUpdatesAndRestart nowhere
     (also scanned in Envoy.Core)                                                          REQ-DIST-14, 12
@@ -81,6 +84,13 @@ VIEWMODEL_BANNED = re.compile(r"\bApp\.Current\b|\bProcess\.Start\b|\bProcessSta
 CLIPBOARD_HELPER = "Services/ClipboardHelper.cs"
 CLIPBOARD_SET = re.compile(r"\bClipboard\s*\.\s*SetText\s*\(")
 DATACONTEXT_ASSIGN = re.compile(r"\bDataContext\s*=(?!=)")
+# R15 (spec 09a): the files whose text a user reads, as globs from the repository root.
+WRITING_GLOBS = ("src/**/*.xaml", "src/Envoy.Core/**/*Text.cs", "src/Envoy.Core/Ux/*.cs", "docs/*.md", "CHANGELOG.md",
+                 "README.md")
+DASHES = {"\u2014": "em dash", "\u2013": "en dash"}
+FILLER_WORDS = ("seamless", "seamlessly", "leverage", "robust", "elevate", "delve", "unleash", "empower", "cutting-edge",
+                "game-changer", "effortless")
+FILLER = re.compile(r"(?<![\w-])(?:" + "|".join(re.escape(w) for w in FILLER_WORDS) + r")(?![\w-])", re.IGNORECASE)
 
 
 def _rel(root, path):
@@ -120,10 +130,10 @@ def check(root):
     """Returns a list of violation strings for the app source tree at root."""
     problems = []
 
-    def report(path, line, rule, message):
-        # Spec 06's rules carry their own prefix (UPD1, UPD2); the others are UIF-Rn.
+    def report(path, line, rule, message, base=None):
+        # Spec 06's rules carry their own prefix (UPD1, UPD2); the others are UIF-Rn. R15 paths are repository-relative.
         prefix = "" if rule.startswith("UPD") else "UIF-"
-        problems.append(f"{_rel(root, path)}:{line}: {prefix}{rule} {message}")
+        problems.append(f"{_rel(base or root, path)}:{line}: {prefix}{rule} {message}")
 
     pages = os.path.join(root, "Pages")
     for path in sorted(glob.glob(os.path.join(pages, "*.xaml"))):
@@ -248,7 +258,32 @@ def check(root):
                 report(path, n, "R14", "clipboard writes go through Services/ClipboardHelper.TrySetText (it retries a busy clipboard)")
 
     _check_velopack(root, report)
+    _check_writing(root, report)
     return problems
+
+
+def writing_files(repo):
+    """The R15 files under repo (no obj/ or bin/ folders), sorted and unique."""
+    found = set()
+    for pattern in WRITING_GLOBS:
+        for path in glob.glob(os.path.join(repo, *pattern.split("/")), recursive=True):
+            parts = set(os.path.relpath(path, repo).split(os.sep))
+            if os.path.isfile(path) and not {"obj", "bin"} & parts:
+                found.add(os.path.normpath(path))
+    return sorted(found)
+
+
+def _check_writing(root, report):
+    """R15 (spec 09a, REQ-HRD-10): plain writing. Rewrite the sentence; a hyphen in place of the dash is not a fix."""
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(root)))
+    for path in writing_files(repo):
+        for n, line in enumerate(_read(path).splitlines(), 1):
+            for dash, name in DASHES.items():
+                if dash in line:
+                    report(path, n, "R15", f"{name} in user-facing text; rewrite the sentence (no dash, no hyphen swap)", repo)
+            m = FILLER.search(line)
+            if m:
+                report(path, n, "R15", f"filler word \"{m.group(0)}\"; say plainly what it does", repo)
 
 
 def _check_velopack(root, report):

@@ -6,7 +6,7 @@ namespace Envoy.Core.Ux;
 /// <summary>Accessibility sentences built in code (contract §8.7, spec 07b).</summary>
 public static class AccessibilityText
 {
-    /// <summary>{percent} = the overlay background opacity actually used, 0–100.</summary>
+    /// <summary>{percent} = the overlay background opacity actually used, 0 to 100.</summary>
     public const string OpacityRaised = "Raised to {percent}% so text stays readable.";
 
     public const string HotkeyBoxHelp = "Press the key combination you want. Backspace clears it.";

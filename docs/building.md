@@ -122,7 +122,7 @@ parser. It runs in Debug only (in Release `Envoy.App` is self-contained, which a
 dotnet test tests/Envoy.App.Tests -c Debug
 ```
 
-The OCR end-to-end cases (`src/Envoy.App/OcrEndToEnd.cs`) render known chat lines at 14–18 px with an outline or a
+The OCR end-to-end cases (`src/Envoy.App/OcrEndToEnd.cs`) render known chat lines at 14 to 18 px with an outline or a
 shadow, run them through the capture path's enlargement and enhancement, the real Windows OCR engine, line merging and
 chat understanding, and require the right sender and at least 0.85 text similarity. The six en-US cases are required;
 the ja-JP, zh-CN, ko-KR and ru-RU cases report `Skipped (no recognizer)` when that OCR language is not installed. The
@@ -136,10 +136,10 @@ compiles the test project's sources against the type-checked app.
 | Job | Runner | What it does | Budget |
 | --- | --- | --- | --- |
 | `check` | Ubuntu | Policy check and `tools/ci` tests, release-tooling self-tests, Core tests with the coverage gate, the type-check, the vulnerable-package gate (`tools/ci/check_vulnerable.py`: High or Critical advisories fail) | 8 min |
-| `app-tests` | Windows | `tests/Envoy.App.Tests` (OCR end-to-end, hotkeys); installs the ja/zh/ko/ru OCR capabilities first when it can | — |
+| `app-tests` | Windows | `tests/Envoy.App.Tests` (OCR end-to-end, hotkeys); installs the ja/zh/ko/ru OCR capabilities first when it can | none |
 | `windows` | Windows | Publish, smoke test (`smoke-log` artifact), screenshots, the CycloneDX SBOM `Envoy.cdx.json` (`tools/ci/check_sbom.py`), the unsigned dev build, and on `main` an unsigned installer | 20 min |
-| `screenshots` | Ubuntu | Pushes the renders to the `ci-screenshots` branch (pushes to `main`) | — |
-| `release` | Windows | `v*` tags only, in the `release` environment: signing, packing, attestation and publishing ([releasing](releasing.md)) | — |
+| `screenshots` | Ubuntu | Pushes the renders to the `ci-screenshots` branch (pushes to `main`) | none |
+| `release` | Windows | `v*` tags only, in the `release` environment: signing, packing, attestation and publishing ([releasing](releasing.md)) | none |
 
 Every job starts read-only; only `screenshots` and `release` get `contents: write`, and they build and run no project
 code. Each budgeted job ends with `tools/ci/job_budget.py`, which fails the job when it ran over and lists the five
@@ -153,6 +153,6 @@ requests) run separately. The policy check enforces the workflow rules (`workflo
 - `Envoy.App.csproj` turns on `PublishSingleFile`, `SelfContained` and compression for Release builds, and embeds
   debug symbols.
 - `app.manifest` declares Per-Monitor-V2 DPI awareness (capture regions are in physical pixels) and `asInvoker`
-  (never elevate).
+  (never asks for admin rights).
 - `AllowUnsafeBlocks` is required by the `LibraryImport` P/Invoke source generator in `Interop/Native.cs`.
 - WPF projects drop `System.IO` and `System.Net.Http` from implicit usings; `GlobalUsings.cs` adds them back.

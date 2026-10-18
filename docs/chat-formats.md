@@ -22,8 +22,8 @@ Each capture goes through these steps (Reading Chat › **Understanding chat** h
    that sits directly below a message joins it. "Directly below" means the gap is at most one typical line height and
    the line is about as tall as the one above; at most 4 lines join one message. Chinese and Japanese text is joined
    without a space, everything else with one space.
-5. **Leftovers.** Lines without a sender and with nothing above them — usually the end of a message whose first line
-   has scrolled out of the chat area — are "part of an earlier message". If Envoy has already seen that message, the
+5. **Leftovers.** Lines without a sender and with nothing above them (usually the end of a message whose first line
+   has scrolled out of the chat area) are "part of an earlier message". If Envoy has already seen that message, the
    leftover is ignored; otherwise it is shown once without a sender.
 
 A message is the same message when its sender and text match (small OCR differences are allowed), whatever its
@@ -46,7 +46,7 @@ ignoring upper and lower case, and a leading timestamp such as `12:04` or `[12:0
 | `re:` at the start | the rest of the line is a .NET regular expression |
 | `#` at the start | a comment; the line is ignored |
 
-Examples (illustrative — copy the exact wording your game shows):
+Examples (illustrative; copy the exact wording your game shows):
 
 ```text
 # AoE II, English client
@@ -89,9 +89,9 @@ uses the `games` mapping, and anything unknown uses `generic`.
         "Private": ["whisper"]
       },
       "brackets": ["[]", "()", "<>"],     // open/close pairs around a channel tag
-      "separators": [":", "："],           // between the sender and the message (1–8 characters each)
+      "separators": [":", "："],           // between the sender and the message (1 to 8 characters each)
       "timestamp": "^\\s*\\d{1,2}:\\d{2}\\s+", // a .NET regex for a leading timestamp, including the space after it
-      "maxSenderLength": 32,              // 1–64
+      "maxSenderLength": 32,              // 1 to 64
       "stitching": { "enabled": true, "maxGapFactor": 1.0, "heightTolerance": 0.5, "maxContinuationLines": 4 },
       "systemPatterns": {                 // notice patterns by language code, or "*" for every language
         "en": ["*has resigned*"],
@@ -104,8 +104,8 @@ uses the `games` mapping, and anything unknown uses `generic`.
 ```
 
 - Comments and trailing commas are allowed; property names are not case-sensitive; unknown properties are ignored.
-- A field that isn't valid (a bad regular expression, an empty `separators` list, `maxGapFactor` outside 0.2–5,
-  `heightTolerance` outside 0–5, `maxContinuationLines` outside 0–10, a notice pattern that can't be used) is replaced by
+- A field that isn't valid (a bad regular expression, an empty `separators` list, `maxGapFactor` outside 0.2 to 5,
+  `heightTolerance` outside 0 to 5, `maxContinuationLines` outside 0 to 10, a notice pattern that can't be used) is replaced by
   the inherited value, and the Reading Chat card names the profile and field.
 - A file that isn't valid JSON, or is larger than 256 KiB, is ignored as a whole and the built-in formats are used.
 - A profile's notice patterns for your language and for `*` are added to your own list.

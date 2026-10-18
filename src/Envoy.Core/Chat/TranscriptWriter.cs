@@ -43,7 +43,7 @@ public sealed class TranscriptWriter(string folder, TimeProvider? clock = null)
             {
                 Directory.CreateDirectory(Folder);
                 _path = Path.Combine(Folder, $"chat-{now:yyyy-MM-dd_HHmmss}.txt");
-                File.AppendAllText(_path, $"# Envoy chat transcript — {now:yyyy-MM-dd HH:mm}{Environment.NewLine}", Encoding.UTF8);
+                File.AppendAllText(_path, $"# Envoy chat transcript, {now:yyyy-MM-dd HH:mm}{Environment.NewLine}", Encoding.UTF8);
             }
             File.AppendAllText(_path, line + Environment.NewLine, Encoding.UTF8);
         }

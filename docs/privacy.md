@@ -86,7 +86,7 @@ characters. Turning the option off, or **Clear saved translations**, deletes the
 
 Replies you recall with Up in the reply box are kept in memory only and forgotten when Envoy closes; they are never
 saved or logged. To put your most-used quick phrases first, `settings.json` keeps, per reply language, the id of each
-built-in or `phrases.json` phrase you sent and how often (at most 100 per language) — never the text you typed.
+built-in or `phrases.json` phrase you sent and how often (at most 100 per language). It never keeps the text you typed.
 
 ### Chat formats and test captures
 

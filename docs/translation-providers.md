@@ -21,7 +21,7 @@ the provider needs one. Two things follow:
 **Recommendation:** start with the free default. If you want better handling of banter ("你是不是在搞笑", "ㅋㅋ 개못하네"),
 add DeepL's free plan or Claude.
 
-A busy match produces about 2,000–5,000 characters of chat. Repeated messages are cached, so they're only
+A busy match produces about 2,000 to 5,000 characters of chat. Repeated messages are cached, so they're only
 translated once. The cache lasts until you close Envoy, and survives settings changes; turn on
 [Remembering translations](#remembering-translations) to keep it between sessions.
 

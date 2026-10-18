@@ -12,7 +12,7 @@ record of desktop Windows 10 and 11 coverage**. It is filled in by the
 - `✗ vX.Y.Z (note)`: verified **not** working with that release; the note says what fails and what the user sees.
   Exclusive fullscreen is expected to be `✗`: Windows hands Envoy a black capture, and Envoy shows the
   "likely exclusive fullscreen" hint (`CaptureText.LikelyExclusiveFullscreen`) suggesting borderless.
-- `—`: not verified yet.
+- `untested`: not verified yet.
 
 Rules:
 
@@ -26,21 +26,21 @@ Rules:
 
 | Title | Display mode | Win10 22H2 100 % | Win10 22H2 150 % | Win11 100 % | Win11 150 % |
 | --- | --- | --- | --- | --- | --- |
-| Age of Empires: Definitive Edition | Windowed | — | — | — | — |
-| Age of Empires: Definitive Edition | Borderless | — | — | — | — |
-| Age of Empires: Definitive Edition | Exclusive fullscreen | — | — | — | — |
-| Age of Empires II: Definitive Edition | Windowed | — | — | — | — |
-| Age of Empires II: Definitive Edition | Borderless | — | — | — | — |
-| Age of Empires II: Definitive Edition | Exclusive fullscreen | — | — | — | — |
-| Age of Empires III: Definitive Edition | Windowed | — | — | — | — |
-| Age of Empires III: Definitive Edition | Borderless | — | — | — | — |
-| Age of Empires III: Definitive Edition | Exclusive fullscreen | — | — | — | — |
-| Age of Empires IV | Windowed | — | — | — | — |
-| Age of Empires IV | Borderless | — | — | — | — |
-| Age of Empires IV | Exclusive fullscreen | — | — | — | — |
-| Age of Mythology: Retold | Windowed | — | — | — | — |
-| Age of Mythology: Retold | Borderless | — | — | — | — |
-| Age of Mythology: Retold | Exclusive fullscreen | — | — | — | — |
+| Age of Empires: Definitive Edition | Windowed | untested | untested | untested | untested |
+| Age of Empires: Definitive Edition | Borderless | untested | untested | untested | untested |
+| Age of Empires: Definitive Edition | Exclusive fullscreen | untested | untested | untested | untested |
+| Age of Empires II: Definitive Edition | Windowed | untested | untested | untested | untested |
+| Age of Empires II: Definitive Edition | Borderless | untested | untested | untested | untested |
+| Age of Empires II: Definitive Edition | Exclusive fullscreen | untested | untested | untested | untested |
+| Age of Empires III: Definitive Edition | Windowed | untested | untested | untested | untested |
+| Age of Empires III: Definitive Edition | Borderless | untested | untested | untested | untested |
+| Age of Empires III: Definitive Edition | Exclusive fullscreen | untested | untested | untested | untested |
+| Age of Empires IV | Windowed | untested | untested | untested | untested |
+| Age of Empires IV | Borderless | untested | untested | untested | untested |
+| Age of Empires IV | Exclusive fullscreen | untested | untested | untested | untested |
+| Age of Mythology: Retold | Windowed | untested | untested | untested | untested |
+| Age of Mythology: Retold | Borderless | untested | untested | untested | untested |
+| Age of Mythology: Retold | Exclusive fullscreen | untested | untested | untested | untested |
 
 ## Notes
 

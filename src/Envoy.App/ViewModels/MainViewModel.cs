@@ -36,7 +36,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         host.RegionMoved += OnRegionMoved;
         host.GameWindowChanged += OnRegionMoved;
 
-        ReplyLanguages = [new Option(LanguageCatalog.Auto, "Auto — whatever they last wrote in"), .. Languages.Select(l => new Option(l.Code, l.DisplayName))];
+        ReplyLanguages = [new Option(LanguageCatalog.Auto, "Auto: whatever they last wrote in"), .. Languages.Select(l => new Option(l.Code, l.DisplayName))];
         Games = [new Option(GameCatalog.Any, "Detect automatically"), .. GameCatalog.All.Select(g => new Option(g.Id, g.Name))];
 
         Themes =

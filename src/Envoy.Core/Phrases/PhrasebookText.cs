@@ -4,7 +4,7 @@ namespace Envoy.Core.Phrases;
 public static class PhrasebookText
 {
     /// <summary>Shown in the preview when a phrase has no translation in the chosen language.</summary>
-    public const string Missing = "—";
+    public const string Missing = "not yet translated";
 
     /// <summary>Caption of the box shown while the user edits their phrases file.</summary>
     public const string EditTitle = "Envoy";

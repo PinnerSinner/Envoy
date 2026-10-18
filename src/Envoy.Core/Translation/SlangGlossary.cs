@@ -35,7 +35,7 @@ public static partial class SlangGlossary
         // Korean
         E("[ㅋ]{2,}", "ko", "LOL"),
         E("[ㅎ]{2,}", "ko", "Hehe"),
-        E("ㅈㅈ", "ko", "GG — I give up"),
+        E("ㅈㅈ", "ko", "GG, I give up"),
         E("ㄱㄱ", "ko", "Let's go!"),
         E("ㅇㅇ", "ko", "Yeah / OK"),
         E("ㄴㄴ", "ko", "No no"),

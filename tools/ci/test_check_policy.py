@@ -495,10 +495,10 @@ COMPATIBILITY = """# Compatibility
 
 | Title | Display mode | Win10 100 % | Win11 100 % |
 | --- | --- | --- | --- |
-| Age of Empires IV | Windowed | ✓ v1.0.0 | — |
-| Age of Empires IV | Borderless | ✗ v1.0.0 (black capture) | — |
-| Age of Mythology: Retold | Windowed | — | ✓ v1.0.0-rc.1 |
-| Age of Mythology: Retold | Borderless | — | — |
+| Age of Empires IV | Windowed | ✓ v1.0.0 | untested |
+| Age of Empires IV | Borderless | ✗ v1.0.0 (black capture) | untested |
+| Age of Mythology: Retold | Windowed | untested | ✓ v1.0.0-rc.1 |
+| Age of Mythology: Retold | Borderless | untested | untested |
 """
 
 SECURITY = """# Security
@@ -573,7 +573,7 @@ class DocsTests(PolicyTreeTest):
         self.assertTrue(any("no M-QSC-n step" in v for v in self.doc_violations("required-docs")))
 
     def test_compatibility_rows(self) -> None:
-        self.write("docs/compatibility.md", COMPATIBILITY.replace("| Age of Empires IV | Borderless | ✗ v1.0.0 (black capture) | — |\n", ""))
+        self.write("docs/compatibility.md", COMPATIBILITY.replace("| Age of Empires IV | Borderless | ✗ v1.0.0 (black capture) | untested |\n", ""))
         self.assertTrue(any("Age of Empires IV / Borderless" in v for v in self.doc_violations("required-docs")))
 
     def test_compatibility_cell_format(self) -> None:

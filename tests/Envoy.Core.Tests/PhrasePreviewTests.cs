@@ -27,7 +27,7 @@ public class PhrasePreviewTests
     {
         var book = new PhraseBook([P("a", ("en", "Hello"))]);
         var row = Assert.Single(PhrasePreview.Build(book, "en", "ja"));
-        Assert.Equal("—", row.Theirs);
+        Assert.Equal("not yet translated", row.Theirs);
         Assert.Equal(PhrasebookText.Missing, row.Theirs);
     }
 

@@ -15,7 +15,7 @@ public static class OutgoingText
 
     /// <summary>
     /// Removes C0/C1 control characters (CR, LF and TAB become a space), removes the bidi embedding, override and
-    /// isolate controls U+202A–U+202E and U+2066–U+2069 and unpaired surrogates, collapses whitespace runs to one
+    /// isolate controls U+202A to U+202E and U+2066 to U+2069 and unpaired surrogates, collapses whitespace runs to one
     /// space, trims, and truncates to <paramref name="maxLength"/> (at most <see cref="HardMaxLength"/>) UTF-16 code
     /// units without splitting a surrogate pair. ZWJ/ZWNJ are kept (emoji, Indic scripts). Null gives "".
     /// </summary>

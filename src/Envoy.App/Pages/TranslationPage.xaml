@@ -6,7 +6,7 @@
         <StackPanel MaxWidth="900">
             <TextBlock Text="Translation" Style="{StaticResource Text.H1}" />
             <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,18">
-                The free providers need no account. Paid ones use <Bold>your own</Bold> key and are billed to you directly —
+                The free providers need no account. Paid ones use <Bold>your own</Bold> key and are billed to you directly.
                 Envoy has no server of its own, so nobody else can ever spend your credits.
             </TextBlock>
 
@@ -183,7 +183,7 @@
                                 Value="{Binding Settings.Translation.DailyCharacterLimit}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Translation.DailyCharacterLimit, StringFormat='{}{0:N0} chars'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
-                    <TextBlock Style="{StaticResource Text.Caption}" Text="A busy match is roughly 2,000–5,000 characters. When the cap is reached Envoy switches to the free provider until tomorrow. 0 = no cap." Margin="220,0,0,0" />
+                    <TextBlock Style="{StaticResource Text.Caption}" Text="A busy match is roughly 2,000 to 5,000 characters. When the cap is reached Envoy switches to the free provider until tomorrow. 0 = no cap." Margin="220,0,0,0" />
                     <Grid Style="{StaticResource SettingRow}" Margin="0,12,0,0">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
                         <TextBlock Text="Give up after" Style="{StaticResource Text.Label}" />
