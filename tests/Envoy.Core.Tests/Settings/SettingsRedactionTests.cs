@@ -78,6 +78,7 @@ public class SettingsRedactionTests
         Assert.Contains("\"mutedPlayers\": \"[2 entries]\"", json, StringComparison.Ordinal);
         Assert.Contains("\"deepLKey\": \"[set]\"", json, StringComparison.Ordinal);
         Assert.Contains("\"myLanguage\": \"en\"", json, StringComparison.Ordinal); // unmarked values stay
+        Assert.Contains("\"motion\": \"Auto\"", json, StringComparison.Ordinal); // spec 09b: a preference, no marker needed
     }
 
     [Fact]

@@ -78,6 +78,9 @@ public sealed class AppSettings
     /// <summary>High-contrast palette choice (spec 07b).</summary>
     public AccessibilitySettings Accessibility { get; set; } = new();
 
+    /// <summary>How much the app animates (spec 09b).</summary>
+    public AppearanceSettings Appearance { get; set; } = new();
+
     public UsageSnapshot? Usage { get; set; }
 }
 
@@ -296,6 +299,16 @@ public enum HighContrastMode
 public sealed class AccessibilitySettings
 {
     public HighContrastMode HighContrast { get; set; } = HighContrastMode.FollowWindows;
+}
+
+/// <summary>
+/// The Livery page's appearance choices beyond the palette (spec 09b). Holds no names, text or positions, so it needs no
+/// marker. UI thread only; AppHost resolves it into <c>Services.Motion.Level</c> in ApplySettings.
+/// </summary>
+public sealed class AppearanceSettings
+{
+    /// <summary>Auto follows Windows' "Show animations" (REQ-MOT-1).</summary>
+    public Ux.MotionSetting Motion { get; set; } = Ux.MotionSetting.Auto;
 }
 
 public enum OverlayAnchor
