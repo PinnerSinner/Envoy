@@ -7,7 +7,7 @@ public static class ThemeResolver
 {
     public const string HighContrast = "highcontrast";
     public const string MatchGame = "match-game";
-    public const string Default = "imperial";
+    public const string Default = ThemeCatalog.Herald;
 
     /// <summary>
     /// <see cref="HighContrastMode.Always"/> → <see cref="HighContrast"/>; <see cref="HighContrastMode.FollowWindows"/>

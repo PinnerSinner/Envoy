@@ -31,8 +31,8 @@ public sealed class AppSettings
     /// <summary>Your in-game name, so your own messages aren't translated back to you.</summary>
     [Personal] public string MyPlayerName { get; set; } = "";
 
-    /// <summary>"match-game" or a theme id.</summary>
-    public string Theme { get; set; } = "match-game";
+    /// <summary>A <c>ThemeCatalog</c> livery id or "match-game"; new settings files start on the herald livery (spec 09a).</summary>
+    public string Theme { get; set; } = "herald";
 
     /// <summary>"any" to auto-detect, or a game id from <see cref="Games.GameCatalog"/>.</summary>
     public string Game { get; set; } = Games.GameCatalog.Any;

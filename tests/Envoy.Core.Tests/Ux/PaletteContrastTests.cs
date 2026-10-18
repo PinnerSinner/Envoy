@@ -65,6 +65,53 @@ public class PaletteContrastTests
         Assert.True(ratio >= ContrastMath.UiTarget, $"{palette}: Focus.Ring on {background} is {ratio:0.00}:1");
     }
 
+    public static TheoryData<string, string, string> HeraldPairs()
+    {
+        // Spec 09a: text on the oak rail and the leather toast, the rail's focus ring, rubrics (Accent) on vellum, and the
+        // glyph on every lettered wax seal and on the livery's primary colour.
+        var pairs = new List<(string Fg, string Bg, double Target)>();
+        foreach (var bg in new[] { "Oak", "Oak.Deep", "Oak.Tab" })
+        {
+            pairs.Add(("Leather.Text", bg, ContrastMath.TextTarget));
+            pairs.Add(("Leather.Muted", bg, ContrastMath.TextTarget));
+            pairs.Add(("Focus.Ring.Oak", bg, ContrastMath.UiTarget));
+        }
+        foreach (var bg in Backgrounds) pairs.Add(("Accent", bg, ContrastMath.TextTarget));
+        foreach (var wax in new[] { "Gules", "Azure", "Vert", "Or", "Purpure", "Sable", "Livery" }) pairs.Add(("Wax.Text", $"Wax.{wax}.Dark", ContrastMath.TextTarget));
+        foreach (var bg in new[] { "Accent", "Accent.Bright", "Livery.Primary", "Livery.Dark" }) pairs.Add(("Text.OnAccent", bg, ContrastMath.TextTarget));
+        var data = new TheoryData<string, string, string>();
+        foreach (var id in PaletteIds().Where(id => id != ThemeResolver.HighContrast))
+            foreach (var (fg, bg, target) in pairs)
+                data.Add(id, fg, bg + (target == ContrastMath.UiTarget ? "|ui" : ""));
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(HeraldPairs))]
+    public void Herald_ornament_text_and_rings_meet_their_targets(string palette, string foreground, string background)
+    {
+        var ui = background.EndsWith("|ui", StringComparison.Ordinal);
+        var bg = ui ? background[..^3] : background;
+        var colours = Colours(palette);
+        var ratio = ContrastMath.Ratio(colours[foreground], colours[bg]);
+        var target = ui ? ContrastMath.UiTarget : ContrastMath.TextTarget;
+        Assert.True(ratio >= target, $"{palette}: {foreground} {colours[foreground]} on {bg} {colours[bg]} is {ratio:0.00}:1 (target {target}:1)");
+    }
+
+    [Fact]
+    public void Herald_is_the_default_palette_and_shares_the_keys()
+    {
+        Assert.Equal("herald", ThemeResolver.Default);
+        var herald = Load("herald").Root!.Elements().Select(e => (string?)e.Attribute(X + "Key")).ToHashSet(StringComparer.Ordinal);
+        foreach (var key in new[] { "Livery.Primary", "Livery.Secondary", "Wax.Livery", "Oak", "Vellum", "Knot.Horizontal", "Damask.Oak" })
+            Assert.Contains(key, herald);
+        foreach (var id in PaletteIds())
+        {
+            var keys = Load(id).Root!.Elements().Select(e => (string?)e.Attribute(X + "Key")).ToHashSet(StringComparer.Ordinal);
+            Assert.True(herald.SetEquals(keys), $"{id} keys differ from herald: {string.Join(", ", keys.Except(herald).Concat(herald.Except(keys)))}");
+        }
+    }
+
     [Theory]
     [MemberData(nameof(GamePalettes))]
     public void Overlay_text_meets_4_5_on_opaque_bg(string palette)

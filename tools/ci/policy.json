@@ -48,6 +48,10 @@
                                           "Age of Empires III: Definitive Edition", "Age of Empires IV", "Age of Mythology: Retold"],
                                "modes": ["Windowed", "Borderless", "Exclusive fullscreen"] },
     "SECURITY.md": { "headings": ["Supported versions", "Verifying a download", "For contributors"],
-                     "links": ["docs/security/threat-model.md", "docs/privacy.md"] }
+                     "links": ["docs/security/threat-model.md", "docs/privacy.md"] },
+    "src/Envoy.App/Assets/Fonts/OFL-UnifrakturMaguntia.txt": {},
+    "src/Envoy.App/Assets/Fonts/OFL-IMFellEnglish.txt": {},
+    "src/Envoy.App/Assets/Fonts/OFL-IMFellEnglishSC.txt": {},
+    "src/Envoy.App/Assets/Fonts/OFL-EBGaramond.txt": {}
   }
 }

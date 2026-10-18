@@ -6,7 +6,7 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <!-- Slot 0 is the palette; ThemeManager swaps it at runtime. -->
-                <ResourceDictionary Source="pack://application:,,,/Envoy;component/Themes/Palette.imperial.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/Envoy;component/Themes/Palette.herald.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/Envoy;component/Themes/Controls.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

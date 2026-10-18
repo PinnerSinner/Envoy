@@ -15,17 +15,11 @@ public static class ThemeManager
 {
     public const string MatchGame = ThemeResolver.MatchGame;
 
-    public static IReadOnlyList<ThemeInfo> Themes { get; } =
-    [
-        new("imperial", "Imperial", "Age of Empires IV — midnight blue, burnished gold"),
-        new("parchment", "Parchment", "Age of Empires II — illuminated manuscript, oak and vellum"),
-        new("frontier", "Frontier", "Age of Empires III — colonial charts, brass and deep teal"),
-        new("olympian", "Olympian", "Age of Mythology — marble, bronze and Aegean blue"),
-        new("classic", "Classic", "Age of Empires — sandstone and bronze-age earth"),
-    ];
+    /// <summary>The liveries the Livery page offers (spec 09a), from Core <see cref="ThemeCatalog"/>: herald, then the game themes.</summary>
+    public static IReadOnlyList<ThemeInfo> Themes { get; } = [.. ThemeCatalog.Liveries.Select(l => new ThemeInfo(l.Id, l.Name, l.Description))];
 
     /// <summary>
-    /// Every palette the smoke test renders, in order: the game themes, then high contrast (spec 07b). The theme picker
+    /// Every palette the smoke test renders, in order: the liveries (herald first), then high contrast (spec 07b). The theme picker
     /// lists <see cref="Themes"/> only; <see cref="ThemeResolver"/> chooses high contrast.
     /// </summary>
     public static IReadOnlyList<string> PaletteIds { get; } = [.. Themes.Select(t => t.Id), ThemeResolver.HighContrast];
