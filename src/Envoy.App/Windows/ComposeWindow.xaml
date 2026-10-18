@@ -67,7 +67,8 @@
 
                     <!-- Phrase ribbons -->
                     <TextBlock Text="Quick phrases" Style="{StaticResource Text.Rubric}" Margin="0,14,0,6" />
-                    <ItemsControl x:Name="Phrases" Focusable="False" KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="1">
+                    <!-- indented so the last row of ribbons clears the charter's bottom filigree corners -->
+                    <ItemsControl x:Name="Phrases" Margin="22,0,22,0" Focusable="False" KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="1">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <WrapPanel />
