@@ -206,7 +206,8 @@ true; `ReadingChatPage` sets that from its visibility. Two live views never swit
 
 ### Design rules
 
-- **Never touch the game process.** Read pixels and send input only. This is a product promise; see the [FAQ](faq.md).
+- **Pixels in, keystrokes out.** Envoy reads the screen the way OBS does and types the way a keyboard does: no game
+  memory, no injection, no hooks. This is a product promise; see the [FAQ](faq.md).
 - **Logic goes in Core.** If something can be tested without Windows, it belongs in `Envoy.Core` with a test.
 - **Everything themeable is a `DynamicResource`.** Colours never appear in window XAML.
 - **Settings apply live.** `MainWindow` debounces any edit, calls `AppHost.ApplySettings()` and auto-saves.

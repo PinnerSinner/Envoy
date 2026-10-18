@@ -25,8 +25,8 @@ what CI sees. See [docs/building.md](docs/building.md#analyzers-and-the-policy-c
 
 ## Ground rules
 
-1. **Never touch the game process.** No memory reading, injection or hooking. Envoy only reads screen pixels and
-   sends keyboard input. PRs that change this won't be merged; it's what keeps players safe from anti-cheat.
+1. **Pixels in, keystrokes out.** No memory reading, injection or hooking. Envoy only reads screen pixels (like OBS)
+   and sends keyboard input (like a keyboard). PRs that change this won't be merged; it's what keeps players safe from anti-cheat.
 2. **Logic belongs in `Envoy.Core` with tests.** The WPF app should stay a thin shell over it.
 3. **Themeable UI only:** use the `DynamicResource` keys from `Themes/Palette.*.xaml` and the styles in
    `Themes/Controls.xaml`; don't hard-code colours. See [docs/theming.md](docs/theming.md).

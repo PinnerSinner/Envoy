@@ -16,7 +16,7 @@ Envoy. Both are the same app with the same settings.
   portable exe stays wherever you put it.
 - **Your data.** Settings, API keys (encrypted with Windows DPAPI), your phrases, logs, transcripts and saved
   translations are in the data folder shown on **About** (`%APPDATA%\Envoy` by default). Both kinds of Envoy use the
-  same data folder, and updating or uninstalling never touches it. [Privacy](privacy.md) lists every file.
+  same data folder, and updating or uninstalling leaves it in place. [Privacy](privacy.md) lists every file.
 - **The installer's log.** The installer and updater (Velopack) keep their own log in `%LocalAppData%\velopack`
   (see [Privacy](privacy.md#installed-copies)). The portable exe never writes one.
 

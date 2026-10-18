@@ -5,7 +5,7 @@
     <ScrollViewer Padding="0,0,10,0" VerticalScrollBarVisibility="Auto">
         <StackPanel MaxWidth="900">
             <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,18">
-                Envoy looks at the chat area of your screen with the text recognition built into Windows. Nothing touches the game itself.
+                Envoy looks at the chat area of your screen with the text recognition built into Windows, the way OBS captures your screen.
             </TextBlock>
 
             <!-- The page callout (spec 07a, REQ-OUXA-22). -->
