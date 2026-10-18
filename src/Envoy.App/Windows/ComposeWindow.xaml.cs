@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Envoy.App.Services;
@@ -127,6 +129,9 @@ public partial class ComposeWindow : Window
         CharCount.Text = info.Text;
         CharCount.SetResourceReference(ForegroundProperty, info.OverLimit ? "Danger" : "Text.Muted");
         CharCount.Visibility = Visibility.Visible;
+        // LiveSetting="Polite" is only announced when the live region reports a change.
+        (UIElementAutomationPeer.FromElement(CharCount) ?? UIElementAutomationPeer.CreatePeerForElement(CharCount))
+            ?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
     }
 
     private void OnInputChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
@@ -195,13 +200,15 @@ public partial class ComposeWindow : Window
     private async void OnInputKey(object sender, KeyEventArgs e)
     {
         // Up/Down recall replies sent this session (REQ-OUXC-40); the first Up keeps the unsent draft.
-        if (e.Key == Key.Up)
+        // Only unmodified arrows: Shift+Up/Down keep the TextBox's own selection behaviour.
+        var plain = Keyboard.Modifiers == ModifierKeys.None;
+        if (plain && e.Key == Key.Up)
         {
             e.Handled = true;
             if (History.Older(Input.Text) is { } older) SetInputFromHistory(older);
             return;
         }
-        if (e.Key == Key.Down)
+        if (plain && e.Key == Key.Down)
         {
             e.Handled = true;
             if (History.Newer() is { } newer) SetInputFromHistory(newer);
@@ -234,7 +241,8 @@ public partial class ComposeWindow : Window
     private void Remember(string input, string target)
     {
         History.Add(input);
-        if (_host.Phrases.FindByText(input, MyLanguage) is not { } phrase) return;
+        // Chips fall back to the English text when MyLanguage has none, so the lookup does too.
+        if ((_host.Phrases.FindByText(input, MyLanguage) ?? _host.Phrases.FindByText(input, "en")) is not { } phrase) return;
         var compose = _host.Settings.Compose;
         PhraseOrdering.RecordUse(compose.PhraseUsage, target, phrase.Id);
         _host.ScheduleSave();
@@ -281,10 +289,11 @@ public partial class ComposeWindow : Window
 
         if (settings.TypingMethod == TypingMethod.Paste) ClipboardHelper.TrySetText(text);
         Hide();
+        var sent = false;
         try
         {
             await KeyboardSender.SendToWindowAsync(_target, text, settings);
-            Remember(input, target);
+            sent = true;
         }
         catch (Exception ex)
         {
@@ -293,6 +302,8 @@ public partial class ComposeWindow : Window
             _host.Log.For("Compose").Warn("Reply was not typed", ex);
             _host.ReportProblem(ex is SendBlockedException blocked ? ProblemText.ReplyBlocked(blocked.Message) : ProblemText.ReplySendFailed);
         }
+        // Outside the try: the reply was typed, so a problem here must not report a failed send.
+        if (sent) Remember(input, target);
     }
 
     private string AppendOriginal(string translated) =>

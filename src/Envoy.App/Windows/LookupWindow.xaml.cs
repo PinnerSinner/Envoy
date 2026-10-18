@@ -96,15 +96,7 @@ public partial class LookupWindow : Window
     private void TryCopy(string text)
     {
         if (string.IsNullOrEmpty(text)) return;
-        try
-        {
-            Clipboard.SetText(text);
-            Status.Text = "Copied.";
-        }
-        catch (System.Runtime.InteropServices.COMException)
-        {
-            Status.Text = "Clipboard is busy — try again.";
-        }
+        Status.Text = ClipboardHelper.TrySetText(text) ? "Copied." : "Clipboard is busy — try again.";
     }
 
     private void OnDrag(object sender, MouseButtonEventArgs e)

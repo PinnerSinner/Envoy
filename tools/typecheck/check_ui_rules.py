@@ -20,6 +20,7 @@ R12 ViewModels/SetupWizardViewModel.cs contains no `new AppSettings` and no `Sav
     Host.Settings, through its applier into ApplySettings)                              AC-OUXA-1
 R13 ReplyHistory never appears in Envoy.Core/Settings/SettingsStore.cs or AppSettings.cs, and no logging call in
     Windows/ComposeWindow.xaml.cs mentions History (reply history is memory only)          AC-OUXC-1
+R14 Clipboard.SetText only in Services/ClipboardHelper.cs (use ClipboardHelper.TrySetText)  spec 07c
 UPD1 `new UpdateManager(`, `UpdateManager m = new(` and `: UpdateManager` only in
     Services/VelopackUpdateBackend.cs; VelopackFlowSource and ApplyUpdatesAndRestart nowhere
     (also scanned in Envoy.Core)                                                          REQ-DIST-14, 12
@@ -77,6 +78,8 @@ APPDATA = re.compile(r"\bSpecialFolder\.ApplicationData\b|APPDATA")
 APPDATA_ALLOWED = "Envoy.Core/Settings/SettingsStore.cs"
 ASYNC_DISCARD = re.compile(r"(?<![\w.])_\s*=\s*(?!=)[^;]*?\w+Async\s*\(")
 VIEWMODEL_BANNED = re.compile(r"\bApp\.Current\b|\bProcess\.Start\b|\bProcessStartInfo\b|\bMessageBox\b")
+CLIPBOARD_HELPER = "Services/ClipboardHelper.cs"
+CLIPBOARD_SET = re.compile(r"\bClipboard\s*\.\s*SetText\s*\(")
 DATACONTEXT_ASSIGN = re.compile(r"\bDataContext\s*=(?!=)")
 
 
@@ -235,6 +238,14 @@ def check(root):
         for n, line in _code_lines(_read(compose)):
             if LOG_CALL.search(line) and "History" in line:
                 report(compose, n, "R13", "reply history is never logged (REQ-OUXC-39)")
+
+    helper = os.path.normpath(os.path.join(root, *CLIPBOARD_HELPER.split("/")))
+    for path in _app_sources(root):
+        if os.path.normpath(path) == helper:
+            continue
+        for n, line in _code_lines(_read(path)):
+            if CLIPBOARD_SET.search(line):
+                report(path, n, "R14", "clipboard writes go through Services/ClipboardHelper.TrySetText (it retries a busy clipboard)")
 
     _check_velopack(root, report)
     return problems

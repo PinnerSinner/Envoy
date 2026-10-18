@@ -348,7 +348,15 @@ Implemented: every MUST (REQ-OUXC-39, 40, 41, 44) and every SHOULD (42, 43, 45).
 - **Smoke.** `overlay-compact({palette})` runs in its own overlay window after `overlay-readable({palette})`; it also
   checks that the Copy buttons hide again after edit mode. `compose-history` (first palette) also confirms the counter
   is collapsed before a translation; with `--screenshots`, each palette checks it is visible after the preview arrives.
-- **Other clipboard writes.** `LookupWindow` and `App` keep their own clipboard calls; only the reply box and overlay
-  use `ClipboardHelper` in this step.
+- **Other clipboard writes.** `LookupWindow` and `App.CopyText` also go through `ClipboardHelper.TrySetText` (App's
+  retry was 3 × 100 ms, now the helper's 5 × 40 ms; it still reports `ProblemText.ClipboardBusy` on failure), and
+  typecheck rule R14 bans `Clipboard.SetText` outside `Services/ClipboardHelper.cs`.
+- **Phrase usage lookup.** `Remember` matches the input against `MyLanguage` and then English, the same fallback the
+  chip labels use, so a chip shown in English still counts.
+- **Counter announcements.** `UpdateCount` raises `LiveRegionChanged` on the counter's automation peer so screen
+  readers announce `LiveSetting="Polite"` changes.
+- **Keys and send.** History recall takes only unmodified Up/Down (Shift+Up/Down keep text selection). After a typed
+  send, history and usage are recorded outside the send `try`, so they can never turn a sent reply into a "send
+  failed" toast.
 - **Privacy page.** `docs/privacy.md` gained a short "Reply history and quick-phrase counts" section, since phrase
   counts are a new kind of value in `settings.json` (no new file, so `DataInventory` is unchanged).

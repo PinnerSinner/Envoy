@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
 using Envoy.App.Interop;
@@ -589,19 +588,8 @@ public partial class App : Application, IShell
     /// <inheritdoc />
     public bool CopyText(string text)
     {
-        for (var attempt = 0; attempt < 3; attempt++)
-        {
-            try
-            {
-                Clipboard.SetText(text);
-                return true;
-            }
-            catch (ExternalException ex)
-            {
-                _log.Debug("Clipboard busy", LogField.Of("attempt", attempt + 1), LogField.Of("error", ex.GetType().Name));
-                if (attempt < 2) Thread.Sleep(100);
-            }
-        }
+        if (ClipboardHelper.TrySetText(text)) return true;
+        _log.Debug("Clipboard busy");
         Host.ReportProblem(ProblemText.ClipboardBusy);
         return false;
     }

@@ -1,5 +1,5 @@
 """Tests for check_ui_rules.py (REQ-UIF-17, specs 02, 05, 06 and 07a): a clean tree passes and each rule R1-R12, UPD1 and UPD2
-reports its own violation (R13: spec 07c).
+reports its own violation (R13, R14: spec 07c).
 The mini trees are built in a temp directory from check_ui_rules.REQUIRED_FILES, so they track the real file list."""
 import os
 import shutil
@@ -266,6 +266,15 @@ namespace Envoy.App.Services; class ChatWatcher
                 self.write_core(rel, "class S\n{\n    public ReplyHistory Replies { get; set; } = new();\n}\n")
                 self.assertOnly("R13", rel + ":3")
                 self.write_core(rel, "class S { }\n")
+
+    def test_r14_clipboard_through_helper_is_fine(self):
+        self.write("Services/ClipboardHelper.cs", "static class ClipboardHelper { static void X() => Clipboard.SetText(\"\"); }\n")
+        self.write("Windows/LookupWindow.xaml.cs", "class L { void X() => ClipboardHelper.TrySetText(\"\"); }\n// Clipboard.SetText in a comment is fine.\n")
+        self.assertEqual([], check_ui_rules.check(self.root))
+
+    def test_r14_clipboard_set_text_elsewhere(self):
+        self.write("App.xaml.cs", "class App\n{\n    void X() => System.Windows.Clipboard.SetText(\"\");\n}\n")
+        self.assertOnly("R14", "App.xaml.cs:3")
 
     # ---- spec 06 ----
 
