@@ -1189,6 +1189,16 @@ internal static class SmokeTest
         for (var i = 1; i <= 4; i++)
             center.Submit(NoticeFactory.ProviderFailing($"smoke-{i}", $"Smoke {i}", ProviderState.AuthFailed)!, gameForeground: false);
         await Pump();
+        // A provider-health edge from an earlier section's real translation can land on the UI thread after the
+        // ResolveWhere above and add its own notice; withdraw anything that is not one of the four, then count.
+        var smokeKeys = Enumerable.Range(1, 4).Select(i => NoticeFactory.ProviderKey($"smoke-{i}")).ToHashSet(StringComparer.Ordinal);
+        var stray = center.Active.Select(n => n.Key).Where(k => !smokeKeys.Contains(k)).ToList();
+        if (stray.Count > 0)
+        {
+            Log("war-room notices: withdrew " + string.Join(", ", stray));
+            center.ResolveWhere(k => !smokeKeys.Contains(k));
+            await Pump();
+        }
         Check(page.NoticeRows.Items.Count == MainViewModel.VisibleNoticeLimit, $"{page.NoticeRows.Items.Count} notice rows, expected {MainViewModel.VisibleNoticeLimit}");
         Check(page.ShowAllNoticesToggle.IsVisible && page.ShowAllNoticesText.Text == "Show all (4)", $"the toggle reads '{page.ShowAllNoticesText.Text}'");
         vm.ShowAllNotices = true;
