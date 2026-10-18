@@ -132,8 +132,13 @@ figure captions), `LanguageSeal` (overlay seals), `ProviderCandle` (candles) and
    brush in a palette is frozen (`po:Freeze`); the geometry in Ornaments.xaml is frozen by its type converter.
 5. **The charter heading lives in MainWindow** (REQ-HRD-6): the drop cap, title, plain name and lede follow the checked
    tab, so the pages lost their own `Text.H1` titles. Each page keeps its intro paragraph. The banner tabs are 50 px tall
-   (the reference: 56) so the nine tabs, the wordmark and the crest fit an 820 px window; the touch target stays above
-   44 px.
+   (the reference: 56). The rail's parts do not all fit every window height, so Core `RailLayouts.For` picks what the
+   rail shows: on a shorter rail it first slims the tabs to 44 px (still a full touch target), then folds away the
+   crest, the motto under the wordmark and the two status lines, in that order; the wordmark, the nine tabs and the
+   version always stay. The crest is drawn at 60 % (the reference: 75 %) so it fits beside compact tabs in the default
+   820 px window. The status lines no longer wrap (they trim, with the full text as a tooltip), so their height is
+   fixed. The `war-table` smoke section checks that the last tab ends above the rail's foot at the default height and
+   at `MinHeight`.
 6. **Ruled rows** (REQ-HRD-7) are a 1 px rule above each `SettingRow` (`Row.Rule`) rather than a ruled background, so
    every rule sits on a row edge. The drop-cap square (`RowLabel`) is on every row whose label is a literal; rows whose
    label is a binding or a two-line block (War Room "Get ready", the first two Translation rows) keep a plain label.
@@ -158,9 +163,23 @@ figure captions), `LanguageSeal` (overlay seals), `ProviderCandle` (candles) and
     `herald-controls({palette})`, `desk({palette})` and `oath({palette})`, beside the existing `pages({palette})`;
     the setup-guide screenshots are now taken for `herald` instead of `imperial`. `docs/images/` is not refreshed in
     this change: the new screenshots exist only after the Windows CI run on `main`, so they are copied from
-    `ci-screenshots` in a follow-up. A new manual step, M-HRD-1, compares every window with the references.
+    `ci-screenshots` in a follow-up task. A new manual step, M-HRD-1, compares every window with the references. The CI
+    desktop is 1024x768 and Windows keeps a window within the screen, so the `war-table` section drives the marginal
+    column's rule with a 1180 px width directly (`MainWindow.LayoutWarTable`) and checks that the real window agrees with
+    `PageHeadings.ShowsMarginalia` at whatever width the screen allows; CI screenshots of the settings window therefore
+    show the narrow layout without the marginal drawing.
 13. **README**: this change edits README.md only where R15 forces it. The maintainer has since asked for a redesigned
     README (download, setup and use, real game footage); that supersedes this spec's "do not edit" note and is left to
     its own change.
 14. **Accessibility**: ornaments are non-focusable elements, which the 07b audit skips; banner tabs carry the plain page
     name as their accessible name.
+15. **Contrast on gradients** (REQ-HRD-1, 07b): `PaletteContrastTests` also checks rubrics (`Accent`) on the darkest
+    stop of the charter's `Vellum.Gradient` (now the palette key `Vellum.Deep`) and the seal glyph on the halfway blend
+    of every wax. To pass, Frontier's vert is `#2A5530` (REQ-HRD-2 names `#2F5E35`, 4.21:1 on that stop) and
+    `Wax.Or.Light` is `#957026`. In high contrast the drop cap is window text on the window colour (it was window text
+    on the highlight colour). The `WaxSeal` style's SemiBold weight is set back to Normal wherever a seal uses
+    `Font.Title` or `Font.Wordmark`, which have only a Regular face, so WPF never fakes a bold; `Font.Wordmark` gains the
+    same CJK fallback chain as the other font resources.
+16. **One Herald** (REQ-HRD-11): the read-aloud feature was also called "Herald". Its Overlay heading and its
+    CHANGELOG, README and getting-started entries now say "Read aloud", so "Herald" names the livery (and, in the
+    plural, the Overlay tab's playful name).

@@ -76,8 +76,14 @@ public class PaletteContrastTests
             pairs.Add(("Leather.Muted", bg, ContrastMath.TextTarget));
             pairs.Add(("Focus.Ring.Oak", bg, ContrastMath.UiTarget));
         }
-        foreach (var bg in Backgrounds) pairs.Add(("Accent", bg, ContrastMath.TextTarget));
-        foreach (var wax in new[] { "Gules", "Azure", "Vert", "Or", "Purpure", "Sable", "Livery" }) pairs.Add(("Wax.Text", $"Wax.{wax}.Dark", ContrastMath.TextTarget));
+        // Vellum.Deep is the darkest stop of the charter's Vellum.Gradient; "Wax.X.Mid" is the halfway blend of a seal's
+        // radial wax, where its glyph sits.
+        foreach (var bg in Backgrounds.Append("Vellum.Deep")) pairs.Add(("Accent", bg, ContrastMath.TextTarget));
+        foreach (var wax in new[] { "Gules", "Azure", "Vert", "Or", "Purpure", "Sable", "Livery" })
+        {
+            pairs.Add(("Wax.Text", $"Wax.{wax}.Dark", ContrastMath.TextTarget));
+            pairs.Add(("Wax.Text", $"Wax.{wax}.Mid", ContrastMath.TextTarget));
+        }
         foreach (var bg in new[] { "Accent", "Accent.Bright", "Livery.Primary", "Livery.Dark" }) pairs.Add(("Text.OnAccent", bg, ContrastMath.TextTarget));
         var data = new TheoryData<string, string, string>();
         foreach (var id in PaletteIds().Where(id => id != ThemeResolver.HighContrast))
@@ -175,11 +181,35 @@ public class PaletteContrastTests
         return XDocument.Load(path);
     }
 
-    /// <summary>The palette's literal <c>&lt;Color&gt;</c> elements, keyed without the ".Color" suffix.</summary>
-    private static Dictionary<string, Rgb> Colours(string palette) =>
-        Load(palette).Root!.Elements().Where(e => e.Name.LocalName == "Color")
+    /// <summary>
+    /// The palette's literal <c>&lt;Color&gt;</c> elements, keyed without the ".Color" suffix, plus "Wax.X.Mid": the
+    /// halfway blend of each wax's light and dark stop.
+    /// </summary>
+    private static Dictionary<string, Rgb> Colours(string palette)
+    {
+        var colours = Load(palette).Root!.Elements().Where(e => e.Name.LocalName == "Color")
             .ToDictionary(e => ((string)e.Attribute(X + "Key")!).Replace(".Color", "", StringComparison.Ordinal),
                           e => Rgb.Parse(e.Value), StringComparer.Ordinal);
+        foreach (var light in colours.Keys.Where(k => k.StartsWith("Wax.", StringComparison.Ordinal) && k.EndsWith(".Light", StringComparison.Ordinal)).ToList())
+        {
+            var wax = light[..^".Light".Length];
+            if (colours.TryGetValue(wax + ".Dark", out var dark))
+                colours[wax + ".Mid"] = ContrastMath.Composite(colours[light], 0.5, dark);
+        }
+        return colours;
+    }
+
+    [Fact]
+    public void High_contrast_drop_cap_is_window_text_on_window()
+    {
+        var brushes = Load(ThemeResolver.HighContrast).Root!.Elements().Where(e => e.Name.LocalName == "SolidColorBrush")
+            .ToDictionary(e => (string)e.Attribute(X + "Key")!, e => (string)e.Attribute("Color")!, StringComparer.Ordinal);
+        var members = Load(ThemeResolver.HighContrast).Root!.Elements().Where(e => e.Name.LocalName == "Static")
+            .ToDictionary(e => (string)e.Attribute(X + "Key")!, e => (string)e.Attribute("Member")!, StringComparer.Ordinal);
+        string Member(string brush) => members[brushes[brush].Replace("{StaticResource ", "", StringComparison.Ordinal).TrimEnd('}')];
+        Assert.Equal("SystemColors.WindowColor", Member("DropCap.Gradient"));
+        Assert.Equal("SystemColors.WindowTextColor", Member("Livery.Primary"));
+    }
 
     private static string ThemesFolder()
     {

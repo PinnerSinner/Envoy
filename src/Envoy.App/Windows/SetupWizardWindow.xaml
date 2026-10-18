@@ -56,7 +56,7 @@
                                     CommandParameter="{Binding Step}" AutomationProperties.Name="{Binding AccessibleName}">
                                 <DockPanel Width="196">
                                     <ContentControl x:Name="StepSeal" DockPanel.Dock="Left" Style="{StaticResource WaxSeal}" Background="{DynamicResource Wax.Plain}"
-                                                    Content="{Binding Number}" Width="36" Height="36" FontFamily="{StaticResource Font.Title}" FontSize="16" Margin="0,0,12,0" />
+                                                    Content="{Binding Number}" Width="36" Height="36" FontWeight="Normal" FontFamily="{StaticResource Font.Title}" FontSize="16" Margin="0,0,12,0" />
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock x:Name="StepTitle" Text="{Binding Title}" FontFamily="{StaticResource Font.Title}" FontSize="16"
                                                    Foreground="{DynamicResource Leather.Text}" TextWrapping="Wrap" />

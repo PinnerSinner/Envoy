@@ -13,7 +13,7 @@ versioning: [SemVer](https://semver.org/).
   Translation) and the page on a vellum charter with a knotwork border, a drop cap and an ink drawing. Overlay messages
   are dispatch scrolls sealed with the sender's language (中, 한, 日, Р); the reply box is a scribe's desk with a wax
   "Seal and send"; the setup guide is a chain of seals; provider health shows lit, guttering or snuffed candles.
-- **Liveries**: the new default, Herald (gules and or), and the five game themes recast in the same oak and vellum:
+- **Liveries**: the new default, the Herald livery (gules and or), and the five game themes recast in the same oak and vellum:
   Imperial (Age of Empires IV, gules and or), Parchment (Age of Empires II, azure and or), Frontier (Age of Empires
   III, vert and argent), Olympian (Age of Mythology, purpure and or) and Classic (Age of Empires, sable and or). Saved
   theme choices keep working; "Follow the game" still switches with the running game.
@@ -21,7 +21,7 @@ versioning: [SemVer](https://semver.org/).
   Japanese and Korean text still uses the Windows fonts.
 - **Scan & translate** (`Ctrl+Shift+Q`): drag over any text on screen (lobby names, map descriptions, menus) and get
   an instant translation popup.
-- **Herald**: optionally reads translated messages aloud with a Windows voice, with voice, volume and speed settings.
+- **Read aloud**: optionally reads translated messages aloud with a Windows voice, with voice, volume and speed settings.
 - CI renders screenshots of every window in every theme.
 - **Copy diagnostics** (About › Troubleshooting): a report for bug reports with versions, Windows and monitor
   details, the detected game, OCR languages, which providers have a key set, failed hotkeys and the recent log.

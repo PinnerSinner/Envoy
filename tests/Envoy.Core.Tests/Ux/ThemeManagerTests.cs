@@ -45,7 +45,7 @@ public class ThemeManagerTests
     [Theory]
     [InlineData("imperial", "#8E2418", "#D8B04A")]
     [InlineData("parchment", "#2B4C8C", "#D8B04A")]
-    [InlineData("frontier", "#2F5E35", "#E9E4D6")]
+    [InlineData("frontier", "#2A5530", "#E9E4D6")]
     [InlineData("olympian", "#5B2D73", "#D8B04A")]
     [InlineData("classic", "#1C1A18", "#D8B04A")]
     public void Liveries_carry_their_tinctures(string id, string primary, string secondary)

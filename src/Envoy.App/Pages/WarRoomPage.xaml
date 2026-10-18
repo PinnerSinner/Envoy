@@ -80,7 +80,7 @@
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Content="Turn on translation" Command="{Binding AcknowledgePrivacyCommand}"
                                 AutomationProperties.Name="Turn on translation" VerticalAlignment="Center" Margin="12,0,0,0" />
-                        <ContentControl Style="{StaticResource WaxSeal}" FontFamily="{StaticResource Font.Wordmark}" FontSize="17" Content="E" Width="34" Height="34" VerticalAlignment="Top" Margin="0,0,14,0" />
+                        <ContentControl Style="{StaticResource WaxSeal}" FontWeight="Normal" FontFamily="{StaticResource Font.Wordmark}" FontSize="17" Content="E" Width="34" Height="34" VerticalAlignment="Top" Margin="0,0,14,0" />
                         <StackPanel>
                             <TextBlock Text="{x:Static pv:PrivacyText.Heading}" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding PrivacyCalloutText, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
@@ -96,7 +96,7 @@
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="Open setup guide" Command="{Binding OpenSetupGuideCommand}"
                                 AutomationProperties.Name="Open setup guide" VerticalAlignment="Center" Margin="12,0,0,0" />
-                        <ContentControl Style="{StaticResource WaxSeal}" FontFamily="{StaticResource Font.Wordmark}" FontSize="17" Content="E" Width="34" Height="34" VerticalAlignment="Top" Margin="0,0,14,0" />
+                        <ContentControl Style="{StaticResource WaxSeal}" FontWeight="Normal" FontFamily="{StaticResource Font.Wordmark}" FontSize="17" Content="E" Width="34" Height="34" VerticalAlignment="Top" Margin="0,0,14,0" />
                         <StackPanel>
                             <TextBlock Text="{Binding FinishSetupText, Mode=OneWay}" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding FinishSetupDetail, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />

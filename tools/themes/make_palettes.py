@@ -20,7 +20,7 @@ BASE = {
     "Focus.Ring": "#7A5410",
     # herald tokens (Tokens.dc.html)
     "Gules": "#8E2418", "Gules.Dark": "#6E1A10", "Or": "#D8B04A", "Or.Light": "#E9CC7A", "Or.Dark": "#8C6516",
-    "Vellum": "#EAD8B4", "Vellum.Light": "#F6EBD2", "Vellum.Dark": "#D3B987",
+    "Vellum": "#EAD8B4", "Vellum.Light": "#F6EBD2", "Vellum.Dark": "#D3B987", "Vellum.Deep": "#D7BE91",
     "Oak": "#3A2414", "Oak.Deep": "#2B1A0E", "Oak.Tab": "#4A3020", "Ink": "#2A1D12", "Ink.Soft": "#5C4529",
     "Leather.Text": "#D9C298", "Leather.Muted": "#B89A63", "Focus.Ring.Oak": "#E9CC7A",
     "Ornament.Gold": "#D8B04A", "Ornament.Pip": "#F3D98C", "Ornament.Edge": "#B98B2E", "Ornament.Filigree": "#8C6516",
@@ -28,7 +28,7 @@ BASE = {
     "Wax.Gules.Light": "#D45542", "Wax.Gules.Dark": "#8E1F14",
     "Wax.Azure.Light": "#4B6FB4", "Wax.Azure.Dark": "#1E3460",
     "Wax.Vert.Light": "#5E8C49", "Wax.Vert.Dark": "#2B4A22",
-    "Wax.Or.Light": "#B58A2E", "Wax.Or.Dark": "#6B4E12",
+    "Wax.Or.Light": "#957026", "Wax.Or.Dark": "#6B4E12",
     "Wax.Purpure.Light": "#8A58A6", "Wax.Purpure.Dark": "#3F1D52",
     "Wax.Sable.Light": "#5A5650", "Wax.Sable.Dark": "#1C1A18",
     "Wax.Plain.Light": "#CDBFA2", "Wax.Plain.Dark": "#9C8D70",
@@ -39,7 +39,7 @@ LIVERIES = {
     "herald": ("#8E2418", "#6E1A10", "#D8B04A", "Gules", "the herald's own arms, gules and or"),
     "imperial": ("#8E2418", "#6E1A10", "#D8B04A", "Gules", "Age of Empires IV, gules and or"),
     "parchment": ("#2B4C8C", "#1E3460", "#D8B04A", "Azure", "Age of Empires II, azure and or"),
-    "frontier": ("#2F5E35", "#21432A", "#E9E4D6", "Vert", "Age of Empires III, vert and argent"),
+    "frontier": ("#2A5530", "#21432A", "#E9E4D6", "Vert", "Age of Empires III, vert and argent"),
     "olympian": ("#5B2D73", "#3F1D52", "#D8B04A", "Purpure", "Age of Mythology, purpure and or"),
     "classic": ("#1C1A18", "#0F0E0D", "#D8B04A", "Sable", "Age of Empires, sable and or"),
 }
@@ -56,7 +56,7 @@ HC = {  # high contrast: SystemColors members
 ORDER = ["Bg.Window", "Bg.Panel", "Bg.PanelAlt", "Bg.Input", "Accent", "Accent.Bright", "Accent.Dim", "Text.Primary",
          "Text.Secondary", "Text.Muted", "Text.OnAccent", "Border.Subtle", "Danger", "Success", "Overlay.Text",
          "Overlay.Sender", "Overlay.Original", "Overlay.Bg", "Focus.Ring"]
-NEW = ["Gules", "Gules.Dark", "Or", "Or.Light", "Or.Dark", "Vellum", "Vellum.Light", "Vellum.Dark", "Oak", "Oak.Deep",
+NEW = ["Gules", "Gules.Dark", "Or", "Or.Light", "Or.Dark", "Vellum", "Vellum.Light", "Vellum.Dark", "Vellum.Deep", "Oak", "Oak.Deep",
        "Oak.Tab", "Ink", "Ink.Soft", "Leather.Text", "Leather.Muted", "Focus.Ring.Oak", "Livery.Primary",
        "Livery.Secondary", "Livery.Dark", "Ornament.Gold", "Ornament.Pip", "Ornament.Edge", "Ornament.Filigree",
        "Ornament.Rule", "Wax.Text"]
@@ -140,7 +140,7 @@ def gen(pid):
             w(f'  <SolidColorBrush x:Key="Wax.{wx}" Color="{S(f"Wax.{wx}.Dark")}" po:Freeze="True" />')
         flat = {"Header.Gradient": "Bg.Window", "Accent.Gradient": "Accent", "Rule.Gradient": "Text.Muted",
                 "Vellum.Gradient": "Bg.Panel", "Oak.Gradient": "Oak", "Gold.Gradient": "Accent",
-                "DropCap.Gradient": "Accent", "Boss.Gradient": "Accent", "Rod.Gradient": "Text.Primary",
+                "DropCap.Gradient": "Bg.Window", "Boss.Gradient": "Accent", "Rod.Gradient": "Text.Primary",
                 "Plaque.Gradient": "Bg.Input", "Knot.Horizontal": "Text.Primary", "Knot.Vertical": "Text.Primary",
                 "Damask.Oak": "Oak", "Crest.Field": "Accent", "Candle.Flame": "Accent", "Candle.Wax": "Bg.Panel",
                 "Row.Rule": "Overlay.HitTest"}
@@ -159,7 +159,7 @@ def gen(pid):
     lg("Accent.Gradient", "0,0", "1,0", [(0, pd), (1, p)])
     lg("Rule.Gradient", "0,0", "1,0", [(0, "#00B98B2E"), (0.5, "#B98B2E"), (1, "#00B98B2E")])
     w('  <RadialGradientBrush x:Key="Vellum.Gradient" GradientOrigin="0.25,0.15" Center="0.25,0.15" RadiusX="1.1" RadiusY="1.1" po:Freeze="True">'
-      '<GradientStop Offset="0" Color="#F6EBD2" /><GradientStop Offset="0.5" Color="#EAD8B4" /><GradientStop Offset="1" Color="#D7BE91" /></RadialGradientBrush>')
+      f'<GradientStop Offset="0" Color="{S("Vellum.Light")}" /><GradientStop Offset="0.5" Color="{S("Vellum")}" /><GradientStop Offset="1" Color="{S("Vellum.Deep")}" /></RadialGradientBrush>')
     lg("Oak.Gradient", "0,0", "1,0", [(0, "#592B1A0E"), (1, "#0D2B1A0E")])
     lg("Gold.Gradient", "0,0", "1,0.3", [(0, "#9A7428"), (0.3, "#E9CC7A"), (0.42, "#FFF4C8"), (0.54, "#E9CC7A"), (1, "#9A7428")])
     lg("DropCap.Gradient", "0,0", "1,1", [(0, "#F3D98C"), (0.6, "#B98B2E"), (1, "#8C6516")])

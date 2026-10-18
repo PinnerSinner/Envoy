@@ -759,7 +759,7 @@
                                         AutomationProperties.Name="{Binding ActionLabel, TargetNullValue=''}" Margin="14,0,0,0" VerticalAlignment="Center"
                                         Visibility="{Binding HasAction, Converter={StaticResource BoolToVisibility}}" />
                                 <ContentControl x:Name="Seal" DockPanel.Dock="Left" Style="{StaticResource WaxSeal}" Width="34" Height="34" Margin="0,0,14,0"
-                                                VerticalAlignment="Top" FontFamily="{StaticResource Font.Wordmark}" FontSize="17" Content="E" />
+                                                VerticalAlignment="Top" FontWeight="Normal" FontFamily="{StaticResource Font.Wordmark}" FontSize="17" Content="E" />
                                 <TextBlock Text="{Binding Text}" Style="{StaticResource Text.Label}" />
                             </DockPanel>
                         </Border>

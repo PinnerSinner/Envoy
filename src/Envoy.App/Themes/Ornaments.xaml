@@ -13,7 +13,7 @@
     -->
 
     <!-- ===== Type (REQ-HRD-3). Embedded OFL fonts; CJK and Cyrillic fall back to the Windows UI fonts. ===== -->
-    <FontFamily x:Key="Font.Wordmark">pack://application:,,,/Envoy;component/Assets/Fonts/#UnifrakturMaguntia, Segoe UI</FontFamily>
+    <FontFamily x:Key="Font.Wordmark">pack://application:,,,/Envoy;component/Assets/Fonts/#UnifrakturMaguntia, Microsoft YaHei UI, Malgun Gothic, Yu Gothic UI, Segoe UI</FontFamily>
     <FontFamily x:Key="Font.Title">pack://application:,,,/Envoy;component/Assets/Fonts/#IM FELL English SC, Microsoft YaHei UI, Malgun Gothic, Yu Gothic UI, Segoe UI</FontFamily>
     <FontFamily x:Key="Font.Body">pack://application:,,,/Envoy;component/Assets/Fonts/#EB Garamond, Microsoft YaHei UI, Malgun Gothic, Yu Gothic UI, Segoe UI</FontFamily>
     <FontFamily x:Key="Font.Aside">pack://application:,,,/Envoy;component/Assets/Fonts/#IM FELL English, Microsoft YaHei UI, Malgun Gothic, Yu Gothic UI, Segoe UI</FontFamily>

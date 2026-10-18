@@ -50,7 +50,8 @@ public partial class MainWindow : Window
 
         // The charter's heading, drawing and the rail's crest follow the checked tab and the palette (REQ-HRD-6).
         Nav.AddHandler(ToggleButton.CheckedEvent, new RoutedEventHandler((_, _) => ShowHeading()));
-        SizeChanged += (_, _) => LayoutWarTable();
+        SizeChanged += (_, _) => LayoutWarTable(ActualWidth);
+        Rail.SizeChanged += (_, _) => LayoutRail(Rail.ActualHeight);
         ThemeManager.Applied += ShowCrest;
         ShowHeading();
         ShowCrest();
@@ -120,13 +121,26 @@ public partial class MainWindow : Window
         FigureCaption.Text = Heading.FigureCaption;
     }
 
-    /// <summary>The rail's crest names the palette in use; the marginal column shows from 1100 px wide.</summary>
+    /// <summary>The rail's crest names the palette in use.</summary>
     private void ShowCrest() =>
         CrestName.Text = ThemeCatalog.Find(ThemeManager.CurrentId) is { } livery ? $"{livery.Name} livery" : "High contrast";
 
-    private void LayoutWarTable()
+    /// <summary>The marginal column shows from 1100 px wide (the smoke test also calls this with widths the screen cannot hold).</summary>
+    internal void LayoutWarTable(double width) =>
+        Marginalia.Visibility = PageHeadings.ShowsMarginalia(width) ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>The rail keeps all nine tabs reachable: on a short window it slims the tabs and folds away the crest, the motto and the status.</summary>
+    internal void LayoutRail(double railHeight)
     {
-        Marginalia.Visibility = PageHeadings.ShowsMarginalia(ActualWidth) ? Visibility.Visible : Visibility.Collapsed;
+        var layout = RailLayouts.For(railHeight);
+        RailCrest.Visibility = layout.Crest ? Visibility.Visible : Visibility.Collapsed;
+        RailMotto.Visibility = layout.Motto ? Visibility.Visible : Visibility.Collapsed;
+        RailStatus.Visibility = layout.Status ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var tab in Nav.Children.OfType<RadioButton>())
+        {
+            tab.Height = layout.CompactTabs ? RailLayouts.CompactTabHeight : RailLayouts.TabHeight;
+            tab.Margin = new Thickness(0, 0, 0, layout.CompactTabs ? RailLayouts.CompactTabGap : RailLayouts.TabGap);
+        }
     }
 
     /// <summary>The page instance hosted for a <see cref="PageIds"/> id.</summary>

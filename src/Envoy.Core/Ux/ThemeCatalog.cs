@@ -25,7 +25,7 @@ public static class ThemeCatalog
         new(Herald, "Herald", "Envoy's own arms: gules and or", "#8E2418", "#D8B04A"),
         new("imperial", "Imperial", "Age of Empires IV livery: gules and or", "#8E2418", "#D8B04A"),
         new("parchment", "Parchment", "Age of Empires II livery: azure and or", "#2B4C8C", "#D8B04A"),
-        new("frontier", "Frontier", "Age of Empires III livery: vert and argent", "#2F5E35", "#E9E4D6"),
+        new("frontier", "Frontier", "Age of Empires III livery: vert and argent", "#2A5530", "#E9E4D6"),
         new("olympian", "Olympian", "Age of Mythology livery: purpure and or", "#5B2D73", "#D8B04A"),
         new("classic", "Classic", "Age of Empires livery: sable and or", "#1C1A18", "#D8B04A"),
     ];

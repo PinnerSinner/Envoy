@@ -97,7 +97,7 @@ See [OCR languages](ocr-languages.md) for details.
 - Want a smaller overlay? Tick **Overlay → Compact layout** for one line per message. To copy a message, press
   **`Ctrl+Shift+E`** and click ⧉ next to it, then **Done**.
 - Press **`Ctrl+Shift+Q`** and drag over any other text (lobby names, map descriptions) to translate it once.
-- Turn on **Overlay → Herald** to hear translations read aloud.
+- Turn on **Overlay → Read aloud** to hear translations read aloud.
 - Or click a **quick phrase** (gl hf, gg wp, rematch?…). These are human translations. Phrases translated into the
   language you are replying in come first, with the ones you use most at the front.
 

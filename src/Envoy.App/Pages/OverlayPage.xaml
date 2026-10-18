@@ -90,7 +90,7 @@
 
             <ContentControl Style="{StaticResource OrnateFrame}">
                 <StackPanel>
-                    <TextBlock Text="Herald (read aloud)" Style="{StaticResource Text.H2}" />
+                    <TextBlock Text="Read aloud" Style="{StaticResource Text.H2}" />
                     <TextBlock Text="Hear translations with a Windows voice, so your eyes stay on the battle. Offline and free." Style="{StaticResource Text.Caption}" Margin="0,0,0,8" />
                     <CheckBox Content="Read translated messages aloud" IsChecked="{Binding Settings.Overlay.SpeakMessages}" />
                     <CheckBox Content="Say who sent each message" IsChecked="{Binding Settings.Overlay.SpeakSenderName}" />

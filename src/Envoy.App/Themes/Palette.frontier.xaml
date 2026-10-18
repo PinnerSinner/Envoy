@@ -9,7 +9,7 @@
   <Color x:Key="Bg.Panel.Color">#EAD8B4</Color>
   <Color x:Key="Bg.PanelAlt.Color">#F4E8CC</Color>
   <Color x:Key="Bg.Input.Color">#F1E3C2</Color>
-  <Color x:Key="Accent.Color">#2F5E35</Color>
+  <Color x:Key="Accent.Color">#2A5530</Color>
   <Color x:Key="Accent.Bright.Color">#21432A</Color>
   <Color x:Key="Accent.Dim.Color">#8C6516</Color>
   <Color x:Key="Text.Primary.Color">#2A1D12</Color>
@@ -20,7 +20,7 @@
   <Color x:Key="Danger.Color">#8A1C12</Color>
   <Color x:Key="Success.Color">#3F6B3A</Color>
   <Color x:Key="Overlay.Text.Color">#2A1D12</Color>
-  <Color x:Key="Overlay.Sender.Color">#2F5E35</Color>
+  <Color x:Key="Overlay.Sender.Color">#2A5530</Color>
   <Color x:Key="Overlay.Original.Color">#5C4529</Color>
   <Color x:Key="Overlay.Bg.Color">#EAD8B4</Color>
   <Color x:Key="Focus.Ring.Color">#7A5410</Color>
@@ -32,6 +32,7 @@
   <Color x:Key="Vellum.Color">#EAD8B4</Color>
   <Color x:Key="Vellum.Light.Color">#F6EBD2</Color>
   <Color x:Key="Vellum.Dark.Color">#D3B987</Color>
+  <Color x:Key="Vellum.Deep.Color">#D7BE91</Color>
   <Color x:Key="Oak.Color">#3A2414</Color>
   <Color x:Key="Oak.Deep.Color">#2B1A0E</Color>
   <Color x:Key="Oak.Tab.Color">#4A3020</Color>
@@ -40,7 +41,7 @@
   <Color x:Key="Leather.Text.Color">#D9C298</Color>
   <Color x:Key="Leather.Muted.Color">#B89A63</Color>
   <Color x:Key="Focus.Ring.Oak.Color">#E9CC7A</Color>
-  <Color x:Key="Livery.Primary.Color">#2F5E35</Color>
+  <Color x:Key="Livery.Primary.Color">#2A5530</Color>
   <Color x:Key="Livery.Secondary.Color">#E9E4D6</Color>
   <Color x:Key="Livery.Dark.Color">#21432A</Color>
   <Color x:Key="Ornament.Gold.Color">#D8B04A</Color>
@@ -55,7 +56,7 @@
   <Color x:Key="Wax.Azure.Dark.Color">#1E3460</Color>
   <Color x:Key="Wax.Vert.Light.Color">#5E8C49</Color>
   <Color x:Key="Wax.Vert.Dark.Color">#2B4A22</Color>
-  <Color x:Key="Wax.Or.Light.Color">#B58A2E</Color>
+  <Color x:Key="Wax.Or.Light.Color">#957026</Color>
   <Color x:Key="Wax.Or.Dark.Color">#6B4E12</Color>
   <Color x:Key="Wax.Purpure.Light.Color">#8A58A6</Color>
   <Color x:Key="Wax.Purpure.Dark.Color">#3F1D52</Color>
@@ -95,6 +96,7 @@
   <SolidColorBrush x:Key="Vellum" Color="{StaticResource Vellum.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Vellum.Light" Color="{StaticResource Vellum.Light.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Vellum.Dark" Color="{StaticResource Vellum.Dark.Color}" po:Freeze="True" />
+  <SolidColorBrush x:Key="Vellum.Deep" Color="{StaticResource Vellum.Deep.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Oak" Color="{StaticResource Oak.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Oak.Deep" Color="{StaticResource Oak.Deep.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Oak.Tab" Color="{StaticResource Oak.Tab.Color}" po:Freeze="True" />
@@ -123,16 +125,16 @@
   <RadialGradientBrush x:Key="Wax.Plain" GradientOrigin="0.35,0.3" Center="0.5,0.5" RadiusX="0.7" RadiusY="0.7" po:Freeze="True"><GradientStop Offset="0" Color="{StaticResource Wax.Plain.Light.Color}" /><GradientStop Offset="1" Color="{StaticResource Wax.Plain.Dark.Color}" /></RadialGradientBrush>
   <RadialGradientBrush x:Key="Wax.Livery" GradientOrigin="0.35,0.3" Center="0.5,0.5" RadiusX="0.7" RadiusY="0.7" po:Freeze="True"><GradientStop Offset="0" Color="{StaticResource Wax.Livery.Light.Color}" /><GradientStop Offset="1" Color="{StaticResource Wax.Livery.Dark.Color}" /></RadialGradientBrush>
   <LinearGradientBrush x:Key="Header.Gradient" StartPoint="0,0" EndPoint="0,1" po:Freeze="True"><GradientStop Offset="0" Color="#3A2414" /><GradientStop Offset="1" Color="#2B1A0E" /></LinearGradientBrush>
-  <LinearGradientBrush x:Key="Accent.Gradient" StartPoint="0,0" EndPoint="1,0" po:Freeze="True"><GradientStop Offset="0" Color="#21432A" /><GradientStop Offset="1" Color="#2F5E35" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="Accent.Gradient" StartPoint="0,0" EndPoint="1,0" po:Freeze="True"><GradientStop Offset="0" Color="#21432A" /><GradientStop Offset="1" Color="#2A5530" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="Rule.Gradient" StartPoint="0,0" EndPoint="1,0" po:Freeze="True"><GradientStop Offset="0" Color="#00B98B2E" /><GradientStop Offset="0.5" Color="#B98B2E" /><GradientStop Offset="1" Color="#00B98B2E" /></LinearGradientBrush>
-  <RadialGradientBrush x:Key="Vellum.Gradient" GradientOrigin="0.25,0.15" Center="0.25,0.15" RadiusX="1.1" RadiusY="1.1" po:Freeze="True"><GradientStop Offset="0" Color="#F6EBD2" /><GradientStop Offset="0.5" Color="#EAD8B4" /><GradientStop Offset="1" Color="#D7BE91" /></RadialGradientBrush>
+  <RadialGradientBrush x:Key="Vellum.Gradient" GradientOrigin="0.25,0.15" Center="0.25,0.15" RadiusX="1.1" RadiusY="1.1" po:Freeze="True"><GradientStop Offset="0" Color="{StaticResource Vellum.Light.Color}" /><GradientStop Offset="0.5" Color="{StaticResource Vellum.Color}" /><GradientStop Offset="1" Color="{StaticResource Vellum.Deep.Color}" /></RadialGradientBrush>
   <LinearGradientBrush x:Key="Oak.Gradient" StartPoint="0,0" EndPoint="1,0" po:Freeze="True"><GradientStop Offset="0" Color="#592B1A0E" /><GradientStop Offset="1" Color="#0D2B1A0E" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="Gold.Gradient" StartPoint="0,0" EndPoint="1,0.3" po:Freeze="True"><GradientStop Offset="0" Color="#9A7428" /><GradientStop Offset="0.3" Color="#E9CC7A" /><GradientStop Offset="0.42" Color="#FFF4C8" /><GradientStop Offset="0.54" Color="#E9CC7A" /><GradientStop Offset="1" Color="#9A7428" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="DropCap.Gradient" StartPoint="0,0" EndPoint="1,1" po:Freeze="True"><GradientStop Offset="0" Color="#F3D98C" /><GradientStop Offset="0.6" Color="#B98B2E" /><GradientStop Offset="1" Color="#8C6516" /></LinearGradientBrush>
   <RadialGradientBrush x:Key="Boss.Gradient" GradientOrigin="0.35,0.3" Center="0.5,0.5" RadiusX="0.7" RadiusY="0.7" po:Freeze="True"><GradientStop Offset="0" Color="#F3D98C" /><GradientStop Offset="1" Color="#9A7428" /></RadialGradientBrush>
   <LinearGradientBrush x:Key="Rod.Gradient" StartPoint="0,0" EndPoint="0,1" po:Freeze="True"><GradientStop Offset="0" Color="#7E5D30" /><GradientStop Offset="0.5" Color="#E3CDA0" /><GradientStop Offset="1" Color="#6E5028" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="Plaque.Gradient" StartPoint="0,0" EndPoint="0,1" po:Freeze="True"><GradientStop Offset="0" Color="#F7EDD5" /><GradientStop Offset="1" Color="#DCC596" /></LinearGradientBrush>
-  <LinearGradientBrush x:Key="Crest.Field" StartPoint="0,0" EndPoint="1,1" po:Freeze="True"><GradientStop Offset="0" Color="#2F5E35" /><GradientStop Offset="0.5" Color="#2F5E35" /><GradientStop Offset="0.5" Color="#E9E4D6" /><GradientStop Offset="1" Color="#E9E4D6" /></LinearGradientBrush>
+  <LinearGradientBrush x:Key="Crest.Field" StartPoint="0,0" EndPoint="1,1" po:Freeze="True"><GradientStop Offset="0" Color="#2A5530" /><GradientStop Offset="0.5" Color="#2A5530" /><GradientStop Offset="0.5" Color="#E9E4D6" /><GradientStop Offset="1" Color="#E9E4D6" /></LinearGradientBrush>
   <RadialGradientBrush x:Key="Candle.Flame" GradientOrigin="0.5,0.7" Center="0.5,0.7" RadiusX="0.6" RadiusY="0.6" po:Freeze="True"><GradientStop Offset="0" Color="#FFF3C4" /><GradientStop Offset="0.45" Color="#FFB54D" /><GradientStop Offset="1" Color="#00FF7828" /></RadialGradientBrush>
   <LinearGradientBrush x:Key="Row.Rule" MappingMode="Absolute" StartPoint="0,0" EndPoint="0,2" po:Freeze="True"><GradientStop Offset="0" Color="#80B89A63" /><GradientStop Offset="0.5" Color="#80B89A63" /><GradientStop Offset="0.5" Color="#00B89A63" /></LinearGradientBrush>
   <LinearGradientBrush x:Key="Candle.Wax" StartPoint="0,0" EndPoint="1,0" po:Freeze="True"><GradientStop Offset="0" Color="#E2D4B4" /><GradientStop Offset="0.5" Color="#FBF4E2" /><GradientStop Offset="1" Color="#D3C29A" /></LinearGradientBrush>

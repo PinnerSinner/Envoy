@@ -195,7 +195,6 @@ public sealed class SetupWizardViewModel : ObservableObject, IDisposable
 
     public string SummaryText => OnboardingText.Summary(_attentionSteps.Count);
 
-    /// <summary>Makes <paramref name="step"/> current (ignored when it is not built).</summary>
     /// <summary>The step list's jump: refused past the privacy step until it is acknowledged (REQ-HRD-12).</summary>
     public void GoTo(OnboardingStep step) => _flow.GoTo(step, Host.PrivacyAcknowledged);
 

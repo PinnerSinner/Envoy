@@ -36,6 +36,7 @@
   <x:Static x:Key="Vellum.Color" Member="SystemColors.WindowColor" />
   <x:Static x:Key="Vellum.Light.Color" Member="SystemColors.WindowColor" />
   <x:Static x:Key="Vellum.Dark.Color" Member="SystemColors.WindowColor" />
+  <x:Static x:Key="Vellum.Deep.Color" Member="SystemColors.WindowColor" />
   <x:Static x:Key="Oak.Color" Member="SystemColors.ControlColor" />
   <x:Static x:Key="Oak.Deep.Color" Member="SystemColors.ControlColor" />
   <x:Static x:Key="Oak.Tab.Color" Member="SystemColors.ControlColor" />
@@ -99,6 +100,7 @@
   <SolidColorBrush x:Key="Vellum" Color="{StaticResource Vellum.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Vellum.Light" Color="{StaticResource Vellum.Light.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Vellum.Dark" Color="{StaticResource Vellum.Dark.Color}" po:Freeze="True" />
+  <SolidColorBrush x:Key="Vellum.Deep" Color="{StaticResource Vellum.Deep.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Oak" Color="{StaticResource Oak.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Oak.Deep" Color="{StaticResource Oak.Deep.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Oak.Tab" Color="{StaticResource Oak.Tab.Color}" po:Freeze="True" />
@@ -132,7 +134,7 @@
   <SolidColorBrush x:Key="Vellum.Gradient" Color="{StaticResource Bg.Panel.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Oak.Gradient" Color="{StaticResource Oak.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Gold.Gradient" Color="{StaticResource Accent.Color}" po:Freeze="True" />
-  <SolidColorBrush x:Key="DropCap.Gradient" Color="{StaticResource Accent.Color}" po:Freeze="True" />
+  <SolidColorBrush x:Key="DropCap.Gradient" Color="{StaticResource Bg.Window.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Boss.Gradient" Color="{StaticResource Accent.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Rod.Gradient" Color="{StaticResource Text.Primary.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Plaque.Gradient" Color="{StaticResource Bg.Input.Color}" po:Freeze="True" />

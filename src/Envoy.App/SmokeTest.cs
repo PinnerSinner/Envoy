@@ -509,14 +509,41 @@ internal static class SmokeTest
             Check(main.FigureInk.Data is not null && main.FigureRed.Data is not null, $"the {heading.PageId} drawing has no geometry ({palette})");
             Check(tab.ActualWidth > 0 && tab.IsVisible, $"the {heading.PageId} tab is not rendered ({palette})");
         }
+        // The CI desktop is 1024x768 and Windows keeps a window within the screen, so a real 1180 px window may not be
+        // possible: the wide case drives the layout rule directly, and the real window must agree with the rule.
         var width = main.Width;
+        main.LayoutWarTable(PageHeadings.MarginaliaMinWidth + 80);
+        await Pump();
+        Check(main.Marginalia.IsVisible, $"the marginal drawing is hidden at {PageHeadings.MarginaliaMinWidth + 80:0} px ({palette})");
         main.Width = PageHeadings.MarginaliaMinWidth + 80;
         await Pump();
-        Check(main.Marginalia.IsVisible, $"the marginal drawing is hidden at {main.ActualWidth:0} px ({palette})");
+        main.LayoutWarTable(main.ActualWidth);
+        await Pump();
+        Check(main.Marginalia.IsVisible == PageHeadings.ShowsMarginalia(main.ActualWidth),
+            $"the marginal drawing visibility does not follow the rule at {main.ActualWidth:0} px ({palette})");
         main.Width = PageHeadings.MarginaliaMinWidth - 120;
         await Pump();
         Check(!main.Marginalia.IsVisible, $"the marginal drawing shows at {main.ActualWidth:0} px ({palette})");
         main.Width = width;
+        await Pump();
+
+        // AC-HRD-6: the last banner tab ends above the rail's foot, at the default height and at the minimum height.
+        var height = main.Height;
+        foreach (var h in new[] { height, main.MinHeight })
+        {
+            main.Height = h;
+            await Pump();
+            main.LayoutRail(main.Rail.ActualHeight);
+            await Pump();
+            var last = main.NavAbout;
+            var tabBottom = last.TransformToAncestor(main.Rail).Transform(new Point(0, last.ActualHeight)).Y;
+            var footTop = main.RailFoot.TransformToAncestor(main.Rail).Transform(new Point(0, 0)).Y;
+            Check(last.IsVisible && tabBottom <= footTop + 0.5,
+                $"the {last.Content} tab ends at {tabBottom:0} px, below the rail's foot at {footTop:0} px (window {main.ActualHeight:0} px, {palette})");
+            Log($"rail at {main.ActualHeight:0} px: crest {main.RailCrest.IsVisible}, motto {main.RailMotto.IsVisible}, status {main.RailStatus.IsVisible}, tab {last.ActualHeight:0} px");
+        }
+        main.Height = height;
+        await Pump();
         var crest = ThemeCatalog.Find(palette) is { } livery ? $"{livery.Name} livery" : "High contrast";
         Check(main.CrestName.Text == crest, $"the crest reads '{main.CrestName.Text}', not '{crest}'");
         main.Navigate(PageIds.Dashboard);
