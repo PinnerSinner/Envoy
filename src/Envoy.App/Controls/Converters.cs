@@ -22,3 +22,13 @@ public sealed class NullToCollapsedConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
+
+/// <summary>The first letter of a string, upper-cased (a row label's drop cap, spec 09a); "" for anything else.</summary>
+public sealed class FirstLetterConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is string s && s.Trim() is { Length: > 0 } t ? StringInfo.GetNextTextElement(t).ToUpper(culture) : "";
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}

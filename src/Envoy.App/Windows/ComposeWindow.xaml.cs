@@ -87,6 +87,10 @@ public partial class ComposeWindow : Window
     private void FillContext()
     {
         var last = _host.History.FirstOrDefault(m => m.Status is IncomingStatus.Translated or IncomingStatus.Untranslated);
+        var heading = ReplyHeading.For(last?.Chat.Sender);
+        HeadingCap.Content = heading.DropCap;
+        HeadingRest.Text = heading.Rest;
+        AutomationProperties.SetName(HeadingRest, heading.AccessibleName);
         ContextBox.Visibility = last is null ? Visibility.Collapsed : Visibility.Visible;
         if (last is null) return;
         ContextSender.Text = last.Chat.Sender is { } s ? s + ": " : "";

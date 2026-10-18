@@ -2,9 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:c="clr-namespace:Envoy.App.Controls">
-    <ScrollViewer Padding="32,24">
+    <ScrollViewer Padding="0,0,10,0" VerticalScrollBarVisibility="Auto">
         <StackPanel MaxWidth="900">
-            <TextBlock Text="Replying" Style="{StaticResource Text.H1}" />
             <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,18">
                 Press <Run Text="{Binding Settings.Hotkeys.Compose, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Accent}" /> in game,
                 type in your language, and Envoy types the translation into the game's chat for you, the same way an on-screen keyboard would.
@@ -16,25 +15,25 @@
                 <StackPanel>
                     <TextBlock Text="Sending" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Reply in" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Reply in" />
                         <ComboBox AutomationProperties.Name="Reply in" Grid.Column="1" ItemsSource="{Binding ReplyLanguages}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Compose.DefaultTarget}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="When I press Enter" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="When I press Enter" />
                         <ComboBox AutomationProperties.Name="When I press Enter" Grid.Column="1" ItemsSource="{Binding SendModes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Compose.SendMode}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Typing method" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Typing method" />
                         <ComboBox AutomationProperties.Name="Typing method" Grid.Column="1" ItemsSource="{Binding TypingMethods}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Compose.TypingMethod}" />
                     </Grid>
-                    <TextBlock Style="{StaticResource Text.Caption}" Margin="220,0,0,6" TextWrapping="Wrap"
+                    <TextBlock Style="{StaticResource Text.Caption}" Margin="260,0,0,6" TextWrapping="Wrap"
                                Text="If characters come out wrong or missing in a particular game, switch to Paste." />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Key that opens chat in game" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Key that opens chat in game" />
                         <c:HotkeyBox AutomationProperties.Name="Key that opens chat in game" Grid.Column="1" Width="200" HorizontalAlignment="Left" Text="{Binding Settings.Compose.OpenChatKey}" />
                     </Grid>
                     <CheckBox Content="Add my original text in brackets after the translation" IsChecked="{Binding Settings.Compose.AppendOriginal}" />
@@ -47,16 +46,16 @@
                     <TextBlock Text="Reply box" Style="{StaticResource Text.H2}" />
                     <CheckBox Content="Show message length" IsChecked="{Binding Settings.Compose.ShowCharacterCount}" AutomationProperties.Name="Show message length" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Warn above" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Warn above" />
                         <TextBox AutomationProperties.Name="Warn above this many characters" Grid.Column="1" Width="90" HorizontalAlignment="Left"
                                  Text="{Binding Settings.Compose.MaxMessageLength, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
-                    <TextBlock Style="{StaticResource Text.Caption}" Margin="220,0,0,6" TextWrapping="Wrap"
+                    <TextBlock Style="{StaticResource Text.Caption}" Margin="260,0,0,6" TextWrapping="Wrap"
                                Text="0 = no limit. Envoy doesn't know each game's limit; set it if long messages get cut off." />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Quick phrase order" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Quick phrase order" />
                         <ComboBox AutomationProperties.Name="Quick phrase order" Grid.Column="1" ItemsSource="{Binding PhraseOrders}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Compose.PhraseOrder}" />
                     </Grid>
                 </StackPanel>
@@ -66,14 +65,14 @@
                 <StackPanel>
                     <TextBlock Text="Timing" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Wait for game to focus" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Wait for game to focus" />
                         <Slider AutomationProperties.Name="Wait for game to focus" Grid.Column="1" Minimum="0" Maximum="600" TickFrequency="10" IsSnapToTickEnabled="True" Value="{Binding Settings.Compose.FocusDelayMs}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Compose.FocusDelayMs, StringFormat='{}{0} ms'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Delay between characters" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Delay between characters" />
                         <Slider AutomationProperties.Name="Delay between characters" Grid.Column="1" Minimum="0" Maximum="50" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Settings.Compose.KeystrokeDelayMs}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Compose.KeystrokeDelayMs, StringFormat='{}{0} ms'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>

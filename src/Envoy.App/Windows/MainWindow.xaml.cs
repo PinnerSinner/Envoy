@@ -7,12 +7,14 @@ using Envoy.App.Controls;
 using Envoy.App.Pages;
 using Envoy.App.Services;
 using Envoy.App.ViewModels;
+using Envoy.Core.Ux;
 
 namespace Envoy.App.Windows;
 
 /// <summary>
-/// The settings window: title bar, sidebar and one host per page in <c>Pages/</c>. Every page shares this window's
-/// <see cref="MainViewModel"/>; any settings edit is applied (and saved) 400 ms after the last change.
+/// The settings window, drawn as the war table (spec 09a): the banner rail, and one host per page in <c>Pages/</c> on a
+/// vellum charter whose heading and marginal drawing follow the checked tab (<see cref="PageHeadings"/>). Every page shares
+/// this window's <see cref="MainViewModel"/>; any settings edit is applied (and saved) 400 ms after the last change.
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -45,6 +47,13 @@ public partial class MainWindow : Window
         AddHandler(RangeBase.ValueChangedEvent, new RoutedEventHandler(OnEdited));
         AddHandler(PasswordBox.PasswordChangedEvent, new RoutedEventHandler(OnEdited));
         PreviewKeyDown += OnPagesKeyDown; // Ctrl+Tab / Ctrl+Shift+Tab (REQ-OUXB-30)
+
+        // The charter's heading, drawing and the rail's crest follow the checked tab and the palette (REQ-HRD-6).
+        Nav.AddHandler(ToggleButton.CheckedEvent, new RoutedEventHandler((_, _) => ShowHeading()));
+        SizeChanged += (_, _) => LayoutWarTable();
+        ThemeManager.Applied += ShowCrest;
+        ShowHeading();
+        ShowCrest();
 #if DEBUG
         // Manual step M4 (docs/specs/02-reliability-observability.md): Ctrl+Alt+Shift+F12 throws on the UI thread.
         InputBindings.Add(new KeyBinding(new Core.Mvvm.RelayCommand(() => throw new InvalidOperationException("Test error from MainWindow.")),
@@ -95,6 +104,31 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    /// <summary>The heading the charter shows (the smoke test reads it).</summary>
+    public PageHeading Heading { get; private set; } = PageHeadings.All[0];
+
+    /// <summary>Drop cap, title, plain name, lede and marginal drawing of the checked page.</summary>
+    private void ShowHeading()
+    {
+        Heading = PageHeadings.For(CurrentPage);
+        PageDropCap.Content = Heading.DropCap;
+        PageTitle.Text = Heading.Name;
+        PagePlainName.Text = Heading.PlainName == Heading.Name ? "" : Heading.PlainName;
+        PageLede.Text = Heading.Lede;
+        FigureInk.SetResourceReference(System.Windows.Shapes.Path.DataProperty, $"Figure.{Heading.PageId}.Ink");
+        FigureRed.SetResourceReference(System.Windows.Shapes.Path.DataProperty, $"Figure.{Heading.PageId}.Red");
+        FigureCaption.Text = Heading.FigureCaption;
+    }
+
+    /// <summary>The rail's crest names the palette in use; the marginal column shows from 1100 px wide.</summary>
+    private void ShowCrest() =>
+        CrestName.Text = ThemeCatalog.Find(ThemeManager.CurrentId) is { } livery ? $"{livery.Name} livery" : "High contrast";
+
+    private void LayoutWarTable()
+    {
+        Marginalia.Visibility = PageHeadings.ShowsMarginalia(ActualWidth) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     /// <summary>The page instance hosted for a <see cref="PageIds"/> id.</summary>
     public UserControl PageFor(string pageId) => pageId switch
     {
@@ -133,6 +167,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _statusTimer.Stop();
+        ThemeManager.Applied -= ShowCrest;
         // After a reset or "Delete all Envoy data" nothing may be applied or written again (contract §4). During
         // ExitApp, step 2 already applied and saved, and the host is disposed by the time Shutdown closes this window.
         if (!_appExiting && !_host.SaveSuppressed)

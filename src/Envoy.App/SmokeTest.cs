@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Automation;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Documents;
@@ -156,7 +157,12 @@ internal static class SmokeTest
             Section("capture-engine", sw);
 
             Check(PageIds.All.SequenceEqual(LegacyPageNames), $"PageIds.All is [{string.Join(", ", PageIds.All)}], expected the legacy names in order");
+            Check(PageHeadings.All.Select(h => h.PageId).SequenceEqual(PageIds.All), "Core PageHeadings do not follow PageIds.All");
             Section("page-ids", sw);
+
+            // ---- 09a: the four embedded font families resolve to their own faces (no fallback for Latin text) ----
+            CheckHeraldFonts(app);
+            Section("herald-fonts", sw);
 
             // ---- 02: safe host, diagnostics, handler wiring ----
             safeHost = CheckSafeHost(app, root, log, recent);
@@ -280,6 +286,12 @@ internal static class SmokeTest
             }
             Section($"pages({palette})", sw);
 
+            // ---- 09a: the war table (rail, charter heading, marginal drawing, crest) and the control gallery ----
+            await CheckWarTableAsync(main, palette);
+            Section($"war-table({palette})", sw);
+            await CheckHeraldControlsAsync(palette, shots);
+            Section($"herald-controls({palette})", sw);
+
             // ---- MainWindow-dependent checks: 01's first; later areas append theirs in contract order ----
             if (first)
             {
@@ -350,6 +362,8 @@ internal static class SmokeTest
             // ---- other windows ----
             await CheckGuideAsync(app, host, palette, first, shots);
             Section($"guide({palette})", sw);
+            await CheckOathAsync(app, host, palette);
+            Section($"oath({palette})", sw);
             if (first)
             {
                 await CheckKeyboardAsync(app, host);
@@ -400,8 +414,10 @@ internal static class SmokeTest
             await Pump();
             if (shots is not null) Save(compose, Path.Combine(shots, $"{palette}-reply.png"), Backdrop());
             if (first) AuditWindow(compose, "compose");
+            CheckDesk(compose, palette);
             compose.Close();
             Section($"compose({palette})", sw);
+            Section($"desk({palette})", sw);
 
             var lookup = new LookupWindow(host);
             lookup.Show();
@@ -433,6 +449,201 @@ internal static class SmokeTest
         Log($"[smoke] palette {palette} ok elapsed_ms={paletteTime.ElapsedMilliseconds}");
         if (paletteTime.Elapsed > PaletteBudget)
             Warn($"palette {palette} took {paletteTime.Elapsed.TotalSeconds:0} s (budget {PaletteBudget.TotalSeconds:0} s)");
+    }
+
+    // ---------------- 09a: the Herald's Writ ----------------
+
+    /// <summary>The embedded families and the face each must resolve to (REQ-HRD-3).</summary>
+    private static readonly (string Key, string Family, FontStyle Style, FontWeight Weight)[] HeraldFonts =
+    [
+        ("Font.Wordmark", "UnifrakturMaguntia", FontStyles.Normal, FontWeights.Normal),
+        ("Font.Title", "IM FELL English SC", FontStyles.Normal, FontWeights.Normal),
+        ("Font.Body", "EB Garamond", FontStyles.Normal, FontWeights.Normal),
+        ("Font.Body", "EB Garamond", FontStyles.Italic, FontWeights.Normal),
+        ("Font.Body", "EB Garamond", FontStyles.Normal, FontWeights.SemiBold),
+        ("Font.Aside", "IM FELL English", FontStyles.Italic, FontWeights.Normal),
+    ];
+
+    /// <summary>
+    /// AC-HRD-3: each font resource's first family is the embedded font, a real face (not a simulated one) for the styles
+    /// the look uses, and the chain ends in the Windows UI fonts for CJK.
+    /// </summary>
+    private static void CheckHeraldFonts(App app)
+    {
+        foreach (var (key, family, style, weight) in HeraldFonts)
+        {
+            Check(app.TryFindResource(key) is FontFamily, $"{key} is not a FontFamily");
+            var source = ((FontFamily)app.FindResource(key)).Source;
+            Check(source.EndsWith("Segoe UI", StringComparison.Ordinal), $"{key} does not end its fallback chain in Segoe UI: {source}");
+            // The pack URI itself contains commas ("pack://application:,,,/"), so the first family ends at the first comma after '#'.
+            var hash = source.IndexOf('#', StringComparison.Ordinal);
+            var end = source.IndexOf(',', Math.Max(hash, 0));
+            var first = new FontFamily((end < 0 ? source : source[..end]).Trim());
+            var typeface = new Typeface(first, style, weight, FontStretches.Normal);
+            Check(typeface.TryGetGlyphTypeface(out var glyphs), $"{key} ({family} {style} {weight}) has no glyph typeface");
+            Check(glyphs.FamilyNames.Values.Any(n => string.Equals(n, family, StringComparison.OrdinalIgnoreCase))
+                  || glyphs.Win32FamilyNames.Values.Any(n => n.StartsWith(family, StringComparison.OrdinalIgnoreCase)),
+                $"{key} resolved to {string.Join("/", glyphs.FamilyNames.Values)}, not {family}");
+            Check(glyphs.StyleSimulations == StyleSimulations.None, $"{key} ({family} {style} {weight}) is simulated ({glyphs.StyleSimulations})");
+            Check(glyphs.FontUri.ToString().Contains("Assets/Fonts", StringComparison.OrdinalIgnoreCase), $"{key} loaded from {glyphs.FontUri}, not the embedded fonts");
+        }
+        Log("herald fonts: " + string.Join(", ", HeraldFonts.Select(f => $"{f.Family} {f.Style} {f.Weight}")));
+    }
+
+    /// <summary>
+    /// AC-HRD-6: every banner tab carries its playful and plain name; navigating sets the charter's drop cap, title, lede and
+    /// drawing; the marginal column shows from 1100 px; the crest names the palette.
+    /// </summary>
+    private static async Task CheckWarTableAsync(MainWindow main, string palette)
+    {
+        foreach (var heading in PageHeadings.All)
+        {
+            var tab = (RadioButton)main.FindName("Nav" + heading.PageId);
+            Check(Equals(tab.Content, heading.Name) && Equals(tab.Tag, heading.PlainName) && AutomationProperties.GetName(tab) == heading.AccessibleName,
+                $"the {heading.PageId} tab reads '{tab.Content}' / '{tab.Tag}'");
+            main.Navigate(heading.PageId);
+            await Pump();
+            Check(main.Heading == heading && Equals(main.PageDropCap.Content, heading.DropCap) && main.PageTitle.Text == heading.Name
+                  && main.PageLede.Text == heading.Lede && main.FigureCaption.Text == heading.FigureCaption,
+                $"the charter heading for {heading.PageId} reads '{main.PageTitle.Text}' ({palette})");
+            Check(main.FigureInk.Data is not null && main.FigureRed.Data is not null, $"the {heading.PageId} drawing has no geometry ({palette})");
+            Check(tab.ActualWidth > 0 && tab.IsVisible, $"the {heading.PageId} tab is not rendered ({palette})");
+        }
+        var width = main.Width;
+        main.Width = PageHeadings.MarginaliaMinWidth + 80;
+        await Pump();
+        Check(main.Marginalia.IsVisible, $"the marginal drawing is hidden at {main.ActualWidth:0} px ({palette})");
+        main.Width = PageHeadings.MarginaliaMinWidth - 120;
+        await Pump();
+        Check(!main.Marginalia.IsVisible, $"the marginal drawing shows at {main.ActualWidth:0} px ({palette})");
+        main.Width = width;
+        var crest = ThemeCatalog.Find(palette) is { } livery ? $"{livery.Name} livery" : "High contrast";
+        Check(main.CrestName.Text == crest, $"the crest reads '{main.CrestName.Text}', not '{crest}'");
+        main.Navigate(PageIds.Dashboard);
+        await Pump();
+    }
+
+    /// <summary>
+    /// AC-HRD-4, 5: a gallery of every restyled control and ornament renders under the palette with a non-empty size, and
+    /// every wax a language seal can name resolves.
+    /// </summary>
+    private static async Task CheckHeraldControlsAsync(string palette, string? shots)
+    {
+        foreach (var wax in Enum.GetValues<SealWax>())
+            Check(Application.Current.TryFindResource(new LanguageSeal("x", wax).BrushKey) is Brush, $"no {wax} wax brush ({palette})");
+        foreach (var key in new[] { "Knot.Horizontal", "Knot.Vertical", "Damask.Oak", "Vellum.Gradient", "Wax.Livery", "Livery.Primary", "Focus.Ring.Oak", "Row.Rule" })
+            Check(Application.Current.TryFindResource(key) is Brush, $"no {key} brush ({palette})");
+
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        T Add<T>(T element, string? style = null) where T : FrameworkElement
+        {
+            if (style is not null) element.SetResourceReference(FrameworkElement.StyleProperty, style);
+            element.Margin = new Thickness(0, 0, 0, 8);
+            panel.Children.Add(element);
+            return element;
+        }
+        var row = new WrapPanel();
+        foreach (var (text, style) in new[] { ("Secondary", (string?)null), ("Seal and send", "Button.Primary"), ("Quiet", "Button.Ghost"), ("gl hf", "Button.Chip") })
+        {
+            var button = new Button { Content = text, Margin = new Thickness(0, 0, 8, 0) };
+            if (style is not null) button.SetResourceReference(FrameworkElement.StyleProperty, style);
+            AutomationProperties.SetName(button, text);
+            row.Children.Add(button);
+        }
+        Add(row);
+        var on = Add(new CheckBox { Content = "Explain gamer slang", IsChecked = true });
+        var off = Add(new CheckBox { Content = "Show game notices", IsChecked = false });
+        var toggle = Add(new ToggleButton { Content = "Follow the game", IsChecked = true }, "Switch.Seal");
+        Add(new TextBox { Text = "Hello! Another round?", Width = 300, HorizontalAlignment = HorizontalAlignment.Left });
+        Add(new ComboBox { ItemsSource = new[] { "Google Translate (free)", "DeepL (your key)" }, SelectedIndex = 0, Width = 300, HorizontalAlignment = HorizontalAlignment.Left });
+        Add(new Slider { Minimum = 0, Maximum = 100, Value = 40, Width = 300, HorizontalAlignment = HorizontalAlignment.Left });
+        Add(new Control(), "Fleuron");
+        var seals = new WrapPanel();
+        foreach (var wax in Enum.GetValues<SealWax>())
+        {
+            var seal = new ContentControl { Content = LanguageSeal.Unknown.Glyph, Margin = new Thickness(0, 0, 8, 0) };
+            seal.SetResourceReference(FrameworkElement.StyleProperty, "WaxSeal");
+            seal.SetResourceReference(Control.BackgroundProperty, new LanguageSeal("x", wax).BrushKey);
+            seals.Children.Add(seal);
+        }
+        foreach (var candle in Enum.GetValues<CandleState>())
+        {
+            var c = new ContentControl { Tag = candle.ToString(), Margin = new Thickness(0, 0, 8, 0) };
+            c.SetResourceReference(FrameworkElement.StyleProperty, "Candle");
+            seals.Children.Add(c);
+        }
+        var cap = new ContentControl { Content = "W", Margin = new Thickness(0, 0, 8, 0) };
+        cap.SetResourceReference(FrameworkElement.StyleProperty, "DropCap");
+        seals.Children.Add(cap);
+        var crest = new Control();
+        crest.SetResourceReference(FrameworkElement.StyleProperty, "Crest");
+        seals.Children.Add(crest);
+        Add(seals);
+        Add(new Control { Width = 300, HorizontalAlignment = HorizontalAlignment.Left }, "ScrollRods");
+        // Callouts bind their button to the page's view model through a UserControl ancestor, as on a real page.
+        var callouts = new StackPanel();
+        foreach (var severity in Enum.GetValues<HintSeverity>())
+        {
+            var callout = new ContentControl { Content = new PageHint(severity, $"A {severity} dispatch card.") };
+            callout.SetResourceReference(FrameworkElement.StyleProperty, "Callout");
+            callouts.Children.Add(callout);
+        }
+        Add(new UserControl { Content = callouts });
+        Add(new ContentControl { Content = new ContentControl { Content = "Scouts", Style = (Style)Application.Current.FindResource("RowLabel") }, Height = 220 }, "CharterFrame");
+
+        var window = new Window
+        {
+            Title = "Herald controls",
+            Width = 760,
+            SizeToContent = SizeToContent.Height,
+            WindowStyle = WindowStyle.None,
+            ShowActivated = false,
+            Content = new ScrollViewer { Content = panel, MaxHeight = 900 },
+        };
+        window.SetResourceReference(Control.BackgroundProperty, "Vellum.Gradient");
+        window.Show();
+        await Pump();
+        try
+        {
+            foreach (var element in panel.Children.OfType<FrameworkElement>())
+                Check(element.ActualWidth > 0 && element.ActualHeight > 0, $"{element.GetType().Name} {element.Style?.TargetType?.Name} did not render ({palette})");
+            Check(on.IsChecked == true && off.IsChecked == false && toggle.IsChecked == true, $"the seal switches lost their state ({palette})");
+            if (shots is not null) Save(window, Path.Combine(shots, $"{palette}-herald-controls.png"));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>AC-HRD-9: the scribe's desk heading is the drop cap R and the rest of "Reply to {name}"; the send seal is the primary style.</summary>
+    private static void CheckDesk(ComposeWindow compose, string palette)
+    {
+        Check(Equals(compose.HeadingCap.Content, "R") && compose.HeadingRest.Text.StartsWith("eply", StringComparison.Ordinal),
+            $"the desk heading reads '{compose.HeadingCap.Content}{compose.HeadingRest.Text}' ({palette})");
+        Check(ReferenceEquals(compose.SendButton.Style, compose.FindResource("Button.Primary")), $"Seal and send is not the wax primary button ({palette})");
+        Check(compose.HeadingCap.ActualWidth > 0 && compose.SendButton.ActualWidth > 0, $"the desk did not render ({palette})");
+    }
+
+    /// <summary>AC-HRD-9: the oath shows one seal per step in the chain, numbered, and a drop cap for the step title.</summary>
+    private static async Task CheckOathAsync(App app, AppHost host, string palette)
+    {
+        var wizard = new SetupWizardWindow(host, app, OnboardingStep.Language);
+        wizard.Show();
+        await Pump();
+        try
+        {
+            var vm = wizard.ViewModel;
+            Check(wizard.StepList.Items.Count == vm.Steps.Count, $"the seal chain has {wizard.StepList.Items.Count} seals ({palette})");
+            Check(vm.Steps.Select(s => s.Number).SequenceEqual(Enumerable.Range(1, vm.Steps.Count).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture))),
+                "the step seals are not numbered 1 to n");
+            Check(Equals(wizard.StepDropCap.Content, vm.CurrentTitle[..1].ToUpperInvariant()), $"the oath's drop cap reads '{wizard.StepDropCap.Content}' ({palette})");
+        }
+        finally
+        {
+            wizard.Close();
+            await Pump();
+        }
     }
 
     // ---------------- setup helpers ----------------
@@ -1168,7 +1379,7 @@ internal static class SmokeTest
             var chat = step == OnboardingStep.ChatArea;
             Check(vm.CapturePreview.IsActive == chat && host.Watcher.IsPreviewing == chat, $"step {step}: live view active={vm.CapturePreview.IsActive}, lease={host.Watcher.IsPreviewing}");
             if (first) AuditWindow(wizard, $"guide step {step}");
-            if (shots is not null && palette is "imperial" or ThemeResolver.HighContrast) Save(wizard, Path.Combine(shots, $"{palette}-setup-{step.ToString().ToLowerInvariant()}.png"));
+            if (shots is not null && palette is ThemeCatalog.Herald or ThemeResolver.HighContrast) Save(wizard, Path.Combine(shots, $"{palette}-setup-{step.ToString().ToLowerInvariant()}.png"));
         }
         Check(vm.Steps.All(s => s.Status != StepStatus.NotVisited), "a visited step still reads Not visited");
 

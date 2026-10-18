@@ -8,6 +8,7 @@ using Envoy.Core.Hotkeys;
 using Envoy.Core.Languages;
 using Envoy.Core.Mvvm;
 using Envoy.Core.Settings;
+using Envoy.Core.Ux;
 
 namespace Envoy.App.ViewModels;
 
@@ -41,9 +42,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         Themes =
         [
-            new ThemeOption(ThemeManager.MatchGame, "Match the game", "Switches automatically: Imperial for AoE IV, Parchment for AoE II, and so on.",
-                [Swatch("#0E1420"), Swatch("#CDB98F"), Swatch("#0D1C1B"), Swatch("#0B1828")], () => Settings.Theme, SetTheme),
-            .. ThemeManager.Themes.Select(t => new ThemeOption(t.Id, t.Name, t.Inspiration, SwatchesFor(t.Id), () => Settings.Theme, SetTheme)),
+            new ThemeOption(ThemeManager.MatchGame, ThemeCatalog.MatchGameName, ThemeCatalog.MatchGameDescription,
+                MatchGameField(), () => Settings.Theme, SetTheme),
+            .. ThemeManager.Themes.Select(t => new ThemeOption(t.Id, t.Name, t.Inspiration, FieldFor(t.Id), () => Settings.Theme, SetTheme)),
         ];
 
         OcrLanguages = new(LoadOcrLanguages());
@@ -185,22 +186,34 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Host.ApplySettings();
     }
 
-    private static Brush Swatch(string hex)
+    private static Color Tincture(string hex) => (Color)ColorConverter.ConvertFromString(hex);
+
+    /// <summary>A livery shield's field (spec 09a): its two tinctures split on the diagonal, as the rail's crest.</summary>
+    private static Brush FieldFor(string id)
     {
-        var b = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-        b.Freeze();
-        return b;
+        var livery = ThemeCatalog.Find(id) ?? ThemeCatalog.Liveries[0];
+        var brush = new LinearGradientBrush(
+            [new GradientStop(Tincture(livery.Primary), 0), new GradientStop(Tincture(livery.Primary), 0.5),
+             new GradientStop(Tincture(livery.Secondary), 0.5), new GradientStop(Tincture(livery.Secondary), 1)],
+            new System.Windows.Point(0, 0), new System.Windows.Point(1, 1));
+        brush.Freeze();
+        return brush;
     }
 
-    private static Brush[] SwatchesFor(string id) => id switch
+    /// <summary>"Follow the game": a shield barred in the game liveries' colours.</summary>
+    private static Brush MatchGameField()
     {
-        "imperial" => [Swatch("#0E1420"), Swatch("#1C2638"), Swatch("#C9A35B"), Swatch("#EDE3CF")],
-        "parchment" => [Swatch("#CDB98F"), Swatch("#EADCBD"), Swatch("#8E2E1C"), Swatch("#2A1C0F")],
-        "frontier" => [Swatch("#0D1C1B"), Swatch("#1A3330"), Swatch("#C38D42"), Swatch("#F0E7D3")],
-        "olympian" => [Swatch("#0B1828"), Swatch("#192E46"), Swatch("#D2A65A"), Swatch("#F2EFE8")],
-        "classic" => [Swatch("#1E1710"), Swatch("#33271B"), Swatch("#CC8A3C"), Swatch("#F1E3C9")],
-        _ => [],
-    };
+        var games = ThemeCatalog.Liveries.Skip(1).ToList();
+        var stops = new GradientStopCollection();
+        for (var i = 0; i < games.Count; i++)
+        {
+            stops.Add(new GradientStop(Tincture(games[i].Primary), (double)i / games.Count));
+            stops.Add(new GradientStop(Tincture(games[i].Primary), (double)(i + 1) / games.Count));
+        }
+        var brush = new LinearGradientBrush(stops, new System.Windows.Point(0, 0), new System.Windows.Point(1, 0));
+        brush.Freeze();
+        return brush;
+    }
 
     /// <summary>Unsubscribes from the host and releases the live-view lease. Called by MainWindow on close.</summary>
     public void Dispose()

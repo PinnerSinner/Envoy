@@ -3,10 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:pv="clr-namespace:Envoy.Core.Privacy;assembly=Envoy.Core">
     <!-- Order (contract §8.6): Version & updates → Setup guide (07a) → Troubleshooting → Privacy and licences. -->
-    <ScrollViewer Padding="32,24">
+    <ScrollViewer Padding="0,0,10,0" VerticalScrollBarVisibility="Auto">
         <StackPanel MaxWidth="760">
             <Image Source="pack://application:,,,/Envoy;component/Assets/envoy.png" Width="96" Height="96" HorizontalAlignment="Left" Margin="0,0,0,12" />
-            <TextBlock Text="Envoy" Style="{StaticResource Text.H1}" FontFamily="{StaticResource Font.Decorative}" FontSize="30" />
+            <TextBlock Text="Envoy" Style="{StaticResource Text.H1}" FontFamily="{StaticResource Font.Wordmark}" FontSize="30" />
             <!-- ===== Version & updates (REQ-DIST-13, 25) ===== -->
             <StackPanel x:Name="VersionFrame" Margin="0,0,0,14">
                 <TextBlock Style="{StaticResource Text.Caption}">
@@ -114,7 +114,8 @@
 
             <!-- ===== Licences ===== -->
             <TextBlock x:Name="LicencesText" Style="{StaticResource Text.Caption}" TextWrapping="Wrap">
-                Cinzel and Cinzel Decorative fonts © The Cinzel Project Authors, SIL Open Font License 1.1.
+                Fonts under the SIL Open Font License 1.1: UnifrakturMaguntia © j. 'mach' wust and Peter Wiegel; IM FELL English and
+                IM FELL English SC © Igino Marini; EB Garamond © The EB Garamond Project Authors.
             </TextBlock>
             <WrapPanel Margin="0,16,0,0">
                 <Button Content="Open settings folder" Command="{Binding OpenDataFolderCommand}" Margin="0,0,8,0" />

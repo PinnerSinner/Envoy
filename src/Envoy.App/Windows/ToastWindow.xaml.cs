@@ -23,9 +23,8 @@ public partial class ToastWindow : Window
         InitializeComponent();
         TitleText.Text = report.Title;
         DetailText.Text = report.Detail;
-        var accent = report.Severity >= LogLevel.Error ? "Danger" : "Accent";
-        Frame.SetResourceReference(Border.BorderBrushProperty, accent);
-        Glyph.SetResourceReference(TextBlock.ForegroundProperty, accent);
+        // The seal's wax: gules for an error, or (gold) for a warning (spec 09a).
+        Glyph.SetResourceReference(BackgroundProperty, report.Severity >= LogLevel.Error ? "Wax.Gules" : "Wax.Or");
 
         Lifetime = report.Severity >= LogLevel.Error ? TimeSpan.FromSeconds(10) : TimeSpan.FromSeconds(6);
         _timer = new DispatcherTimer(Lifetime, DispatcherPriority.Background, (_, _) => Close(), Dispatcher) { IsEnabled = false };

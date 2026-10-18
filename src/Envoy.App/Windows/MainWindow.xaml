@@ -3,96 +3,153 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:c="clr-namespace:Envoy.App.Controls"
         xmlns:p="clr-namespace:Envoy.App.Pages"
-        Title="Envoy" Width="1060" Height="740" MinWidth="880" MinHeight="560"
+        Title="Envoy" Width="1180" Height="820" MinWidth="960" MinHeight="600"
         WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize"
-        Background="{DynamicResource Bg.Window}" Foreground="{DynamicResource Text.Primary}"
+        Background="{DynamicResource Oak.Deep}" Foreground="{DynamicResource Text.Primary}"
         FontFamily="{StaticResource Font.Body}" Icon="pack://application:,,,/Envoy;component/Assets/envoy.ico">
     <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="46" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+        <WindowChrome CaptionHeight="40" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
 
-    <Border BorderBrush="{DynamicResource Accent.Dim}" BorderThickness="1">
+    <!-- The war table (spec 09a, REQ-HRD-6; docs/design/herald/WarRoom.dc.html): an oak and damask wall, the banner rail on
+         the left, and the page on a vellum charter with a drop-cap header, a lede, a fleuron and a marginal drawing. -->
+    <Border BorderBrush="{DynamicResource Or.Dark}" BorderThickness="1" Background="{DynamicResource Damask.Oak}">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="46" />
+                <RowDefinition Height="40" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="228" />
+                <ColumnDefinition Width="264" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- ===== Title bar ===== -->
-            <Border Grid.ColumnSpan="2" Background="{DynamicResource Header.Gradient}" BorderBrush="{DynamicResource Accent.Dim}" BorderThickness="0,0,0,1">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
-                        <Button Style="{StaticResource Button.Chrome}" Content="&#xE921;" Click="OnMinimize" ToolTip="Minimise" AutomationProperties.Name="Minimise" />
-                        <Button Style="{StaticResource Button.Chrome}" Content="&#xE922;" Click="OnMaximize" ToolTip="Maximise" AutomationProperties.Name="Maximise" />
-                        <Button Style="{StaticResource Button.Chrome}" Content="&#xE8BB;" Click="OnClose" ToolTip="Close to tray (Envoy keeps running)" AutomationProperties.Name="Close" AutomationProperties.HelpText="Envoy keeps running in the tray." />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
-                        <Image Source="pack://application:,,,/Envoy;component/Assets/envoy.png" Width="26" Height="26" />
-                        <TextBlock Text="ENVOY" FontFamily="{StaticResource Font.Decorative}" FontSize="19" FontWeight="Bold" Margin="10,0,0,0"
-                                   Foreground="{DynamicResource Accent.Bright}" VerticalAlignment="Center" />
-                        <TextBlock Text="chat translator for the Age series" Style="{StaticResource Text.Caption}" Margin="12,3,0,0" />
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <!-- ===== Sidebar ===== -->
-            <Border Grid.Row="1" Background="{DynamicResource Bg.Panel}" BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="0,0,1,0">
-                <DockPanel>
-                    <!-- Live status at the bottom of the sidebar -->
-                    <StackPanel DockPanel.Dock="Bottom" Margin="18,10,14,16">
-                        <Control Style="{StaticResource Flourish}" Margin="0,0,0,10" />
-                        <TextBlock Text="{Binding Host.GameStatus}" Style="{StaticResource Text.Caption}" />
-                        <TextBlock Text="{Binding Host.CaptureStatus}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Accent}" Margin="0,2,0,0" />
-                        <TextBlock Text="{Binding Version, StringFormat='v{0}'}" Style="{StaticResource Text.Caption}" Margin="0,6,0,0" Opacity="0.7" />
-                    </StackPanel>
-
-                    <StackPanel Margin="0,14,0,0" x:Name="Nav" c:AutoApply.Ignore="True">
-                        <RadioButton x:Name="NavDashboard" Style="{StaticResource NavItem}" Tag="&#xE80F;" Content="War Room" IsChecked="True" />
-                        <RadioButton x:Name="NavTranslation" Style="{StaticResource NavItem}" Tag="&#xE774;" Content="Translation" />
-                        <RadioButton x:Name="NavCapture" Style="{StaticResource NavItem}" Tag="&#xE722;" Content="Reading Chat" />
-                        <RadioButton x:Name="NavOverlay" Style="{StaticResource NavItem}" Tag="&#xE81E;" Content="Overlay" />
-                        <RadioButton x:Name="NavReply" Style="{StaticResource NavItem}" Tag="&#xE724;" Content="Replying" />
-                        <RadioButton x:Name="NavPhrases" Style="{StaticResource NavItem}" Tag="&#xE82D;" Content="Phrasebook" />
-                        <RadioButton x:Name="NavHotkeys" Style="{StaticResource NavItem}" Tag="&#xE765;" Content="Hotkeys" />
-                        <RadioButton x:Name="NavAppearance" Style="{StaticResource NavItem}" Tag="&#xE790;" Content="Appearance" />
-                        <RadioButton x:Name="NavAbout" Style="{StaticResource NavItem}" Tag="&#xE946;" Content="About" />
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <!-- ===== Pages (Pages/*.xaml; each shown while its sidebar button is checked) ===== -->
-            <DockPanel Grid.Row="1" Grid.Column="1">
-            <!-- Safe-mode banner: above every page (contract §8.6, War Room slot 1). -->
-            <Border x:Name="SafeModeBanner" DockPanel.Dock="Top" Padding="24,10" BorderThickness="0,0,0,2"
-                    Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Danger}"
-                    Visibility="{Binding IsSafeMode, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="Restart normally" Command="{Binding RestartNormallyCommand}"
-                            AutomationProperties.Name="Restart normally" VerticalAlignment="Center" Margin="16,0,0,0" />
-                    <TextBlock Text="&#xE7BA;" Style="{StaticResource Text.Icon}" Foreground="{DynamicResource Danger}" FontSize="18"
-                               VerticalAlignment="Center" Margin="0,0,12,0" />
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding SafeModeBannerText, Mode=OneWay}" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding SafeModeReasonText, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-            <Grid>
-                <p:WarRoomPage x:Name="WarRoomPage" Visibility="{Binding IsChecked, ElementName=NavDashboard, Converter={StaticResource BoolToVisibility}}" />
-                <p:TranslationPage x:Name="TranslationPage" Visibility="{Binding IsChecked, ElementName=NavTranslation, Converter={StaticResource BoolToVisibility}}" />
-                <p:ReadingChatPage x:Name="ReadingChatPage" Visibility="{Binding IsChecked, ElementName=NavCapture, Converter={StaticResource BoolToVisibility}}" />
-                <p:OverlayPage x:Name="OverlayPage" Visibility="{Binding IsChecked, ElementName=NavOverlay, Converter={StaticResource BoolToVisibility}}" />
-                <p:ReplyingPage x:Name="ReplyingPage" Visibility="{Binding IsChecked, ElementName=NavReply, Converter={StaticResource BoolToVisibility}}" />
-                <p:PhrasebookPage x:Name="PhrasebookPage" Visibility="{Binding IsChecked, ElementName=NavPhrases, Converter={StaticResource BoolToVisibility}}" />
-                <p:HotkeysPage x:Name="HotkeysPage" Visibility="{Binding IsChecked, ElementName=NavHotkeys, Converter={StaticResource BoolToVisibility}}" />
-                <p:AppearancePage x:Name="AppearancePage" Visibility="{Binding IsChecked, ElementName=NavAppearance, Converter={StaticResource BoolToVisibility}}" />
-                <p:AboutPage x:Name="AboutPage" Visibility="{Binding IsChecked, ElementName=NavAbout, Converter={StaticResource BoolToVisibility}}" />
-            </Grid>
+            <!-- ===== Caption bar (drawn on the oak) ===== -->
+            <DockPanel Grid.Column="1">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Style="{StaticResource Button.Chrome}" Content="&#xE921;" Click="OnMinimize" ToolTip="Minimise" AutomationProperties.Name="Minimise" />
+                    <Button Style="{StaticResource Button.Chrome}" Content="&#xE922;" Click="OnMaximize" ToolTip="Maximise" AutomationProperties.Name="Maximise" />
+                    <Button Style="{StaticResource Button.Chrome}" Content="&#xE8BB;" Click="OnClose" ToolTip="Close to tray (Envoy keeps running)" AutomationProperties.Name="Close" AutomationProperties.HelpText="Envoy keeps running in the tray." />
+                </StackPanel>
+                <TextBlock Text="Chat translator for the Age series" FontFamily="{StaticResource Font.Aside}" FontStyle="Italic" FontSize="14"
+                           Foreground="{DynamicResource Leather.Muted}" VerticalAlignment="Center" Margin="22,0,0,0" />
             </DockPanel>
+
+            <!-- ===== The banner rail ===== -->
+            <Border Grid.RowSpan="2" Background="{DynamicResource Oak.Gradient}">
+                <DockPanel Margin="18,22,0,20">
+                    <!-- wordmark -->
+                    <StackPanel DockPanel.Dock="Top" Margin="6,0,18,16">
+                        <TextBlock Text="Envoy" FontFamily="{StaticResource Font.Wordmark}" FontSize="52" Foreground="{DynamicResource Gold.Gradient}"
+                                   AutomationProperties.Name="Envoy" />
+                        <TextBlock Text="herald of every tongue" FontFamily="{StaticResource Font.Aside}" FontStyle="Italic" FontSize="14"
+                                   Foreground="{DynamicResource Leather.Muted}" />
+                        <Canvas Width="150" Height="20" HorizontalAlignment="Left" Margin="0,4,0,0">
+                            <Path Data="{StaticResource Geo.Flourish}" Stroke="{DynamicResource Ornament.Edge}" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            <Path Data="{StaticResource Geo.Flourish.Diamond}" Fill="{DynamicResource Livery.Primary}" />
+                        </Canvas>
+                    </StackPanel>
+
+                    <!-- the livery's crest and the live status, at the foot of the rail -->
+                    <StackPanel DockPanel.Dock="Bottom" Margin="6,8,18,0">
+                        <StackPanel HorizontalAlignment="Left" Margin="52,0,0,10">
+                            <Rectangle Width="2" Height="22" HorizontalAlignment="Center" Fill="{DynamicResource Or.Dark}" />
+                            <Border Width="30" Height="8" CornerRadius="4" HorizontalAlignment="Center" Background="{DynamicResource Rod.Gradient}" />
+                            <Control Style="{StaticResource Crest}">
+                                <Control.LayoutTransform><ScaleTransform ScaleX="0.75" ScaleY="0.75" /></Control.LayoutTransform>
+                            </Control>
+                            <TextBlock x:Name="CrestName" FontFamily="{StaticResource Font.Title}" FontSize="14" Foreground="{DynamicResource Leather.Text}"
+                                       HorizontalAlignment="Center" Margin="0,6,0,0" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Host.GameStatus}" FontSize="14" Foreground="{DynamicResource Leather.Text}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Host.CaptureStatus}" FontSize="14" Foreground="{DynamicResource Leather.Muted}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        <TextBlock Text="{Binding Version, StringFormat='v{0}'}" FontSize="13" Foreground="{DynamicResource Leather.Muted}" Margin="0,6,0,0" />
+                    </StackPanel>
+
+                    <!-- banner tabs: the playful name, the plain one beneath (Tag); screen readers hear the plain name -->
+                    <StackPanel x:Name="Nav" c:AutoApply.Ignore="True" Margin="0,4,0,0">
+                        <RadioButton x:Name="NavDashboard" Style="{StaticResource NavItem}" Content="War Room" Tag="Home" AutomationProperties.Name="Home" IsChecked="True" />
+                        <RadioButton x:Name="NavTranslation" Style="{StaticResource NavItem}" Content="Interpreters" Tag="Translation" AutomationProperties.Name="Translation" />
+                        <RadioButton x:Name="NavCapture" Style="{StaticResource NavItem}" Content="Scouts" Tag="Reading chat" AutomationProperties.Name="Reading chat" />
+                        <RadioButton x:Name="NavOverlay" Style="{StaticResource NavItem}" Content="Heralds" Tag="Overlay" AutomationProperties.Name="Overlay" />
+                        <RadioButton x:Name="NavReply" Style="{StaticResource NavItem}" Content="Couriers" Tag="Replying" AutomationProperties.Name="Replying" />
+                        <RadioButton x:Name="NavPhrases" Style="{StaticResource NavItem}" Content="Codex" Tag="Phrasebook" AutomationProperties.Name="Phrasebook" />
+                        <RadioButton x:Name="NavHotkeys" Style="{StaticResource NavItem}" Content="Seals" Tag="Hotkeys" AutomationProperties.Name="Hotkeys" />
+                        <RadioButton x:Name="NavAppearance" Style="{StaticResource NavItem}" Content="Livery" Tag="Appearance" AutomationProperties.Name="Appearance" />
+                        <RadioButton x:Name="NavAbout" Style="{StaticResource NavItem}" Content="Chronicle" Tag="About" AutomationProperties.Name="About" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- ===== The charter ===== -->
+            <Grid Grid.Row="1" Grid.Column="1" Margin="22,4,30,24">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <!-- the rolled top of the charter -->
+                <Border Height="16" Margin="-10,0" CornerRadius="8" Background="{DynamicResource Rod.Gradient}" />
+                <ContentControl Grid.Row="1" Style="{StaticResource CharterFrame}" Padding="54,48,54,30">
+                    <DockPanel>
+                        <!-- Safe-mode banner: above every page (contract §8.6, War Room slot 1). -->
+                        <Border x:Name="SafeModeBanner" DockPanel.Dock="Top" Padding="18,10" Margin="0,0,0,14" BorderThickness="1,1,1,3"
+                                Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Danger}"
+                                Visibility="{Binding IsSafeMode, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="Restart normally" Command="{Binding RestartNormallyCommand}"
+                                        AutomationProperties.Name="Restart normally" VerticalAlignment="Center" Margin="16,0,0,0" />
+                                <ContentControl Style="{StaticResource WaxSeal}" Background="{DynamicResource Wax.Gules}" Content="!" Width="34" Height="34"
+                                                VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding SafeModeBannerText, Mode=OneWay}" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding SafeModeReasonText, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- the page's heading: drop cap, title, plain name, lede -->
+                        <DockPanel x:Name="PageHeader" DockPanel.Dock="Top">
+                            <ContentControl x:Name="PageDropCap" DockPanel.Dock="Left" Style="{StaticResource DropCap}" VerticalAlignment="Top" Margin="0,0,18,0" />
+                            <StackPanel VerticalAlignment="Top" Margin="0,2,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="PageTitle" Style="{StaticResource Text.H1}" Margin="0" />
+                                    <TextBlock x:Name="PagePlainName" Style="{StaticResource Text.Aside}" VerticalAlignment="Bottom" Margin="12,0,0,4" />
+                                </StackPanel>
+                                <TextBlock x:Name="PageLede" Style="{StaticResource Text.Body}" Foreground="{DynamicResource Ink.Soft}" Margin="0,6,0,0" MaxWidth="640" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </DockPanel>
+                        <Control DockPanel.Dock="Top" Style="{StaticResource Fleuron}" Margin="0,14,0,10" />
+
+                        <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Text.Aside}" FontSize="14" Margin="0,10,0,0" TextWrapping="Wrap"
+                                   Text="Changes are saved the moment you make them. Envoy reads only what is on screen; it never touches the game." />
+
+                        <!-- marginalia: the page's ink drawing, from 1100 px wide -->
+                        <StackPanel x:Name="Marginalia" DockPanel.Dock="Right" Width="160" Margin="18,6,0,0">
+                            <Viewbox Width="130" Height="158" HorizontalAlignment="Center">
+                                <Canvas Width="140" Height="170">
+                                    <Path x:Name="FigureInk" Stroke="{DynamicResource Ink.Soft}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                    <Path x:Name="FigureRed" Stroke="{DynamicResource Livery.Primary}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock x:Name="FigureCaption" Style="{StaticResource Text.Aside}" FontSize="14" HorizontalAlignment="Center" TextAlignment="Center" Margin="0,8,0,0" />
+                            <Control Style="{StaticResource Fleuron}" Margin="0,10,0,0" />
+                        </StackPanel>
+
+                        <!-- ===== Pages (Pages/*.xaml; each shown while its banner tab is checked) ===== -->
+                        <Grid>
+                            <p:WarRoomPage x:Name="WarRoomPage" Visibility="{Binding IsChecked, ElementName=NavDashboard, Converter={StaticResource BoolToVisibility}}" />
+                            <p:TranslationPage x:Name="TranslationPage" Visibility="{Binding IsChecked, ElementName=NavTranslation, Converter={StaticResource BoolToVisibility}}" />
+                            <p:ReadingChatPage x:Name="ReadingChatPage" Visibility="{Binding IsChecked, ElementName=NavCapture, Converter={StaticResource BoolToVisibility}}" />
+                            <p:OverlayPage x:Name="OverlayPage" Visibility="{Binding IsChecked, ElementName=NavOverlay, Converter={StaticResource BoolToVisibility}}" />
+                            <p:ReplyingPage x:Name="ReplyingPage" Visibility="{Binding IsChecked, ElementName=NavReply, Converter={StaticResource BoolToVisibility}}" />
+                            <p:PhrasebookPage x:Name="PhrasebookPage" Visibility="{Binding IsChecked, ElementName=NavPhrases, Converter={StaticResource BoolToVisibility}}" />
+                            <p:HotkeysPage x:Name="HotkeysPage" Visibility="{Binding IsChecked, ElementName=NavHotkeys, Converter={StaticResource BoolToVisibility}}" />
+                            <p:AppearancePage x:Name="AppearancePage" Visibility="{Binding IsChecked, ElementName=NavAppearance, Converter={StaticResource BoolToVisibility}}" />
+                            <p:AboutPage x:Name="AboutPage" Visibility="{Binding IsChecked, ElementName=NavAbout, Converter={StaticResource BoolToVisibility}}" />
+                        </Grid>
+                    </DockPanel>
+                </ContentControl>
+            </Grid>
         </Grid>
     </Border>
 </Window>

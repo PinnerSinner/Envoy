@@ -3,12 +3,13 @@ using System.Windows.Media;
 
 namespace Envoy.App.ViewModels;
 
-public sealed class ThemeOption(string id, string name, string inspiration, Brush[] swatches, Func<string> current, Action<string> select) : INotifyPropertyChanged
+/// <summary>A livery card on the Appearance page: its shield field, name and description.</summary>
+public sealed class ThemeOption(string id, string name, string inspiration, Brush field, Func<string> current, Action<string> select) : INotifyPropertyChanged
 {
     public string Id => id;
     public string Name => name;
     public string Inspiration => inspiration;
-    public Brush[] Swatches => swatches;
+    public Brush Field => field;
 
     public bool IsSelected
     {

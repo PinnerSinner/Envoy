@@ -20,17 +20,16 @@
         </Path>
 
         <Canvas x:Name="Surface">
-            <Border x:Name="Selection" Visibility="Collapsed" BorderBrush="{DynamicResource Accent.Bright}" BorderThickness="2">
-                <Border BorderBrush="{DynamicResource Accent.Dim}" BorderThickness="1" Margin="2" />
+            <Border x:Name="Selection" Visibility="Collapsed" BorderBrush="{DynamicResource Ornament.Gold}" BorderThickness="2">
+                <Border BorderBrush="{DynamicResource Livery.Primary}" BorderThickness="1" Margin="2" />
             </Border>
-            <Border x:Name="SizeTag" Visibility="Collapsed" Background="{DynamicResource Accent}" Padding="6,2" CornerRadius="2">
-                <TextBlock x:Name="SizeText" Foreground="{DynamicResource Text.OnAccent}" FontWeight="Bold" FontSize="11" />
+            <Border x:Name="SizeTag" Visibility="Collapsed" Background="{DynamicResource Livery.Primary}" BorderBrush="{DynamicResource Ornament.Gold}" BorderThickness="1" Padding="8,2" CornerRadius="2">
+                <TextBlock x:Name="SizeText" Foreground="{DynamicResource Text.OnAccent}" FontFamily="{StaticResource Font.Title}" FontSize="13" />
             </Border>
         </Canvas>
 
-        <!-- Instructions banner -->
-        <Border HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,48,0,0" Padding="22,14" IsHitTestVisible="False"
-                Background="{DynamicResource Bg.Panel}" BorderBrush="{DynamicResource Accent}" BorderThickness="1">
+        <!-- Instructions: a vellum plate (spec 09a) -->
+        <ContentControl Style="{StaticResource PlateFrame}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,48,0,0" Padding="26,16" IsHitTestVisible="False">
             <StackPanel>
                 <TextBlock x:Name="BannerTitle" Text="Mark the chat area" Style="{StaticResource Text.H2}" HorizontalAlignment="Center" Margin="0,0,0,4" />
                 <TextBlock x:Name="BannerBody" Style="{StaticResource Text.Body}" TextAlignment="Center" MaxWidth="460">
@@ -38,6 +37,6 @@
                     <LineBreak />Press <Bold>Enter</Bold> to keep the current area, <Bold>Esc</Bold> to cancel.
                 </TextBlock>
             </StackPanel>
-        </Border>
+        </ContentControl>
     </Grid>
 </Window>

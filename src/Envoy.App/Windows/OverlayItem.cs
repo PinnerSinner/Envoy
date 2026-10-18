@@ -6,6 +6,7 @@ using Envoy.App.Services;
 using Envoy.Core.Languages;
 using Envoy.Core.Mvvm;
 using Envoy.Core.Pipeline;
+using Envoy.Core.Ux;
 
 namespace Envoy.App.Windows;
 
@@ -37,6 +38,12 @@ public sealed class OverlayItem(IncomingMessage message, bool showSender = true,
     public string LanguageBadge => Message.SourceLanguage is { } code ? Short(code) : "";
     public bool HasLanguage => LanguageBadge.Length > 0;
     public string LanguageName => LanguageCatalog.NameOf(Message.SourceLanguage);
+
+    /// <summary>The dispatch seal (spec 09a, REQ-HRD-8): the language's glyph and wax, from Core.</summary>
+    public string SealGlyph => LanguageSeal.For(Message.SourceLanguage).Glyph;
+
+    /// <summary>The seal's wax, a <see cref="Envoy.Core.Ux.SealWax"/> name; the item templates map it to a <c>Wax.*</c> brush.</summary>
+    public string SealWax => LanguageSeal.For(Message.SourceLanguage).Wax.ToString();
 
     public bool IsPending => Message.Status == IncomingStatus.Pending;
     /// <summary>The compact layout's trailing marks (REQ-OUXC-44).</summary>
@@ -87,7 +94,7 @@ public sealed class OverlayItem(IncomingMessage message, bool showSender = true,
 
     public void Refresh()
     {
-        foreach (var name in new[] { nameof(Main), nameof(Original), nameof(HasOriginal), nameof(LanguageBadge), nameof(HasLanguage), nameof(LanguageName), nameof(IsPending), nameof(IsFailed), nameof(PendingMark), nameof(FailedMark), nameof(Error), nameof(Provider) })
+        foreach (var name in new[] { nameof(Main), nameof(Original), nameof(HasOriginal), nameof(LanguageBadge), nameof(HasLanguage), nameof(LanguageName), nameof(SealGlyph), nameof(SealWax), nameof(IsPending), nameof(IsFailed), nameof(PendingMark), nameof(FailedMark), nameof(Error), nameof(Provider) })
             Notify(name);
     }
 

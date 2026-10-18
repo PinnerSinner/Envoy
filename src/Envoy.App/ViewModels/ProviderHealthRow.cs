@@ -1,6 +1,7 @@
 using Envoy.Core.Mvvm;
 using Envoy.Core.Translation;
 using Envoy.Core.Translation.Resilience;
+using Envoy.Core.Ux;
 
 namespace Envoy.App.ViewModels;
 
@@ -26,8 +27,14 @@ public sealed class ProviderHealthRow(string providerId) : ObservableObject
     public ProviderState State
     {
         get => _state;
-        private set => SetProperty(ref _state, value);
+        private set
+        {
+            if (SetProperty(ref _state, value)) OnPropertyChanged(nameof(Candle));
+        }
     }
+
+    /// <summary>The candle's look, a <see cref="CandleState"/> name: Lit, Guttering or Snuffed (spec 09a).</summary>
+    public string Candle => ProviderCandle.For(State).ToString();
 
     public string StateText
     {

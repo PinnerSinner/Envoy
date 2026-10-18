@@ -10,18 +10,20 @@
         <Grid.Effect>
             <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.6" Color="Black" />
         </Grid.Effect>
-        <ContentControl Style="{StaticResource OrnateFrame}" Margin="0" Padding="18,12,18,14">
+        <ContentControl Style="{StaticResource PlateFrame}" Padding="20,14,20,16">
             <StackPanel>
                 <DockPanel Margin="0,0,0,8" MouseLeftButtonDown="OnDrag" Background="Transparent">
-                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Chrome}" Content="&#xE8BB;" ToolTip="Close (Esc)" Click="OnClose" Width="32" Height="28" AutomationProperties.Name="Close" />
-                    <TextBlock Text="Scouting report" Style="{StaticResource Text.H2}" Margin="0" VerticalAlignment="Center" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Ghost}" FontFamily="{StaticResource Font.Icons}" FontSize="12" Content="&#xE8BB;" ToolTip="Close (Esc)" Click="OnClose" Width="40" Height="34" Padding="0" AutomationProperties.Name="Close" />
+                    <ContentControl Style="{StaticResource DropCap}" Content="S" Width="40" Height="40" FontSize="28" Margin="0,0,10,0" />
+                    <TextBlock Text="couting report" FontFamily="{StaticResource Font.Title}" FontSize="24" Foreground="{DynamicResource Text.Primary}" VerticalAlignment="Center"
+                               AutomationProperties.Name="Scouting report" />
                     <TextBlock x:Name="Languages" Style="{StaticResource Text.Caption}" Margin="10,2,0,0" VerticalAlignment="Center" />
                 </DockPanel>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="420">
                     <StackPanel>
-                        <TextBlock x:Name="Translation" FontSize="16" TextWrapping="Wrap" Foreground="{DynamicResource Text.Primary}" />
+                        <TextBlock x:Name="Translation" FontSize="19" TextWrapping="Wrap" Foreground="{DynamicResource Text.Primary}" />
                         <Control Style="{StaticResource Flourish}" />
-                        <TextBlock x:Name="Original" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                        <TextBlock x:Name="Original" Style="{StaticResource Text.Aside}" TextWrapping="Wrap" />
                     </StackPanel>
                 </ScrollViewer>
                 <DockPanel Margin="0,10,0,0">
@@ -29,7 +31,7 @@
                         <Button Content="Copy original" Click="OnCopyOriginal" Margin="0,0,8,0" />
                         <Button Content="Copy translation" Style="{StaticResource Button.Primary}" Click="OnCopyTranslation" />
                     </StackPanel>
-                    <TextBlock x:Name="Status" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="Status" Style="{StaticResource Text.Aside}" FontSize="14" VerticalAlignment="Center" />
                 </DockPanel>
             </StackPanel>
         </ContentControl>

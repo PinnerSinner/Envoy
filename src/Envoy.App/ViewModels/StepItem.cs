@@ -13,6 +13,9 @@ public sealed class StepItem(OnboardingStep step) : ObservableObject
 
     public string Title { get; } = OnboardingText.TitleOf(step);
 
+    /// <summary>The step's number on its seal in the chain (spec 09a), 1-based.</summary>
+    public string Number { get; } = ((int)step + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
     public StepStatus Status
     {
         get => _status;

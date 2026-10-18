@@ -2,9 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:c="clr-namespace:Envoy.App.Controls">
-    <ScrollViewer Padding="32,24">
+    <ScrollViewer Padding="0,0,10,0" VerticalScrollBarVisibility="Auto">
         <StackPanel MaxWidth="900">
-            <TextBlock Text="Translation" Style="{StaticResource Text.H1}" />
             <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,18">
                 The free providers need no account. Paid ones use <Bold>your own</Bold> key and are billed to you directly.
                 Envoy has no server of its own, so nobody else can ever spend your credits.
@@ -17,29 +16,29 @@
                     <TextBlock Text="Providers" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="260" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="Main provider" Style="{StaticResource Text.Label}" />
                         <ComboBox AutomationProperties.Name="Main provider" AutomationProperties.HelpText="{Binding PrimaryInfo.Blurb, Mode=OneWay}" Grid.Column="1" ItemsSource="{Binding Providers}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding PrimaryProvider}" />
                     </Grid>
-                    <TextBlock Text="{Binding PrimaryInfo.Blurb}" Style="{StaticResource Text.Caption}" Margin="220,0,0,8" />
+                    <TextBlock Text="{Binding PrimaryInfo.Blurb}" Style="{StaticResource Text.Caption}" Margin="260,0,0,8" />
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="260" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="If it fails, try" Style="{StaticResource Text.Label}" />
                         <ComboBox AutomationProperties.Name="If it fails, try" Grid.Column="1" ItemsSource="{Binding FallbackOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding FallbackProvider}" />
                     </Grid>
-                    <TextBlock Text="{Binding Host.ProviderStatus}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Accent}" Margin="220,4,0,0" />
+                    <TextBlock Text="{Binding Host.ProviderStatus}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Accent}" Margin="260,4,0,0" />
                 </StackPanel>
             </ContentControl>
 
             <!-- Provider health (spec 03, REQ-TRR-18): one row per provider in the active chain. -->
             <ContentControl Style="{StaticResource OrnateFrame}">
                 <StackPanel>
-                    <TextBlock Text="Provider health" Style="{StaticResource Text.H2}" />
+                    <TextBlock Text="The candles: is each translator answering?" Style="{StaticResource Text.H2}" />
                     <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,8"
                                Text="Envoy tries these in order. A provider that keeps failing is skipped for a while, then tried again with the next message." />
                     <ItemsControl x:Name="HealthList" ItemsSource="{Binding ProviderHealthRows}" Focusable="False" AutomationProperties.Name="Provider health">
@@ -47,39 +46,13 @@
                             <DataTemplate>
                                 <Grid Margin="0,4">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="24" />
-                                        <ColumnDefinition Width="196" />
+                                        <ColumnDefinition Width="40" />
+                                        <ColumnDefinition Width="220" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <!-- Decorative: the state is in the row text. -->
-                                    <Ellipse Width="10" Height="10" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="{DynamicResource Text.Muted}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding State}" Value="Healthy">
-                                                        <Setter Property="Fill" Value="{DynamicResource Success}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding State}" Value="Degraded">
-                                                        <Setter Property="Fill" Value="{DynamicResource Accent}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding State}" Value="Throttled">
-                                                        <Setter Property="Fill" Value="{DynamicResource Accent}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding State}" Value="CoolingDown">
-                                                        <Setter Property="Fill" Value="{DynamicResource Accent}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding State}" Value="AuthFailed">
-                                                        <Setter Property="Fill" Value="{DynamicResource Danger}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding State}" Value="QuotaExceeded">
-                                                        <Setter Property="Fill" Value="{DynamicResource Danger}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
+                                    <!-- Decorative: the state is in the row text. Lit, guttering or snuffed (spec 09a; 09b animates it). -->
+                                    <ContentControl Style="{StaticResource Candle}" Tag="{Binding Candle}" Width="30" Height="56" HorizontalAlignment="Left" VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="{Binding Name}" Style="{StaticResource Text.Label}" VerticalAlignment="Center" />
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center" AutomationProperties.Name="{Binding AccessibleName}">
                                         <TextBlock Text="{Binding StateText}" Style="{StaticResource Text.Label}" TextWrapping="Wrap" />
@@ -101,11 +74,11 @@
                 <StackPanel>
                     <TextBlock Text="DeepL" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="API key" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="API key" />
                         <PasswordBox AutomationProperties.Name="API key" Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.DeepLKey}" />
                     </Grid>
-                    <TextBlock Style="{StaticResource Text.Caption}" Margin="220,0,0,0">
+                    <TextBlock Style="{StaticResource Text.Caption}" Margin="260,0,0,0">
                         Free plan: 500,000 characters a month. <Hyperlink NavigateUri="https://www.deepl.com/pro-api" Command="{Binding OpenLinkCommand}" CommandParameter="https://www.deepl.com/pro-api">Get a key</Hyperlink>
                     </TextBlock>
                 </StackPanel>
@@ -115,16 +88,16 @@
                 <StackPanel>
                     <TextBlock Text="Claude" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Anthropic API key" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Anthropic API key" />
                         <PasswordBox AutomationProperties.Name="Anthropic API key" Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.ClaudeKey}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Model" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Model" />
                         <ComboBox AutomationProperties.Name="Model" Grid.Column="1" ItemsSource="{Binding ClaudeModels}" IsEditable="False" SelectedItem="{Binding Settings.Translation.ClaudeModel}" />
                     </Grid>
-                    <TextBlock Style="{StaticResource Text.Caption}" Margin="220,0,0,0" TextWrapping="Wrap">
+                    <TextBlock Style="{StaticResource Text.Caption}" Margin="260,0,0,0" TextWrapping="Wrap">
                         Haiku costs a fraction of a cent per message and is plenty for chat; Opus is the most capable.
                         <Hyperlink NavigateUri="https://console.anthropic.com/" Command="{Binding OpenLinkCommand}" CommandParameter="https://console.anthropic.com/">Get a key</Hyperlink>
                     </TextBlock>
@@ -135,21 +108,21 @@
                 <StackPanel>
                     <TextBlock Text="Amazon Translate" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Access key ID" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Access key ID" />
                         <TextBox AutomationProperties.Name="Access key ID" Grid.Column="1" Text="{Binding Settings.Translation.AwsAccessKeyId, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Secret access key" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Secret access key" />
                         <PasswordBox AutomationProperties.Name="Secret access key" Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.AwsSecretAccessKey}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Region" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Region" />
                         <TextBox AutomationProperties.Name="Region" Grid.Column="1" Width="200" HorizontalAlignment="Left" Text="{Binding Settings.Translation.AwsRegion, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
-                    <TextBlock Style="{StaticResource Text.Caption}" Margin="220,0,0,0" TextWrapping="Wrap">
+                    <TextBlock Style="{StaticResource Text.Caption}" Margin="260,0,0,0" TextWrapping="Wrap">
                         Use an IAM user that can only call translate:TranslateText, and set a billing alarm in AWS for peace of mind.
                     </TextBlock>
                 </StackPanel>
@@ -159,13 +132,13 @@
                 <StackPanel>
                     <TextBlock Text="LibreTranslate" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Server URL" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Server URL" />
                         <TextBox AutomationProperties.Name="Server URL" Grid.Column="1" Text="{Binding Settings.Translation.LibreTranslateUrl, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="API key (if required)" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="API key (if required)" />
                         <PasswordBox AutomationProperties.Name="API key (if required)" Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.LibreTranslateKey}" />
                     </Grid>
                 </StackPanel>
@@ -177,21 +150,21 @@
                     <CheckBox Content="Don't translate messages already in my language" IsChecked="{Binding Settings.Translation.SkipMyLanguage}" />
                     <CheckBox Content="Explain gamer slang (666, ㅈㅈ, изи, kkkk…) instantly and offline" IsChecked="{Binding Settings.Translation.UseSlangGlossary}" />
                     <Grid Style="{StaticResource SettingRow}" Margin="0,12,0,0">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Daily cap for paid providers" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Daily cap for paid providers" />
                         <Slider AutomationProperties.Name="Daily cap for paid providers" AutomationProperties.HelpText="When the cap is reached Envoy switches to the free provider until tomorrow. 0 means no cap." Grid.Column="1" Minimum="0" Maximum="500000" SmallChange="5000" LargeChange="25000" TickFrequency="5000" IsSnapToTickEnabled="True"
                                 Value="{Binding Settings.Translation.DailyCharacterLimit}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Translation.DailyCharacterLimit, StringFormat='{}{0:N0} chars'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
-                    <TextBlock Style="{StaticResource Text.Caption}" Text="A busy match is roughly 2,000 to 5,000 characters. When the cap is reached Envoy switches to the free provider until tomorrow. 0 = no cap." Margin="220,0,0,0" />
+                    <TextBlock Style="{StaticResource Text.Caption}" Text="A busy match is roughly 2,000 to 5,000 characters. When the cap is reached Envoy switches to the free provider until tomorrow. 0 = no cap." Margin="260,0,0,0" />
                     <Grid Style="{StaticResource SettingRow}" Margin="0,12,0,0">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Give up after" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Give up after" />
                         <Slider Grid.Column="1" Minimum="5" Maximum="30" SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
                                 Value="{Binding Settings.Translation.RequestTimeoutSeconds}" AutomationProperties.Name="Give up on a chat line after this many seconds" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Translation.RequestTimeoutSeconds, StringFormat='{}{0} s'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
-                    <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="220,0,0,0"
+                    <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="260,0,0,0"
                                Text="How long Envoy keeps trying a chat line, including retries and your fallback provider, before showing it as failed." />
                 </StackPanel>
             </ContentControl>
@@ -214,16 +187,16 @@
                 <StackPanel>
                     <TextBlock Text="Filters" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Translate" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Translate" />
                         <ComboBox AutomationProperties.Name="Translate" Grid.Column="1" ItemsSource="{Binding ChannelOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Channels}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Muted players" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Muted players" />
                         <TextBox AutomationProperties.Name="Muted players" Grid.Column="1" Text="{Binding MutedPlayersText, UpdateSourceTrigger=LostFocus}" />
                     </Grid>
-                    <TextBlock Text="Comma-separated names. Their messages are hidden and never sent for translation." Style="{StaticResource Text.Caption}" Margin="220,0,0,0" />
+                    <TextBlock Text="Comma-separated names. Their messages are hidden and never sent for translation." Style="{StaticResource Text.Caption}" Margin="260,0,0,0" />
                 </StackPanel>
             </ContentControl>
 

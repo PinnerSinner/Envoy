@@ -18,65 +18,68 @@
             </StackPanel>
         </DataTemplate>
 
-        <!-- The full layout: translation, original, status and provider lines. -->
+        <!-- The seal's wax by language (Core LanguageSeal.For): one trigger per SealWax value. -->
+        <Style x:Key="DispatchSeal" TargetType="ContentControl" BasedOn="{StaticResource WaxSeal}">
+            <Setter Property="Background" Value="{DynamicResource Wax.Purpure}" />
+            <Setter Property="ToolTip" Value="{Binding LanguageName}" />
+            <Setter Property="Content" Value="{Binding SealGlyph}" />
+            <Setter Property="Visibility" Value="{Binding HasLanguage, Converter={StaticResource BoolToVisibility}}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SealWax}" Value="Gules"><Setter Property="Background" Value="{DynamicResource Wax.Gules}" /></DataTrigger>
+                <DataTrigger Binding="{Binding SealWax}" Value="Azure"><Setter Property="Background" Value="{DynamicResource Wax.Azure}" /></DataTrigger>
+                <DataTrigger Binding="{Binding SealWax}" Value="Vert"><Setter Property="Background" Value="{DynamicResource Wax.Vert}" /></DataTrigger>
+                <DataTrigger Binding="{Binding SealWax}" Value="Or"><Setter Property="Background" Value="{DynamicResource Wax.Or}" /></DataTrigger>
+                <DataTrigger Binding="{Binding SealWax}" Value="Sable"><Setter Property="Background" Value="{DynamicResource Wax.Sable}" /></DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--
+            The full layout (spec 09a, REQ-HRD-8): a dispatch scroll. Rods top and bottom, vellum (the card background, whose
+            alpha keeps the text readable, 07b), a wax seal with the language glyph, the sender as a rubric, the translation,
+            and the original in italic.
+        -->
         <DataTemplate x:Key="FullItem">
-            <Border x:Name="Card" Margin="0,0,0,4" Padding="12,7,12,8" CornerRadius="2" Opacity="{Binding Opacity}"
-                    Background="{Binding DataContext.CardBackground, RelativeSource={RelativeSource AncestorType=Window}}"
-                    BorderBrush="{DynamicResource Accent.Dim}" BorderThickness="1,0,0,0">
-                <StackPanel>
+            <StackPanel x:Name="Card" Margin="8,0,8,10" Opacity="{Binding Opacity}">
+                <Control Style="{StaticResource ScrollRods}" Height="8" />
+                <Border Background="{Binding DataContext.CardBackground, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,9,14,10">
                     <DockPanel LastChildFill="True">
                         <ContentPresenter DockPanel.Dock="Right" ContentTemplate="{StaticResource CopyControls}" Content="{Binding}" />
-                        <!-- Language badge -->
-                        <Border DockPanel.Dock="Left" Margin="0,1,8,0" Padding="5,0" MinWidth="22" Height="18" VerticalAlignment="Top"
-                                Background="{DynamicResource Accent}" CornerRadius="2"
-                                ToolTip="{Binding LanguageName}"
-                                Visibility="{Binding HasLanguage, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="{Binding LanguageBadge}" Foreground="{DynamicResource Text.OnAccent}" FontWeight="Bold" FontSize="11"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <TextBlock x:Name="Line" TextWrapping="Wrap" FontSize="{Binding DataContext.OverlayFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                                   FontFamily="{Binding DataContext.OverlayFontFamily, RelativeSource={RelativeSource AncestorType=Window}}">
-                            <TextBlock.Effect>
-                                <DropShadowEffect BlurRadius="3" ShadowDepth="1" Opacity="0.9" Color="Black" />
-                            </TextBlock.Effect>
-                            <Run Text="{Binding Channel, Mode=OneWay}" Foreground="{DynamicResource Overlay.Original}" />
-                            <Run Text="{Binding SenderPrefix, Mode=OneWay}" Foreground="{DynamicResource Overlay.Sender}" FontWeight="SemiBold" />
-                            <Run Text="{Binding Main, Mode=OneWay}" Foreground="{DynamicResource Overlay.Text}" />
-                        </TextBlock>
+                        <ContentControl DockPanel.Dock="Left" Style="{StaticResource DispatchSeal}" Width="38" Height="38" Margin="0,0,12,0" VerticalAlignment="Top" />
+                        <StackPanel>
+                            <TextBlock x:Name="Line" TextWrapping="Wrap" FontSize="{Binding DataContext.OverlayFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                       FontFamily="{Binding DataContext.OverlayFontFamily, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <Run Text="{Binding SenderPrefix, Mode=OneWay}" Foreground="{DynamicResource Overlay.Sender}" FontFamily="{StaticResource Font.Title}" />
+                                <Run Text="{Binding Channel, Mode=OneWay}" Foreground="{DynamicResource Overlay.Original}" FontFamily="{StaticResource Font.Aside}" FontStyle="Italic" />
+                                <LineBreak />
+                                <Run Text="{Binding Main, Mode=OneWay}" Foreground="{DynamicResource Overlay.Text}" />
+                            </TextBlock>
+                            <TextBlock x:Name="OriginalLine" Text="{Binding Original}" Margin="0,2,0,0" TextWrapping="Wrap" FontStyle="Italic" FontFamily="{StaticResource Font.Aside}"
+                                       FontSize="{Binding DataContext.SmallFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                       Foreground="{DynamicResource Overlay.Original}"
+                                       Visibility="{Binding HasOriginal, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock x:Name="PendingLine" Text="translating…" Margin="0,2,0,0" FontSize="12" FontStyle="Italic" FontFamily="{StaticResource Font.Aside}" Foreground="{DynamicResource Overlay.Original}"
+                                       Visibility="{Binding IsPending, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock x:Name="ErrorLine" Text="{Binding Error, StringFormat='⚠ {0}'}" Margin="0,2,0,0" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource Danger}"
+                                       Visibility="{Binding IsFailed, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock x:Name="ProviderLine" Text="{Binding Provider}" Margin="0,1,0,0" FontSize="11" Foreground="{DynamicResource Overlay.Original}" Opacity="0.8"
+                                       Visibility="{Binding DataContext.ProviderVisibility, RelativeSource={RelativeSource AncestorType=Window}}" />
+                        </StackPanel>
                     </DockPanel>
-                    <TextBlock x:Name="OriginalLine" Text="{Binding Original}" Margin="30,2,0,0" TextWrapping="Wrap" FontStyle="Italic"
-                               FontSize="{Binding DataContext.SmallFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
-                               Foreground="{DynamicResource Overlay.Original}"
-                               Visibility="{Binding HasOriginal, Converter={StaticResource BoolToVisibility}}" />
-                    <TextBlock x:Name="PendingLine" Text="translating…" Margin="30,2,0,0" FontSize="11" FontStyle="Italic" Foreground="{DynamicResource Overlay.Original}"
-                               Visibility="{Binding IsPending, Converter={StaticResource BoolToVisibility}}" />
-                    <TextBlock x:Name="ErrorLine" Text="{Binding Error, StringFormat='⚠ {0}'}" Margin="30,2,0,0" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource Danger}"
-                               Visibility="{Binding IsFailed, Converter={StaticResource BoolToVisibility}}" />
-                    <TextBlock x:Name="ProviderLine" Text="{Binding Provider}" Margin="30,1,0,0" FontSize="10" Foreground="{DynamicResource Overlay.Original}" Opacity="0.7"
-                               Visibility="{Binding DataContext.ProviderVisibility, RelativeSource={RelativeSource AncestorType=Window}}" />
-                </StackPanel>
-            </Border>
+                </Border>
+                <Control Style="{StaticResource ScrollRods}" Height="8" />
+            </StackPanel>
         </DataTemplate>
 
-        <!-- REQ-OUXC-44: one wrapped line per message (badge, sender, translation); "…" while pending, "⚠" on failure. -->
+        <!-- REQ-OUXC-44, REQ-HRD-8: a one-line ribbon per message (small seal, sender, translation); "…" while pending, "⚠" on failure. -->
         <DataTemplate x:Key="CompactItem">
-            <Border x:Name="Card" Margin="0,0,0,2" Padding="8,3" CornerRadius="2" Opacity="{Binding Opacity}"
+            <Border x:Name="Card" Margin="0,0,0,3" Padding="6,3,10,3" Opacity="{Binding Opacity}"
                     Background="{Binding DataContext.CardBackground, RelativeSource={RelativeSource AncestorType=Window}}"
-                    BorderBrush="{DynamicResource Accent.Dim}" BorderThickness="1,0,0,0">
+                    BorderBrush="{DynamicResource Livery.Primary}" BorderThickness="3,0,0,0">
                 <DockPanel LastChildFill="True">
                     <ContentPresenter DockPanel.Dock="Right" ContentTemplate="{StaticResource CopyControls}" Content="{Binding}" />
-                    <Border DockPanel.Dock="Left" Margin="0,1,6,0" Padding="4,0" MinWidth="18" Height="16" VerticalAlignment="Top"
-                            Background="{DynamicResource Accent}" CornerRadius="2"
-                            ToolTip="{Binding LanguageName}"
-                            Visibility="{Binding HasLanguage, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="{Binding LanguageBadge}" Foreground="{DynamicResource Text.OnAccent}" FontWeight="Bold" FontSize="10"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
+                    <ContentControl DockPanel.Dock="Left" Style="{StaticResource DispatchSeal}" Width="22" Height="22" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Top" />
                     <TextBlock x:Name="Line" TextWrapping="Wrap" FontSize="{Binding DataContext.CompactFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                FontFamily="{Binding DataContext.OverlayFontFamily, RelativeSource={RelativeSource AncestorType=Window}}">
-                        <TextBlock.Effect>
-                            <DropShadowEffect BlurRadius="3" ShadowDepth="1" Opacity="0.9" Color="Black" />
-                        </TextBlock.Effect>
                         <Run Text="{Binding Channel, Mode=OneWay}" Foreground="{DynamicResource Overlay.Original}" />
                         <Run Text="{Binding SenderPrefix, Mode=OneWay}" Foreground="{DynamicResource Overlay.Sender}" FontWeight="SemiBold" />
                         <Run Text="{Binding Main, Mode=OneWay}" Foreground="{DynamicResource Overlay.Text}" />
@@ -90,25 +93,25 @@
 
     <Grid x:Name="Root">
         <!-- Edit-mode chrome: visible only while positioning the overlay. -->
-        <Border x:Name="EditFrame" Visibility="Collapsed" BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="3">
+        <Border x:Name="EditFrame" Visibility="Collapsed" BorderBrush="{DynamicResource Ornament.Gold}" BorderThickness="1.5" CornerRadius="3">
             <Border Background="{DynamicResource Overlay.Bg}" Opacity="0.2" CornerRadius="3" />
         </Border>
 
         <StackPanel Margin="4">
-            <Border x:Name="EditBar" Visibility="Collapsed" Background="{DynamicResource Accent.Gradient}" Padding="10,5" Margin="0,0,0,4" Cursor="SizeAll"
+            <Border x:Name="EditBar" Visibility="Collapsed" Background="{DynamicResource Accent.Gradient}" BorderBrush="{DynamicResource Ornament.Gold}" BorderThickness="0,2" Padding="10,5" Margin="0,0,0,6" Cursor="SizeAll"
                     MouseLeftButtonDown="OnDragStart">
                 <DockPanel>
                     <Button DockPanel.Dock="Right" Content="Done" AutomationProperties.Name="Done" Style="{StaticResource Button.Ghost}" Foreground="{DynamicResource Text.OnAccent}" Click="OnDoneEditing" Padding="8,0" />
                     <TextBlock Text="Drag to move · edge to resize · ⧉ copies a message · Done to lock" Foreground="{DynamicResource Text.OnAccent}"
-                               FontFamily="{StaticResource Font.Display}" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
+                               FontFamily="{StaticResource Font.Title}" FontSize="14" VerticalAlignment="Center" />
                 </DockPanel>
             </Border>
 
             <!-- ItemTemplate is FullItem or CompactItem, set in ApplySettings from Overlay.Compact. -->
             <ItemsControl x:Name="Items" Focusable="False" ItemTemplate="{StaticResource FullItem}" />
 
-            <Border x:Name="EmptyHint" Visibility="Collapsed" Padding="12,8" Background="{DynamicResource Overlay.Bg}" CornerRadius="2">
-                <TextBlock Text="Translated chat will appear here." Foreground="{DynamicResource Overlay.Original}" FontStyle="Italic" />
+            <Border x:Name="EmptyHint" Visibility="Collapsed" Padding="12,8" Background="{DynamicResource Overlay.Bg}" BorderBrush="{DynamicResource Or.Dark}" BorderThickness="1">
+                <TextBlock Text="Translated chat will appear here." Foreground="{DynamicResource Overlay.Original}" FontFamily="{StaticResource Font.Aside}" FontStyle="Italic" FontSize="15" />
             </Border>
         </StackPanel>
 

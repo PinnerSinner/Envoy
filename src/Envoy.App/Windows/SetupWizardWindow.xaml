@@ -4,16 +4,17 @@
         xmlns:c="clr-namespace:Envoy.App.Controls"
         xmlns:pv="clr-namespace:Envoy.Core.Privacy;assembly=Envoy.Core"
         KeyboardNavigation.TabNavigation="Cycle"
-        Title="Envoy setup guide" Width="780" Height="580" MinWidth="680" MinHeight="500"
+        Title="Envoy setup guide" Width="900" Height="680" MinWidth="760" MinHeight="560"
         WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanMinimize"
-        Background="{DynamicResource Bg.Window}" Foreground="{DynamicResource Text.Primary}"
+        Background="{DynamicResource Oak.Deep}" Foreground="{DynamicResource Text.Primary}"
         FontFamily="{StaticResource Font.Body}" Icon="pack://application:,,,/Envoy;component/Assets/envoy.ico">
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="46" ResizeBorderThickness="0" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
 
-    <!-- The setup guide (spec 07a): the step list on the left, one panel per step on the right, Skip / Back / Next below. -->
-    <Border BorderBrush="{DynamicResource Accent.Dim}" BorderThickness="1">
+    <!-- The setup guide (spec 07a), drawn as the oath (spec 09a, REQ-HRD-9; docs/design/herald/Setup.dc.html): the seal
+         chain of steps on the oak, one vellum charter per step on the right, Skip / Back / Next below. -->
+    <Border BorderBrush="{DynamicResource Or.Dark}" BorderThickness="1" Background="{DynamicResource Damask.Oak}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="46" />
@@ -21,12 +22,12 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="210" />
+                <ColumnDefinition Width="236" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
             <!-- ===== Title bar ===== -->
-            <Border Grid.ColumnSpan="2" Background="{DynamicResource Header.Gradient}" BorderBrush="{DynamicResource Accent.Dim}" BorderThickness="0,0,0,1">
+            <Border Grid.ColumnSpan="2" Background="{DynamicResource Oak.Gradient}">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
                         <Button Style="{StaticResource Button.Chrome}" Content="&#xE921;" Click="OnMinimize" ToolTip="Minimise"
@@ -35,52 +36,66 @@
                                 AutomationProperties.Name="Close setup" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
-                        <Image Source="pack://application:,,,/Envoy;component/Assets/envoy.png" Width="24" Height="24" />
-                        <TextBlock Text="ENVOY SETUP" FontFamily="{StaticResource Font.Decorative}" FontSize="17" FontWeight="Bold" Margin="10,0,0,0"
-                                   Foreground="{DynamicResource Accent.Bright}" VerticalAlignment="Center" />
+                        <TextBlock Text="Envoy" FontFamily="{StaticResource Font.Wordmark}" FontSize="30" Foreground="{DynamicResource Gold.Gradient}" VerticalAlignment="Center" />
+                        <TextBlock Text="The oath: setting up" FontFamily="{StaticResource Font.Aside}" FontStyle="Italic" FontSize="15" Margin="12,6,0,0"
+                                   Foreground="{DynamicResource Leather.Muted}" VerticalAlignment="Center" />
                     </StackPanel>
                 </DockPanel>
             </Border>
 
-            <!-- ===== Step list (REQ-OUXA-11) ===== -->
-            <Border Grid.Row="1" Grid.RowSpan="2" Background="{DynamicResource Bg.Panel}" BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="0,0,1,0">
+            <!-- ===== Step list (REQ-OUXA-11): a chain of seals on the oak ===== -->
+            <Grid Grid.Row="1" Grid.RowSpan="2">
+                <Rectangle Width="2" HorizontalAlignment="Left" Margin="40,34,0,40" Fill="{DynamicResource Or.Dark}" />
                 <ItemsControl x:Name="StepList" ItemsSource="{Binding Steps}" Margin="0,14,0,0" Focusable="False">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Button x:Name="StepButton" Style="{StaticResource Button.Ghost}" HorizontalContentAlignment="Stretch" HorizontalAlignment="Stretch"
-                                    Padding="18,6" BorderThickness="3,0,0,0"
+                                    Padding="22,8,10,8" BorderThickness="0" Foreground="{DynamicResource Leather.Text}"
+                                    FocusVisualStyle="{StaticResource FocusVisual.Ring.Oak}"
                                     Command="{Binding DataContext.GoToStepCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                     CommandParameter="{Binding Step}" AutomationProperties.Name="{Binding AccessibleName}">
-                                <StackPanel Width="168">
-                                    <TextBlock x:Name="StepTitle" Text="{Binding Title}" FontFamily="{StaticResource Font.Display}" FontSize="13"
-                                               Foreground="{DynamicResource Text.Secondary}" />
-                                    <TextBlock x:Name="StepStatus" Text="{Binding StatusText}" Style="{StaticResource Text.Caption}" FontFamily="{StaticResource Font.Body}"
-                                               FontWeight="Normal" />
-                                </StackPanel>
+                                <DockPanel Width="196">
+                                    <ContentControl x:Name="StepSeal" DockPanel.Dock="Left" Style="{StaticResource WaxSeal}" Background="{DynamicResource Wax.Plain}"
+                                                    Content="{Binding Number}" Width="36" Height="36" FontFamily="{StaticResource Font.Title}" FontSize="16" Margin="0,0,12,0" />
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock x:Name="StepTitle" Text="{Binding Title}" FontFamily="{StaticResource Font.Title}" FontSize="16"
+                                                   Foreground="{DynamicResource Leather.Text}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="StepStatus" Text="{Binding StatusText}" FontFamily="{StaticResource Font.Body}" FontSize="13"
+                                                   Foreground="{DynamicResource Leather.Muted}" />
+                                    </StackPanel>
+                                </DockPanel>
                             </Button>
                             <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                    <Setter TargetName="StepButton" Property="BorderBrush" Value="{DynamicResource Accent}" />
-                                    <Setter TargetName="StepButton" Property="Background" Value="{DynamicResource Bg.PanelAlt}" />
-                                    <Setter TargetName="StepTitle" Property="Foreground" Value="{DynamicResource Accent.Bright}" />
+                                <DataTrigger Binding="{Binding IsDone}" Value="True">
+                                    <Setter TargetName="StepSeal" Property="Background" Value="{DynamicResource Wax.Vert}" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding NeedsAttention}" Value="True">
-                                    <Setter TargetName="StepStatus" Property="Foreground" Value="{DynamicResource Danger}" />
+                                    <Setter TargetName="StepSeal" Property="Background" Value="{DynamicResource Wax.Or}" />
+                                    <Setter TargetName="StepStatus" Property="Foreground" Value="{DynamicResource Or.Light}" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding IsDone}" Value="True">
-                                    <Setter TargetName="StepStatus" Property="Foreground" Value="{DynamicResource Success}" />
+                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                    <Setter TargetName="StepSeal" Property="Background" Value="{DynamicResource Wax.Livery}" />
+                                    <Setter TargetName="StepTitle" Property="Foreground" Value="{DynamicResource Or.Light}" />
                                 </DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-            </Border>
+            </Grid>
 
             <!-- ===== The current step ===== -->
-            <ScrollViewer Grid.Row="1" Grid.Column="1" Padding="28,20" VerticalScrollBarVisibility="Auto">
+            <ContentControl Grid.Row="1" Grid.Column="1" Style="{StaticResource CharterFrame}" Padding="46,40,40,26" Margin="6,4,18,8">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
                 <StackPanel>
-                    <TextBlock x:Name="StepCounter" Text="{Binding StepText, Mode=OneWay}" Style="{StaticResource Text.Caption}" />
-                    <TextBlock Text="{Binding CurrentTitle, Mode=OneWay}" Style="{StaticResource Text.H1}" Margin="0,2,0,14" />
+                    <DockPanel Margin="0,0,0,8">
+                        <ContentControl x:Name="StepDropCap" DockPanel.Dock="Left" Style="{StaticResource DropCap}" Width="58" Height="58" FontSize="42" Margin="0,0,14,0"
+                                        Content="{Binding CurrentTitle, Mode=OneWay, Converter={StaticResource FirstLetter}}" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock x:Name="StepCounter" Text="{Binding StepText, Mode=OneWay}" Style="{StaticResource Text.Aside}" FontSize="14" />
+                            <TextBlock Text="{Binding CurrentTitle, Mode=OneWay}" Style="{StaticResource Text.H1}" FontSize="30" Margin="0" />
+                        </StackPanel>
+                    </DockPanel>
+                    <Control Style="{StaticResource Fleuron}" Margin="0,4,0,12" />
 
                     <!-- 1. Language & privacy (REQ-OUXA-1, 47) -->
                     <StackPanel x:Name="LanguagePanel" Visibility="{Binding IsLanguageStep, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
@@ -93,7 +108,7 @@
                         <TextBox Width="280" HorizontalAlignment="Left" Margin="0,6,0,16" Text="{Binding Settings.MyPlayerName, UpdateSourceTrigger=PropertyChanged}"
                                  AutomationProperties.Name="Your in-game name" />
 
-                        <Border x:Name="PrivacyBlock" Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Accent}" BorderThickness="3,0,0,0" Padding="14,10">
+                        <Border x:Name="PrivacyBlock" Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="1,1,1,3" Padding="14,10">
                             <StackPanel>
                                 <TextBlock Text="{x:Static pv:PrivacyText.Heading}" Style="{StaticResource Text.H2}" />
                                 <ItemsControl ItemsSource="{Binding PrivacyLines, Mode=OneWay}" Focusable="False">
@@ -118,7 +133,7 @@
                         <TextBlock x:Name="DisplayVerdict" Text="{Binding DisplayVerdictText, Mode=OneWay}" Style="{StaticResource Text.Label}" Margin="0,6,0,0" />
                         <Button Content="Check again" Command="{Binding RecheckDisplayCommand}" HorizontalAlignment="Left" Margin="0,8,0,14"
                                 AutomationProperties.Name="Check the display mode again" />
-                        <Border Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Accent}" BorderThickness="3,0,0,0" Padding="14,10">
+                        <Border Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="1,1,1,3" Padding="14,10">
                             <StackPanel>
                                 <TextBlock Text="Play in windowed or borderless mode" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
                                 <TextBlock Text="{Binding BorderlessAdvice, Mode=OneWay}" Style="{StaticResource Text.Caption}" />
@@ -220,7 +235,7 @@
                     </StackPanel>
 
                     <!-- The last step sums up what still needs attention (REQ-OUXA-11). -->
-                    <Border x:Name="SummaryBlock" Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Accent}" BorderThickness="3,0,0,0" Padding="14,10"
+                    <Border x:Name="SummaryBlock" Background="{DynamicResource Bg.PanelAlt}" BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="1,1,1,3" Padding="14,10"
                             Margin="0,18,0,0" Visibility="{Binding IsLast, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
                             <TextBlock Text="{Binding SummaryText, Mode=OneWay}" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
@@ -240,11 +255,13 @@
                     </Border>
                 </StackPanel>
             </ScrollViewer>
+            </ContentControl>
 
-            <!-- ===== Footer: always visible (REQ-OUXA-1) ===== -->
-            <Border Grid.Row="2" Grid.Column="1" BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="0,1,0,0" Padding="28,12">
+            <!-- ===== Footer: always visible (REQ-OUXA-1), on the oak ===== -->
+            <Border Grid.Row="2" Grid.Column="1" Padding="10,4,22,14">
                 <DockPanel>
                     <Button x:Name="SkipButton" DockPanel.Dock="Left" Style="{StaticResource Button.Ghost}" Content="Skip setup" Command="{Binding SkipCommand}"
+                            Foreground="{DynamicResource Or.Light}" FocusVisualStyle="{StaticResource FocusVisual.Ring.Oak}"
                             IsCancel="True" AutomationProperties.Name="Skip setup" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button x:Name="BackButton" Content="Back" Command="{Binding BackCommand}" AutomationProperties.Name="Back" Margin="0,0,8,0" />

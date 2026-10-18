@@ -1,9 +1,8 @@
 <UserControl x:Class="Envoy.App.Pages.OverlayPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <ScrollViewer Padding="32,24">
+    <ScrollViewer Padding="0,0,10,0" VerticalScrollBarVisibility="Auto">
         <StackPanel MaxWidth="900">
-            <TextBlock Text="Overlay" Style="{StaticResource Text.H1}" />
             <TextBlock Text="The translated chat floating over your game. It ignores the mouse, so it never gets in the way of play." Style="{StaticResource Text.Body}" Margin="0,0,0,18" />
 
             <!-- The page callout (spec 07a, REQ-OUXA-22). -->
@@ -12,14 +11,14 @@
                 <StackPanel>
                     <TextBlock Text="Placement" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Position" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Position" />
                         <ComboBox AutomationProperties.Name="Position" Grid.Column="1" ItemsSource="{Binding Anchors}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Overlay.Anchor}" />
                         <Button Grid.Column="2" Content="Drag to place" Command="{Binding MoveOverlayCommand}" Margin="8,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Width" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Width" />
                         <Slider AutomationProperties.Name="Width" Grid.Column="1" Minimum="240" Maximum="1200" TickFrequency="10" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.Width}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.Width, StringFormat='{}{0:0} px'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
@@ -31,19 +30,19 @@
                 <StackPanel>
                     <TextBlock Text="Look" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Text size" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Text size" />
                         <Slider AutomationProperties.Name="Text size" Grid.Column="1" Minimum="10" Maximum="32" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.FontSize}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.FontSize, StringFormat='{}{0:0} pt'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Background" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Background" />
                         <Slider AutomationProperties.Name="Background" Grid.Column="1" Minimum="0" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.BackgroundOpacity}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.BackgroundOpacity, StringFormat='{}{0:P0}'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <!-- REQ-OUXB-37: says when "Keep text readable" raised the background above the slider. -->
-                    <TextBlock x:Name="OpacityNote" Text="{Binding OverlayOpacityNote, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="220,0,0,4"
+                    <TextBlock x:Name="OpacityNote" Text="{Binding OverlayOpacityNote, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="260,0,0,4"
                                Visibility="{Binding OverlayOpacityNote, Mode=OneWay, Converter={StaticResource NullToCollapsed}}" />
                     <CheckBox x:Name="EnsureReadableBox" Content="Keep text readable" IsChecked="{Binding Settings.Overlay.EnsureReadableText}"
                               AutomationProperties.Name="Keep text readable"
@@ -53,14 +52,14 @@
                               AutomationProperties.Name="Compact layout"
                               AutomationProperties.HelpText="One line per message: sender and translation only, no original or provider line." />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Overall opacity" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Overall opacity" />
                         <Slider AutomationProperties.Name="Overall opacity" Grid.Column="1" Minimum="0.2" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.Opacity}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.Opacity, StringFormat='{}{0:P0}'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Font (blank = theme default)" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Font (blank = theme default)" />
                         <TextBox AutomationProperties.Name="Overlay font" AutomationProperties.HelpText="Leave blank to use the theme default." Grid.Column="1" Text="{Binding Settings.Overlay.FontFamily, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <CheckBox Content="Show the original text under the translation" IsChecked="{Binding Settings.Overlay.ShowOriginal}" />
@@ -74,14 +73,14 @@
                 <StackPanel>
                     <TextBlock Text="Timing" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Keep each message for" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Keep each message for" />
                         <Slider AutomationProperties.Name="Keep each message for" Grid.Column="1" Minimum="5" Maximum="120" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.MessageLifetimeSeconds}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.MessageLifetimeSeconds, StringFormat='{}{0} s'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Most messages shown" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Most messages shown" />
                         <Slider AutomationProperties.Name="Most messages shown" Grid.Column="1" Minimum="1" Maximum="20" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.MaxMessages}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.MaxMessages}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
@@ -96,20 +95,20 @@
                     <CheckBox Content="Read translated messages aloud" IsChecked="{Binding Settings.Overlay.SpeakMessages}" />
                     <CheckBox Content="Say who sent each message" IsChecked="{Binding Settings.Overlay.SpeakSenderName}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Voice" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Voice" />
                         <ComboBox AutomationProperties.Name="Voice" Grid.Column="1" ItemsSource="{Binding Voices}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Overlay.SpeechVoiceId}" />
                         <Button Grid.Column="2" Content="Test" Command="{Binding TestVoiceCommand}" Margin="8,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Volume" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Volume" />
                         <Slider AutomationProperties.Name="Volume" Grid.Column="1" Minimum="0" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.SpeechVolume}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.SpeechVolume, StringFormat='{}{0:P0}'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="Speed" Style="{StaticResource Text.Label}" />
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Speed" />
                         <Slider AutomationProperties.Name="Speed" Grid.Column="1" Minimum="0.5" Maximum="2.5" TickFrequency="0.1" IsSnapToTickEnabled="True" Value="{Binding Settings.Overlay.SpeechRate}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Overlay.SpeechRate, StringFormat='{}{0:0.0}×'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
