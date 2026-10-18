@@ -1,7 +1,6 @@
 # The Herald's Writ: visual redesign of every window
 
-Status: Implemented (step 12, after 08b) except one open item: REQ-HRD-13's refresh of `docs/images/` waits for the
-first Windows CI screenshots of this look (Deviation 12). Revised against `00-integration.md` (binding); where this spec adds a
+Status: Implemented (step 12, after 08b). `docs/images/` holds the Windows CI screenshots of this look (Deviation 12). Revised against `00-integration.md` (binding); where this spec adds a
 shared concept it names the owner here. Differences from the text below are under Deviations.
 
 Area id: `09a-herald-redesign` · Requirement prefix: `HRD`.
@@ -169,10 +168,11 @@ figure captions), `LanguageSeal` (overlay seals), `ProviderCandle` (candles) and
     now names the soak host's exception (finding 4).
 12. **Verification** (REQ-HRD-13): the smoke sections are `herald-fonts`, `war-table({palette})`,
     `herald-controls({palette})`, `desk({palette})` and `oath({palette})`, beside the existing `pages({palette})`;
-    the setup-guide screenshots are now taken for `herald` instead of `imperial`. `docs/images/` is not refreshed in
-    this change: the new screenshots exist only after the Windows CI run on `main` (the `ci-screenshots` branch still
-    holds the previous look), so they are copied from `ci-screenshots` in a follow-up task. Until then REQ-HRD-13 is
-    open, and the Status line says so. A new manual step, M-HRD-1, compares every window with the references. The CI
+    the setup-guide screenshots are now taken for `herald` instead of `imperial`. `docs/images/` was refreshed in
+    a follow-up commit, once the Windows CI run on `main` had published the new look to `ci-screenshots`; it also gained
+    four `herald-*` images (War Room, overlay, reply box, setup guide). That run showed the reply box taller than the
+    768 px CI screen, which cut off its footer, so the desk is capped at the work area, its phrase ribbons scroll and the
+    `desk` smoke check asserts that "Seal and send" ends inside the window and the window inside the work area. A new manual step, M-HRD-1, compares every window with the references. The CI
     desktop is 1024x768 and Windows keeps a window within the screen, so the `war-table` section drives the marginal
     column's rule with a 1180 px width directly (`MainWindow.LayoutWarTable`) and checks that the real window agrees with
     `PageHeadings.ShowsMarginalia` at whatever width the screen allows; CI screenshots of the settings window therefore
