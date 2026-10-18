@@ -473,6 +473,15 @@ jobs:
           $repo = "${{ github.repository }}"
           $pre = $env:PRERELEASE -eq "true"
           $delta = if ("${{ steps.previous.outputs.has_previous }}" -eq "true") { "true" } else { "false" }
+          # A release started from the GitHub page ("Draft a new release", then Publish) is already public when this
+          # job runs. Put it back to draft so the asset check below still gates what people can download.
+          $state = gh release view $tag --repo $repo --json isDraft --jq .isDraft 2>$null
+          if ($LASTEXITCODE -eq 0 -and $state -eq "false") {
+            Write-Output "::notice::Release $tag was published before its assets were checked; it is a draft again until they pass"
+            gh release edit $tag --repo $repo --draft=true
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          $global:LASTEXITCODE = 0
           $a = @("vpk", "upload", "github", "--repoUrl", "https://github.com/$repo", "--token", "${{ secrets.GITHUB_TOKEN }}",
                  "--channel", "win", "-o", "Releases", "--tag", $tag, "--releaseName", "Envoy $tag",
                  "--targetCommitish", "${{ github.sha }}", "--merge")

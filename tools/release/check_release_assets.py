@@ -24,7 +24,7 @@ import tempfile
 
 def expected_assets(version: str, delta: bool) -> set[str]:
     names = {"Envoy.exe", "Envoy.exe.sha256", "SHA256SUMS.txt", "Envoy-win-Setup.exe", f"Envoy-{version}-full.nupkg",
-             "releases.win.json", "assets.win.json", "RELEASES", "Envoy.cdx.json"}
+             "releases.win.json", "RELEASES", "Envoy.cdx.json"}
     if delta:
         names.add(f"Envoy-{version}-delta.nupkg")
     return names

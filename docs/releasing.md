@@ -257,6 +257,10 @@ The steps are described in full in [chat formats](chat-formats.md#manual-release
    git tag v1.0.0-rc.1
    git push origin v1.0.0-rc.1
    ```
+   You can also start a release from GitHub: **Releases › Draft a new release**, type the new tag, target `main`,
+   leave the notes empty and press **Publish release**. The tag starts the same workflow. The `release` job turns the
+   release back into a draft, uploads and checks every asset, writes the notes from CHANGELOG and publishes it again,
+   so expect the release page to look empty for about 20 minutes.
 2. The Build workflow runs `check`, then `windows` and `app-tests` in parallel, then the tag-only **`release`** job.
    `release` runs under the protected **`release` environment** and waits for a required reviewer before it starts.
    Never re-tag: if a release is wrong, delete the release (not the tag), fix, and ship the next patch version.
@@ -283,7 +287,7 @@ What each job does on a tag:
    5. creates or merges a **draft** release with `dotnet vpk upload github`, uploads `Envoy.exe`, `Envoy.exe.sha256`,
       `SHA256SUMS.txt` and `Envoy.cdx.json`, and runs `tools/release/check_release_assets.py`: the release must still
       be a draft and hold exactly `Envoy.exe`, `Envoy.exe.sha256`, `SHA256SUMS.txt`, `Envoy.cdx.json`,
-      `Envoy-win-Setup.exe`, `Envoy-<v>-full.nupkg`, `releases.win.json`, `assets.win.json`, `RELEASES` (plus
+      `Envoy-win-Setup.exe`, `Envoy-<v>-full.nupkg`, `releases.win.json`, `RELEASES` (plus
       `Envoy-<v>-delta.nupkg` when a previous release existed), and the checksums must match the files. Only then is
       the draft published, with the notes and a fixed footer (`tools/release/release-footer.md`), and marked
       prerelease when the tag contains `-`. Users' copies never see a draft, so a failed run never offers a partial
@@ -298,7 +302,7 @@ artifact `Envoy-<version>-setup`), so a broken package shows up before a tag, an
 ## After the release
 
 - [ ] The release lists `Envoy.exe`, `Envoy.exe.sha256`, `SHA256SUMS.txt`, `Envoy-win-Setup.exe`, the Velopack files
-      (`Envoy-<v>-full.nupkg`, any delta, `releases.win.json`, `assets.win.json`, `RELEASES`) and `Envoy.cdx.json`.
+      (`Envoy-<v>-full.nupkg`, any delta, `releases.win.json`, `RELEASES`) and `Envoy.cdx.json`.
 - [ ] On a clean machine, `Get-FileHash` matches `SHA256SUMS.txt`, `Get-AuthenticodeSignature` shows a valid signature
       (when a certificate is configured, M-DIST-5), and `gh attestation verify Envoy.exe -R PinnerSinner/Envoy` passes.
 - [ ] An installed previous version offers **Restart to update**, and a portable previous version links to the

@@ -1189,21 +1189,27 @@ internal static class SmokeTest
         for (var i = 1; i <= 4; i++)
             center.Submit(NoticeFactory.ProviderFailing($"smoke-{i}", $"Smoke {i}", ProviderState.AuthFailed)!, gameForeground: false);
         await Pump();
-        // A provider-health edge from an earlier section's real translation can land on the UI thread after the
-        // ResolveWhere above and add its own notice; withdraw anything that is not one of the four, then count.
+        // A provider-health edge from an earlier section's real translation can land on the UI thread at any point
+        // in this check and add its own notice. Withdraw anything that is not one of the four before every count.
         var smokeKeys = Enumerable.Range(1, 4).Select(i => NoticeFactory.ProviderKey($"smoke-{i}")).ToHashSet(StringComparer.Ordinal);
-        var stray = center.Active.Select(n => n.Key).Where(k => !smokeKeys.Contains(k)).ToList();
-        if (stray.Count > 0)
+        async Task DropStrayNotices()
         {
-            Log("war-room notices: withdrew " + string.Join(", ", stray));
-            center.ResolveWhere(k => !smokeKeys.Contains(k));
-            await Pump();
+            for (var round = 0; round < 3; round++)
+            {
+                var stray = center.Active.Select(n => n.Key).Where(k => !smokeKeys.Contains(k)).ToList();
+                if (stray.Count == 0) return;
+                Log("war-room notices: withdrew " + string.Join(", ", stray));
+                center.ResolveWhere(k => !smokeKeys.Contains(k));
+                await Pump();
+            }
         }
+        await DropStrayNotices();
         Check(page.NoticeRows.Items.Count == MainViewModel.VisibleNoticeLimit, $"{page.NoticeRows.Items.Count} notice rows, expected {MainViewModel.VisibleNoticeLimit}");
         Check(page.ShowAllNoticesToggle.IsVisible && page.ShowAllNoticesText.Text == "Show all (4)", $"the toggle reads '{page.ShowAllNoticesText.Text}'");
         vm.ShowAllNotices = true;
         await Pump();
-        Check(page.NoticeRows.Items.Count == 4, "Show all did not list every notice");
+        await DropStrayNotices();
+        Check(page.NoticeRows.Items.Count == 4, $"Show all listed {page.NoticeRows.Items.Count} notices, expected 4");
 
         var dismissed = NoticeFactory.ProviderKey("smoke-1");
         vm.DismissNoticeCommand.Execute(dismissed);
