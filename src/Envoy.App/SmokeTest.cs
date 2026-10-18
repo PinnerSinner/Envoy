@@ -706,6 +706,13 @@ internal static class SmokeTest
             $"the desk heading reads '{compose.HeadingCap.Content}{compose.HeadingRest.Text}' ({palette})");
         Check(ReferenceEquals(compose.SendButton.Style, compose.FindResource("Button.Primary")), $"Seal and send is not the wax primary button ({palette})");
         Check(compose.HeadingCap.ActualWidth > 0 && compose.SendButton.ActualWidth > 0, $"the desk did not render ({palette})");
+        // The footer must be on screen: a desk taller than the work area once clipped Seal and send away.
+        var area = SystemParameters.WorkArea;
+        var sendBottom = compose.SendButton.TranslatePoint(new Point(0, compose.SendButton.ActualHeight), compose).Y;
+        Check(compose.SendButton.IsVisible && sendBottom <= compose.ActualHeight + 0.5,
+            $"Seal and send ends at {sendBottom:0} px, below the desk's {compose.ActualHeight:0} px ({palette})");
+        Check(compose.Top >= area.Top - 0.5 && compose.Top + compose.ActualHeight <= area.Bottom + 0.5,
+            $"the desk ({compose.Top:0} to {compose.Top + compose.ActualHeight:0} px) leaves the work area ({area.Top:0} to {area.Bottom:0} px) ({palette})");
     }
 
     /// <summary>AC-HRD-9: the oath shows one seal per step in the chain, numbered, and a drop cap for the step title.</summary>

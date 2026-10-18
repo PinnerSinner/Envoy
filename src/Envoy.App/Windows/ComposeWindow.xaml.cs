@@ -41,6 +41,8 @@ public partial class ComposeWindow : Window
         _debounce = new DispatcherTimer(TimeSpan.FromMilliseconds(350), DispatcherPriority.Input, async (_, _) => await TranslateNowAsync(), Dispatcher) { IsEnabled = false };
         Deactivated += (_, _) => { if (!_opening && IsVisible && !SmokeTest.IsRunning) Hide(); };
         KeyDown += (_, e) => { if (e.Key == Key.Escape) Hide(); };
+        // The phrase list changes with the language, and so does the height: keep the whole desk on screen.
+        SizeChanged += (_, _) => KeepOnScreen();
     }
 
     private string MyLanguage => _host.Settings.MyLanguage;
@@ -80,8 +82,19 @@ public partial class ComposeWindow : Window
     private void PlaceNearGame()
     {
         var area = SystemParameters.WorkArea;
+        // Never taller than the screen: on a short screen the phrase ribbons scroll and the footer stays visible.
+        MaxHeight = area.Height;
         Left = area.Left + (area.Width - Width) / 2;
         Top = area.Top + area.Height * 0.22;
+        KeepOnScreen();
+    }
+
+    /// <summary>Moves the desk up when its bottom edge would fall below the work area.</summary>
+    private void KeepOnScreen()
+    {
+        var area = SystemParameters.WorkArea;
+        if (ActualHeight <= 0 || Top + ActualHeight <= area.Bottom) return;
+        Top = Math.Max(area.Top, area.Bottom - ActualHeight);
     }
 
     private void FillContext()

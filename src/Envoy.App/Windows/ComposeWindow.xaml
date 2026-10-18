@@ -14,7 +14,9 @@
         </Grid.Effect>
         <Border Background="{DynamicResource Damask.Oak}" BorderBrush="{DynamicResource Or.Dark}" BorderThickness="1" CornerRadius="6" Padding="16">
             <ContentControl Style="{StaticResource CharterFrame}" Padding="46,40,46,30">
-                <StackPanel>
+                <!-- The heading, the fields and the footer always show; on a short screen only the phrase ribbons scroll. -->
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top">
                     <!-- Heading: drop cap R, "eply to {name}", the close button; drag anywhere on it -->
                     <DockPanel Margin="0,0,0,12" MouseLeftButtonDown="OnDrag" Background="Transparent">
                         <Button x:Name="CloseButton" DockPanel.Dock="Right" Style="{StaticResource Button.Ghost}" FontFamily="{StaticResource Font.Icons}" FontSize="12"
@@ -67,8 +69,28 @@
 
                     <!-- Phrase ribbons -->
                     <TextBlock Text="Quick phrases" Style="{StaticResource Text.Rubric}" Margin="0,14,0,6" />
-                    <!-- indented so the last row of ribbons clears the charter's bottom filigree corners -->
-                    <ItemsControl x:Name="Phrases" Margin="22,0,22,0" Focusable="False" KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="1">
+                    </StackPanel>
+
+                    <StackPanel DockPanel.Dock="Bottom">
+                    <Control Style="{StaticResource Fleuron}" Margin="0,8,0,8" />
+                    <!-- Footer: the counter and the hint, Copy, and the wax "Seal and send" -->
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button x:Name="CopyButton" Content="Copy" Click="OnCopy" TabIndex="2" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="Copy the translation (Ctrl+Enter)" />
+                            <Button x:Name="SendButton" Content="Seal and send" TabIndex="3" Style="{StaticResource Button.Primary}" Click="OnSend" ToolTip="Send to game (Enter)"
+                                    AutomationProperties.Name="Seal and send" AutomationProperties.HelpText="Send to game (Enter)" />
+                        </StackPanel>
+                        <!-- REQ-OUXC-41: the length of what will be sent; Danger above the user's limit. -->
+                        <TextBlock x:Name="CharCount" DockPanel.Dock="Right" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,12,0"
+                                   Visibility="Collapsed" AutomationProperties.Name="Message length" AutomationProperties.LiveSetting="Polite" />
+                        <TextBlock x:Name="Hint" Style="{StaticResource Text.Aside}" FontSize="14" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,10,0" />
+                    </DockPanel>
+                    </StackPanel>
+
+                    <ScrollViewer x:Name="PhraseScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" IsTabStop="False"
+                                  KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="1">
+                    <!-- indented so the ribbons clear the charter's side filigree -->
+                    <ItemsControl x:Name="Phrases" Margin="22,0,22,0" Focusable="False" KeyboardNavigation.TabNavigation="Local">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <WrapPanel />
@@ -86,22 +108,9 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    </ScrollViewer>
 
-                    <Control Style="{StaticResource Fleuron}" Margin="0,8,0,8" />
-
-                    <!-- Footer: the counter and the hint, Copy, and the wax "Seal and send" -->
-                    <DockPanel>
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                            <Button x:Name="CopyButton" Content="Copy" Click="OnCopy" TabIndex="2" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="Copy the translation (Ctrl+Enter)" />
-                            <Button x:Name="SendButton" Content="Seal and send" TabIndex="3" Style="{StaticResource Button.Primary}" Click="OnSend" ToolTip="Send to game (Enter)"
-                                    AutomationProperties.Name="Seal and send" AutomationProperties.HelpText="Send to game (Enter)" />
-                        </StackPanel>
-                        <!-- REQ-OUXC-41: the length of what will be sent; Danger above the user's limit. -->
-                        <TextBlock x:Name="CharCount" DockPanel.Dock="Right" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,12,0"
-                                   Visibility="Collapsed" AutomationProperties.Name="Message length" AutomationProperties.LiveSetting="Polite" />
-                        <TextBlock x:Name="Hint" Style="{StaticResource Text.Aside}" FontSize="14" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,10,0" />
-                    </DockPanel>
-                </StackPanel>
+                </DockPanel>
             </ContentControl>
         </Border>
     </Grid>

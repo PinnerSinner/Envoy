@@ -5,6 +5,10 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- On a short screen (768 px tall) the reply box no longer cuts off its footer: the quick phrases scroll, and "Seal and
+  send", Copy and the length counter stay on screen.
+
 ## [0.2.0] - 2026-10-18
 
 ### Added
