@@ -49,7 +49,7 @@ MUST counts are the requirements whose level is MUST. Folded and removed rows ar
 | 9 | [07b-accessibility.md](07b-accessibility.md) | Focus ring, accessible names, `check_a11y.py`, contrast fixes, high-contrast palette | Implemented | 8 | 5 | 0 |
 | 10 | [07c-reply-overlay-polish.md](07c-reply-overlay-polish.md) | Reply history, length counter, phrase order, compact overlay, copy | Implemented | 4 | 3 | 0 |
 | 11 | [08b-ci-release.md](08b-ci-release.md) | Workflow restructure and `release` job, coverage gate, CodeQL, SBOM, time budget, OCR end-to-end test, threat model, compatibility matrix, release checklist | Implemented | 10 | 16 | 0 |
-| 12 | [09a-herald-redesign.md](09a-herald-redesign.md) | The Herald's Writ look in every window, ornament kit, liveries, fonts, no em dashes, 07a carry-over fixes | Proposed | 12 | 1 | 0 |
+| 12 | [09a-herald-redesign.md](09a-herald-redesign.md) | The Herald's Writ look in every window, ornament kit, liveries, fonts, no em dashes, 07a carry-over fixes | Implemented | 12 | 1 | 0 |
 | 13 | [09b-herald-motion.md](09b-herald-motion.md) | Motion policy, reactive controls, overlay and desk animation, candles, the Tale window | Proposed | 10 | 1 | 1 |
 | | **Total** | | | **152** | **111** | **8** |
 

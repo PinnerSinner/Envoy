@@ -8,6 +8,17 @@ versioning: [SemVer](https://semver.org/).
 ## [0.2.0] - 2026-10-18
 
 ### Added
+- **The Herald's Writ**: a new look in every window, after an illuminated manuscript on a war table. The settings
+  window is an oak wall with a banner rail (each tab shows a playful name and its plain one: Interpreters,
+  Translation) and the page on a vellum charter with a knotwork border, a drop cap and an ink drawing. Overlay messages
+  are dispatch scrolls sealed with the sender's language (中, 한, 日, Р); the reply box is a scribe's desk with a wax
+  "Seal and send"; the setup guide is a chain of seals; provider health shows lit, guttering or snuffed candles.
+- **Liveries**: the new default, Herald (gules and or), and the five game themes recast in the same oak and vellum:
+  Imperial (Age of Empires IV, gules and or), Parchment (Age of Empires II, azure and or), Frontier (Age of Empires
+  III, vert and argent), Olympian (Age of Mythology, purpure and or) and Classic (Age of Empires, sable and or). Saved
+  theme choices keep working; "Follow the game" still switches with the running game.
+- New fonts, embedded under the SIL Open Font License: UnifrakturMaguntia, IM FELL English and EB Garamond. Chinese,
+  Japanese and Korean text still uses the Windows fonts.
 - **Scan & translate** (`Ctrl+Shift+Q`): drag over any text on screen (lobby names, map descriptions, menus) and get
   an instant translation popup.
 - **Herald**: optionally reads translated messages aloud with a Windows voice, with voice, volume and speed settings.
@@ -117,6 +128,11 @@ versioning: [SemVer](https://semver.org/).
   materials) and a GitHub build-provenance attestation (`gh attestation verify Envoy.exe -R PinnerSinner/Envoy`).
   [SECURITY.md](SECURITY.md#verifying-a-download) explains how to check a download.
 ### Changed
+- Writing: no em or en dashes and no filler words in the app, the docs or this changelog; a check (typecheck R15)
+  keeps it that way.
+- The setup guide: its step list no longer skips past "What leaves your PC" before you confirm it; closing or skipping
+  the guide that opened by itself at start-up now opens the War Room, so Envoy never seems to vanish; tray tips wait
+  while that guide is opening.
 - **Translation is off until you confirm "What leaves your PC"** (setup guide, or **Turn on translation** on the War
   Room). Until then no chat or reply text is sent anywhere and the overlay shows the original lines. This applies to
   existing settings files too.

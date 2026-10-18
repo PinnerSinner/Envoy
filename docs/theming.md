@@ -1,61 +1,103 @@
 # Theming
 
-Every pixel of Envoy's UI (settings, overlay, reply box and region picker) is drawn from one palette dictionary
-plus a shared control library. Switching theme swaps the palette at runtime. Every control uses `DynamicResource`,
-so the change is instant.
+Every pixel of Envoy's UI (settings, overlay, reply box, setup guide and region picker) is drawn from one palette
+dictionary, an ornament kit and a shared control library. Switching livery swaps the palette at runtime. Every control
+uses `DynamicResource`, so the change is instant.
 
-## The themes
+## The Herald's Writ
 
-| Id | Name | Inspired by | Feel |
+Envoy's look is "The Herald's Writ": an illuminated manuscript on a war table. Oak and damask walls, vellum charters
+with knotwork borders, gold leaf, wax seals, swallowtail banners and ink drawings. The reference designs are in
+`docs/design/herald/` (open the `.dc.html` files in a browser); measurements, colours and paths come from them.
+
+| Window | Reference | What it looks like |
+| --- | --- | --- |
+| Settings (`MainWindow` and every page) | `WarRoom.dc.html` | The war table: the banner rail on oak, the page on a charter with a drop cap, a lede, a fleuron and the page's ink drawing |
+| Overlay | `Main.dc.html` | Dispatch scrolls: rods, vellum, a wax seal with the sender's language |
+| Reply box | `Main.dc.html` | The scribe's desk: "Reply to {name}", "Your words", "The scribe writes", "Seal and send" |
+| Setup guide | `Setup.dc.html` | The oath: a chain of seals, one per step |
+| Palette, type, ornaments | `Tokens.dc.html` | The tokens below |
+
+Medieval flavour lives in names and headings only. Every tab shows its plain name under the playful one
+(Interpreters, Translation), and every instruction, error and setting label says plainly what it does.
+
+## Liveries
+
+| Id | Name | Game | Tinctures |
 | --- | --- | --- | --- |
-| `imperial` | Imperial | Age of Empires IV | Midnight blue, burnished gold |
-| `parchment` | Parchment | Age of Empires II | Illuminated vellum, oak, rubric red |
-| `frontier` | Frontier | Age of Empires III | Deep teal charts, brass |
-| `olympian` | Olympian | Age of Mythology | Aegean blue, bronze, marble |
-| `classic` | Classic | Age of Empires | Sandstone and bronze-age earth |
+| `herald` | Herald | none (Envoy's own arms, the default) | gules and or |
+| `imperial` | Imperial | Age of Empires IV | gules and or |
+| `parchment` | Parchment | Age of Empires II | azure and or |
+| `frontier` | Frontier | Age of Empires III | vert and argent |
+| `olympian` | Olympian | Age of Mythology | purpure and or |
+| `classic` | Classic | Age of Empires | sable and or |
 
-**Match the game** (the default) picks the theme of the running game.
+Every livery shares the oak, vellum and ink; only `Livery.Primary`, `Livery.Secondary`, the livery wax and the rubric
+colour (`Accent`) change. New settings start on `herald`. **Follow the game** picks the running game's livery (and
+`herald` with no game). The ids never change, so saved settings keep working. The list lives in Core
+`ThemeCatalog`.
 
-A sixth palette, `highcontrast`, is not in the picker: Envoy switches to it when a Windows contrast theme is on
+A seventh palette, `highcontrast`, is not in the picker: Envoy switches to it when a Windows contrast theme is on
 (Appearance › Accessibility › High contrast: **Follow Windows**, the default), or always with **Always**. Its colours
 are Windows' own system colours (`SystemColors`), read when the palette loads, so Envoy reloads it whenever the
-contrast theme changes.
+contrast theme changes. Its ornaments are flat: no gradients, no knotwork.
 
-| Imperial | Parchment | Classic |
+Fresh renders of every window in every livery are pushed to the `ci-screenshots` branch on each build of `main`.
+
+All the decoration is original or comes from open-licence fonts. No game assets, logos or fonts are used.
+
+## Type
+
+The fonts are embedded (SIL Open Font License 1.1; each family's licence is next to it in `Assets/Fonts/`):
+
+| Resource | Font | Used for |
 | --- | --- | --- |
-| ![Imperial overlay](images/imperial-overlay.png) | ![Parchment overlay](images/parchment-overlay.png) | ![Classic overlay](images/classic-overlay.png) |
+| `Font.Wordmark` | UnifrakturMaguntia | The wordmark and drop caps only |
+| `Font.Title` | IM FELL English SC | Titles, buttons, tab names, rubrics |
+| `Font.Aside` | IM FELL English italic | Originals and asides |
+| `Font.Body` | EB Garamond (regular, italic, semibold) | All reading text |
 
-Fresh renders of every window in every theme are pushed to the `ci-screenshots` branch on each build of `main`.
-
-All the decoration is original: gilded rules, diamond studs at frame corners, a diamond slider thumb, and Cinzel
-(an open-licence font modelled on Roman inscriptions) for headings. No game assets, logos or fonts are used.
+Each chain ends in `Microsoft YaHei UI, Malgun Gothic, Yu Gothic UI, Segoe UI`, so Chinese, Korean and Japanese fall
+back to the Windows UI fonts. EB Garamond covers Latin, Greek and Cyrillic. Sizes: titles 30 to 36 px, reading text
+17 to 20 px, rubrics 13 to 16 px, tab names 18 px. The smoke test checks that each family resolves to its own face.
 
 ## Palette keys
 
 Each `Themes/Palette.<id>.xaml` defines the same keys. CI and `tools/typecheck/typecheck.sh` fail if they drift
-apart.
+apart. Every brush also has a matching `*.Color` resource.
 
 | Key | Used for |
 | --- | --- |
-| `Bg.Window`, `Bg.Panel`, `Bg.PanelAlt`, `Bg.Input` | Window, cards, raised surfaces, text inputs |
-| `Accent`, `Accent.Bright`, `Accent.Dim` | Gold/brass trim, highlights, subtle rules |
-| `Accent.Gradient`, `Header.Gradient`, `Rule.Gradient` | Primary buttons, title bar, flourish dividers |
-| `Text.Primary`, `Text.Secondary`, `Text.Muted`, `Text.OnAccent` | Text hierarchy; text on accent fills |
-| `Border.Subtle` | Hairlines and input borders |
-| `Danger`, `Success` | Errors and confirmations |
-| `Overlay.Bg`, `Overlay.Text`, `Overlay.Sender`, `Overlay.Original` | The in-game overlay (its card alpha comes from settings and the readable-text floor) |
-| `Focus.Ring` | The keyboard focus ring (`FocusVisual.Ring`) and focused borders |
+| `Bg.Window`, `Bg.Panel`, `Bg.PanelAlt`, `Bg.Input` | Vellum shades: cards, raised panels, inputs |
+| `Accent`, `Accent.Bright`, `Accent.Dim` | The livery's rubric colour, its darker shade, and gold edges |
+| `Text.Primary`, `Text.Secondary`, `Text.Muted`, `Text.OnAccent` | Ink on vellum; text on wax and livery fills |
+| `Border.Subtle`, `Danger`, `Success` | Rulings and hairlines; errors and confirmations |
+| `Overlay.Bg`, `Overlay.Text`, `Overlay.Sender`, `Overlay.Original` | The dispatch scroll (its card alpha comes from settings and the readable-text floor) |
+| `Focus.Ring`, `Focus.Ring.Oak` | The focus ring on vellum, and on oak (the rail, the toast, the guide's seal chain) |
+| `Gules`, `Or`, `Vellum`, `Oak`, `Ink` and their `.Light`/`.Dark`/`.Deep`/`.Soft` shades, `Oak.Tab` | The tokens of `Tokens.dc.html` |
+| `Leather.Text`, `Leather.Muted` | Text on oak and leather |
+| `Livery.Primary`, `Livery.Secondary`, `Livery.Dark` | The livery: active tab, crest, drop-cap letter, slider, knotwork band |
+| `Wax.Gules`, `Wax.Azure`, `Wax.Vert`, `Wax.Or`, `Wax.Purpure`, `Wax.Sable`, `Wax.Plain`, `Wax.Livery`, `Wax.Text` | Seal wax (radial brushes) and the glyph on it |
+| `Ornament.Gold`, `Ornament.Pip`, `Ornament.Edge`, `Ornament.Filigree`, `Ornament.Rule` | Ornament strokes and fills |
+| `Knot.Horizontal`, `Knot.Vertical`, `Damask.Oak` | The knotwork band tiles and the damask wall (tiled `DrawingBrush`es) |
+| `Vellum.Gradient`, `Oak.Gradient`, `Gold.Gradient`, `DropCap.Gradient`, `Boss.Gradient`, `Rod.Gradient`, `Plaque.Gradient`, `Crest.Field`, `Candle.Flame`, `Candle.Wax`, `Row.Rule` | Charter, rail, wordmark, drop caps, bosses, scroll rods, plaques, crest, candles, ruled rows |
+| `Header.Gradient`, `Accent.Gradient`, `Rule.Gradient` | Older surfaces kept for compatibility: oak header, the update banner, thin rules |
 | `Overlay.HitTest`, `Overlay.Dim` | The region selector's near-invisible hit-test surface and dimmed screen. Functional, not decorative: `#01000000` and `#99000000` in every palette, including high contrast |
 
-Every brush also has a matching `*.Color` resource.
+The palettes are written together by `tools/themes/make_palettes.py`, so a new key reaches all seven at once; in
+`Palette.highcontrast.xaml` it becomes a `SystemColors` value.
 
 ### Contrast rules
 
 `PaletteContrastTests` (Core unit tests) read every `Palette.*.xaml` except `highcontrast` and fail the build unless:
 
-- `Text.Primary`, `Text.Secondary`, `Text.Muted` and `Danger` reach **4.5:1** against `Bg.Window`, `Bg.Panel`,
-  `Bg.PanelAlt` and `Bg.Input`;
-- `Focus.Ring` reaches **3:1** against the same four backgrounds (use the palette's `Accent.Bright` if it passes);
+- `Text.Primary`, `Text.Secondary`, `Text.Muted`, `Danger` and `Accent` reach **4.5:1** against `Bg.Window`,
+  `Bg.Panel`, `Bg.PanelAlt` and `Bg.Input`;
+- `Focus.Ring` reaches **3:1** against the same four backgrounds, and `Focus.Ring.Oak` against `Oak`, `Oak.Deep` and
+  `Oak.Tab`;
+- `Leather.Text` and `Leather.Muted` reach **4.5:1** on the three oak shades;
+- `Wax.Text` reaches **4.5:1** on every lettered wax, and `Text.OnAccent` on `Accent`, `Accent.Bright`, `Livery.Primary`
+  and `Livery.Dark`;
 - `Overlay.Text` and `Overlay.Sender` reach **4.5:1** against an opaque `Overlay.Bg`.
 
 With **Keep text readable** on, the overlay card alpha is never lower than
@@ -64,25 +106,52 @@ With **Keep text readable** on, the overlay card alpha is never lower than
 No window, page or control XAML may use a literal colour (`#…`); `tools/typecheck/check_a11y.py` enforces this,
 along with a focus visual on every focusable style and an accessible name on every interactive control.
 
-## Adding a theme
+## The ornament kit
 
-1. Copy `src/Envoy.App/Themes/Palette.imperial.xaml` to `Palette.<your-id>.xaml` and change the colours.
-2. Add a `ThemeInfo` to `ThemeManager.Themes` and swatches to `MainViewModel.SwatchesFor`.
-3. Optionally make it a game's default in `GameCatalog` (`ThemeId`).
-4. Run `tools/typecheck/typecheck.sh` (or let CI run the smoke test, which builds every window under every theme).
+`Themes/Ornaments.xaml` (merged by `Controls.xaml`) holds the fonts, the geometry of the reference SVGs and these
+styles:
 
-`PaletteContrastTests` covers a new palette automatically; fix any colour it reports. Check contrast on the overlay
-in particular. It's read at a glance over busy game scenery, so keep `Overlay.Text`
-near white (or near black on a light theme) with a solid enough background.
+| Style | Target | What it draws |
+| --- | --- | --- |
+| `CharterFrame` | `ContentControl` | Vellum with a knotwork band, gold edge lines, corner bosses and filigree corners; `Padding` is the inner margin |
+| `PlateFrame` | `ContentControl` | A lighter vellum plate with a gold double edge (lookup, region picker) |
+| `Fleuron` | `Control` | The divider rule |
+| `DropCap` | `ContentControl` | A gold box with a blackletter letter in the livery colour; `Content` is the letter |
+| `WaxSeal` | `ContentControl` | A round seal; `Background` is the wax (default `Wax.Livery`), `Content` the glyph |
+| `ScrollRods` | `Control` | The rolled end of a dispatch |
+| `Crest` | `Control` | The livery's shield |
+| `Candle` | `ContentControl` | A provider's candle; `Tag` is `Lit`, `Guttering` or `Snuffed` (Core `ProviderCandle`) |
+| `RowLabel` | `ContentControl` | A settings row's label with its drop-cap square |
+
+The nine marginal drawings are `Figure.<PageId>.Ink` and `Figure.<PageId>.Red` geometries, so spec 09b can animate
+their strokes. The overlay seal's glyph and wax come from Core `LanguageSeal.For(code)`: 中 on gules for Chinese, 한 on
+azure for Korean, 日 on or for Japanese, Р on vert for Russian, the first letter of the language's English name on
+purpure for the rest.
 
 ## Shared styles
 
 `Themes/Controls.xaml` holds keyed styles you can use in new windows:
 
-- Text: `Text.H1`, `Text.H2`, `Text.Label`, `Text.Body`, `Text.Caption`, `Text.Icon`
-- Containers: `OrnateFrame` (a `ContentControl` with double rules and corner studs), `Flourish` (a divider)
-- Buttons: the default style, `Button.Primary`, `Button.Ghost`, `Button.Chip`, `Button.Chrome`
-- Navigation: `NavItem`, `ThemeCard`
-- Focus: `FocusVisual.Ring` (set it as `FocusVisualStyle` on any new focusable style; never `{x:Null}`)
-- Implicit styles for `TextBox`, `PasswordBox`, `ComboBox`, `CheckBox` (a toggle switch), `Slider`, `ScrollBar`
-  and `ToolTip`
+- Text: `Text.H1`, `Text.H2` (a rubric; also `Text.Rubric`), `Text.Label`, `Text.Body`, `Text.Caption`, `Text.Aside`,
+  `Text.Icon`
+- Containers: `OrnateFrame` (a section of a page), `Flourish` (the fleuron), `Plaque` (a `Border` for values),
+  `SettingRow` (a `Grid` row on ruled vellum), `Callout` (a dispatch card for a Core `PageHint`)
+- Buttons: the default style (a gold-edged plaque), `Button.Primary` (a wax-seal pill), `Button.Ghost`,
+  `Button.Chip` (a phrase ribbon), `Button.Chrome` (caption buttons on oak)
+- Switches: the implicit `CheckBox` and `Switch.Seal` for a `ToggleButton`: plain wax off, the livery's stamped seal on
+- Navigation: `NavItem` (a swallowtail banner tab: `Content` is the playful name, `Tag` the plain one), `ThemeCard`
+- Focus: `FocusVisual.Ring` and, on oak, `FocusVisual.Ring.Oak` (set one as `FocusVisualStyle` on any new focusable
+  style; never `{x:Null}`)
+- Implicit styles for `TextBox`, `PasswordBox`, `ComboBox`, `Slider` (a gules track with a wax thumb), `ScrollBar`
+  (thin gold), `ToolTip` and `ContextMenu`
+
+## Adding a livery
+
+1. Add its colours to the `LIVERIES` table in `tools/themes/make_palettes.py` and run it; it rewrites all seven
+   palettes.
+2. Add a `Livery` to Core `ThemeCatalog.Liveries` (name, a description without dashes, the two tinctures).
+3. Optionally make it a game's livery in `GameCatalog` (`ThemeId`).
+4. Run the Core tests and `tools/typecheck/typecheck.sh`, or let CI run the smoke test, which builds every window
+   under every palette.
+
+`PaletteContrastTests` and `ThemeManagerTests` cover a new livery automatically; fix any colour they report.

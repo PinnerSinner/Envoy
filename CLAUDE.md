@@ -6,8 +6,9 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - `dotnet test tests/Envoy.Core.Tests` — unit tests (any OS). Must stay green.
 - `tools/typecheck/typecheck.sh` — type-checks `src/Envoy.App` on Linux (no WindowsDesktop SDK there): XAML base
   classes and event-handler names, resource keys, the accessibility rules in `check_a11y.py` and the UI rules in
-  `check_ui_rules.py` (after running its own Python tests). Run it after every app change; it mirrors the real project's compiler settings
-  (keep `tools/typecheck/TypeCheck.csproj` in sync with `src/Envoy.App/Envoy.App.csproj`).
+  `check_ui_rules.py`, including the writing rule R15 (after running its own Python tests). Run it after every app
+  change; it mirrors the real project's compiler settings (keep `tools/typecheck/TypeCheck.csproj` in sync with
+  `src/Envoy.App/Envoy.App.csproj`).
 - `python3 tools/ci/check_policy.py` (+ `python3 -m unittest discover -s tools/ci -p "test_*.py"`) — the policy
   check CI runs first: P/Invoke allowlist and denied names, network code and URL hosts, manifest, process launches,
   `#pragma`s, suppressions, build settings, the workflows (read-only permissions, SHA pins, timeouts) and the release
@@ -34,7 +35,8 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
   `Security/ShellLauncher.cs` (the only process launcher), `Services/` (`Capture/` backends, `ChatWatcher`,
   `GameWindowTracker`, OCR, hotkeys, SendInput, `DialogService`, `TrayNotifier`), `Windows/` (incl. the setup guide),
   `Pages/` (one `UserControl` per settings page, ids in `PageIds`), `ViewModels/` (`MainViewModel` partials,
-  `SetupWizardViewModel`, `CapturePreviewViewModel`), `Themes/` (palettes + `Controls.xaml`).
+  `SetupWizardViewModel`, `CapturePreviewViewModel`), `Themes/` (palettes, `Ornaments.xaml` and `Controls.xaml`;
+  the look is spec 09a's Herald's Writ, references in `docs/design/herald/`).
 - `tools/ci/` — `check_policy.py` + `policy.json` (allowlists), and the CI gates `coverage_summary.py`,
   `check_vulnerable.py`, `check_sbom.py`, `job_budget.py` (each with a `test_*.py`); `tools/typecheck/` — the Linux
   type-check.
@@ -45,7 +47,17 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 
 ## Rules
 - Never read/write game memory, inject or hook. Screen pixels in, keystrokes out — that's the anti-cheat promise.
-- UI colours only via `DynamicResource` palette keys; every `Palette.*.xaml` defines the same keys.
+- UI colours only via `DynamicResource` palette keys; every `Palette.*.xaml` defines the same keys. The palettes are
+  written by `tools/themes/make_palettes.py`: change the generator and rerun it, never one palette by hand.
+- The look (spec 09a): new windows and pages use the ornament kit in `Themes/Ornaments.xaml` (`CharterFrame`,
+  `PlateFrame`, `Fleuron`, `DropCap`, `WaxSeal`, `ScrollRods`, `Crest`, `Candle`, `RowLabel`) and the restyled controls,
+  with fonts only from `Font.Wordmark` (wordmark and drop caps only), `Font.Title`, `Font.Body` and `Font.Aside`.
+  Liveries are Core `ThemeCatalog` (default `herald`; ids never change); page names, drop caps and ledes are Core
+  `PageHeadings`; the overlay seal is Core `LanguageSeal.For`; candles are Core `ProviderCandle`. Medieval flavour
+  stays in names and headings; every instruction, error and setting label says plainly what it does.
+- Writing (typecheck R15): no em dash and no en dash, and none of seamless, leverage, robust, elevate, delve, unleash,
+  empower, cutting-edge, game-changer or effortless, in XAML, Core `*Text` classes and `Ux/`, `docs/*.md`,
+  `CHANGELOG.md` or `README.md`. Rewrite the sentence; a hyphen in place of a dash is not a fix. Ranges read "5 to 30".
 - New windows must be added to `SmokeTest.cs` in the per-palette phase so CI exercises them under every palette; new
   settings pages are added to `PageIds.All` (and get a `MainWindow` host and `PageFor` case).
 - Settings changes: add the property to `AppSettings`, bind it on the relevant page in `src/Envoy.App/Pages/` (edits
@@ -109,7 +121,8 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - Privacy gate (spec 07a, contract §8.1): every translator stack AppHost builds is wrapped in `PrivacyGatedTranslator`
   (outermost); nothing translates around it. Translation is off until `Onboarding.PrivacyAcknowledgedVersion >=
   PrivacyText.Version`; bump `PrivacyText.Version` when the data flows change. A new smoke or test host calls
-  `SetPrivacyAcknowledged(true)` right after construction (the main smoke host checks the closed gate first).
+  `SetPrivacyAcknowledged(true)` right after construction (the main smoke host checks the closed gate first; the soak
+  host replaces the translator with an echo and does not).
 - Advisories (OCR pack missing, provider failing, update available) go only through `AppHost.Notices` (`NoticeCenter`
   on the one `NotificationThrottle`, UI thread, null in safe mode), with text from `NoticeText` or
   `UpdateView.Headline`; `TrayNotifier` only displays what it decided. Never show a balloon directly.

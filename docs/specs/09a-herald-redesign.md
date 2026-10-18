@@ -1,7 +1,7 @@
 # The Herald's Writ: visual redesign of every window
 
-Status: Proposed. Lands as step 12, after 08b. Revised against `00-integration.md` (binding); where this spec adds a
-shared concept it names the owner here.
+Status: Implemented (step 12, after 08b). Revised against `00-integration.md` (binding); where this spec adds a
+shared concept it names the owner here. Differences from the text below are under Deviations.
 
 Area id: `09a-herald-redesign` · Requirement prefix: `HRD`.
 
@@ -116,4 +116,51 @@ The CSS animations in those files belong to 09b. 09a delivers the static look; 0
 
 ## Deviations
 
-(None yet.)
+Owners of the concepts this spec adds: Core `ThemeCatalog` (liveries), `PageHeadings` (tab names, drop caps, ledes,
+figure captions), `LanguageSeal` (overlay seals), `ProviderCandle` (candles) and `ReplyHeading` (the desk heading);
+`Themes/Ornaments.xaml` (the kit); `tools/themes/make_palettes.py` (the palettes).
+
+1. **Ornaments.xaml is merged by Controls.xaml** (REQ-HRD-4), which App.xaml merges after the palette. WPF resolves a
+   `StaticResource` only through the dictionary that loads it and its own merged dictionaries, so Controls.xaml's
+   styles (the fleuron rule, the wax seal in the callout) need the kit merged there. The effect for windows is the same.
+2. **Herald is in the livery picker** as the first card, and "Follow the game" uses it when no game runs
+   (`ThemeResolver.Default`). New settings files start on `herald` (REQ-HRD-2), so a new user no longer follows the
+   game until they pick "Follow the game"; saved settings keep their choice.
+3. **Classic keeps the vellum.** The reference's "Night watch" livery is a dark charter; REQ-HRD-2 says every livery
+   shares oak, vellum and ink, so Classic is sable and or on vellum.
+4. **Palettes are generated** by a new `tools/themes/make_palettes.py`, so the seven files keep identical keys. Every
+   brush in a palette is frozen (`po:Freeze`); the geometry in Ornaments.xaml is frozen by its type converter.
+5. **The charter heading lives in MainWindow** (REQ-HRD-6): the drop cap, title, plain name and lede follow the checked
+   tab, so the pages lost their own `Text.H1` titles. Each page keeps its intro paragraph. The banner tabs are 50 px tall
+   (the reference: 56) so the nine tabs, the wordmark and the crest fit an 820 px window; the touch target stays above
+   44 px.
+6. **Ruled rows** (REQ-HRD-7) are a 1 px rule above each `SettingRow` (`Row.Rule`) rather than a ruled background, so
+   every rule sits on a row edge. The drop-cap square (`RowLabel`) is on every row whose label is a literal; rows whose
+   label is a binding or a two-line block (War Room "Get ready", the first two Translation rows) keep a plain label.
+7. **Callouts and banners use seals** (E for information, ! for a warning or error) instead of Segoe icon glyphs.
+   Provider health's heading reads "The candles: is each translator answering?"; its button stays "Retry now"
+   (REQ-HRD-11).
+8. **Language seals** (REQ-HRD-8): Japanese is 日 on or (the reference's amber wax); a language Envoy does not know shows
+   "?" on sable. The overlay text lost its drop shadow: the vellum card, whose alpha 07b keeps readable, carries it.
+9. **Fonts** (REQ-HRD-3): EB Garamond ships as three static instances of the Google Fonts variable font (WPF reads no
+   variation axes), made with fonttools, with typographic and WWS family names so the three faces form one family. The
+   four OFL texts are `requiredDocs` in `tools/ci/policy.json` and listed in `THIRD-PARTY-NOTICES.md`. The smoke test
+   checks the fonts once (`herald-fonts`), not per palette, because they do not depend on the palette.
+10. **Writing** (REQ-HRD-10): the compatibility matrix marked an unverified cell with an em dash; it now reads
+    `untested` (the policy check follows). `PhrasebookText.Missing` reads "not yet translated". Code-built strings
+    outside R15's globs (the tray tooltip, the lookup window, language display names, the slang gloss, the transcript
+    header) were rewritten too; R15 itself scans only the globs this spec names.
+11. **Carry-over** (REQ-HRD-12): finding 3 (notices held before `Host.Start()` when the guide will open by itself) is
+    App start-up code the smoke test cannot drive; it is covered by M-OUX-1 and code review. Findings 1, 2 and 5 have
+    unit tests (`OnboardingFlowTests`, `OnboardingGateTests`) and `guide-entry` smoke checks. CLAUDE.md's privacy rule
+    now names the soak host's exception (finding 4).
+12. **Verification** (REQ-HRD-13): the smoke sections are `herald-fonts`, `war-table({palette})`,
+    `herald-controls({palette})`, `desk({palette})` and `oath({palette})`, beside the existing `pages({palette})`;
+    the setup-guide screenshots are now taken for `herald` instead of `imperial`. `docs/images/` is not refreshed in
+    this change: the new screenshots exist only after the Windows CI run on `main`, so they are copied from
+    `ci-screenshots` in a follow-up. A new manual step, M-HRD-1, compares every window with the references.
+13. **README**: this change edits README.md only where R15 forces it. The maintainer has since asked for a redesigned
+    README (download, setup and use, real game footage); that supersedes this spec's "do not edit" note and is left to
+    its own change.
+14. **Accessibility**: ornaments are non-focusable elements, which the 07b audit skips; banner tabs carry the plain page
+    name as their accessible name.

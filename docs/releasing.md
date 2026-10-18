@@ -236,6 +236,12 @@ The steps are described in full in [chat formats](chat-formats.md#manual-release
   behaviour.
 - **M-UIF-3 Over the game** (any title, borderless). With Envoy reading chat, open settings over the game, switch
   pages including Reading Chat, then close the window. Capture keeps running and the overlay is unaffected.
+- **M-HRD-1 The Herald's Writ** (REQ-HRD-3, 6 to 9). On a PC that has none of the fonts installed, at 100 % and 150 %
+  display scale, compare the settings window, the overlay (full and compact), the reply box, the setup guide and a
+  problem toast with `docs/design/herald/*.dc.html`, in the herald livery and one game livery: the knotwork band,
+  bosses and filigree sit on the charter's edges; each banner tab shows its playful and plain name; the drop cap and
+  title follow the selected tab; the ink drawing shows from 1100 px wide and hides below; Chinese, Korean and Russian
+  names and originals render without boxes; no text spills out of a plaque, ribbon or seal.
 
 ### 10. Delete all Envoy data (last)
 

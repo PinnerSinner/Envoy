@@ -43,7 +43,7 @@
     "docs/security/threat-model.md": { "headings": ["Assets", "Trust boundaries", "Egress", "Threats", "Out of scope", "Review log"],
                                        "threats": 16 },
     "docs/releasing.md": { "headings": ["Before tagging", "Pre-release manual pass", "Tag", "After the release"],
-                           "stepPrefixes": ["M-UIF", "M-REL", "M-TRR", "M-CAP", "M-CHAT", "M-DIST", "M-OUX", "M-QSC"] },
+                           "stepPrefixes": ["M-UIF", "M-REL", "M-TRR", "M-CAP", "M-CHAT", "M-DIST", "M-OUX", "M-QSC", "M-HRD"] },
     "docs/compatibility.md": { "titles": ["Age of Empires: Definitive Edition", "Age of Empires II: Definitive Edition",
                                           "Age of Empires III: Definitive Edition", "Age of Empires IV", "Age of Mythology: Retold"],
                                "modes": ["Windowed", "Borderless", "Exclusive fullscreen"] },
