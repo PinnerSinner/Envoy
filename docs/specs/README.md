@@ -49,6 +49,8 @@ MUST counts are the requirements whose level is MUST. Folded and removed rows ar
 | 9 | [07b-accessibility.md](07b-accessibility.md) | Focus ring, accessible names, `check_a11y.py`, contrast fixes, high-contrast palette | Implemented | 8 | 5 | 0 |
 | 10 | [07c-reply-overlay-polish.md](07c-reply-overlay-polish.md) | Reply history, length counter, phrase order, compact overlay, copy | Implemented | 4 | 3 | 0 |
 | 11 | [08b-ci-release.md](08b-ci-release.md) | Workflow restructure and `release` job, coverage gate, CodeQL, SBOM, time budget, OCR end-to-end test, threat model, compatibility matrix, release checklist | Implemented | 10 | 16 | 0 |
+| 12 | [09a-herald-redesign.md](09a-herald-redesign.md) | The Herald's Writ look in every window, ornament kit, liveries, fonts, no em dashes, 07a carry-over fixes | Proposed | 12 | 1 | 0 |
+| 13 | [09b-herald-motion.md](09b-herald-motion.md) | Motion policy, reactive controls, overlay and desk animation, candles, the Tale window | Proposed | 10 | 1 | 1 |
 | | **Total** | | | **152** | **111** | **8** |
 
 Superseded pointers are deleted when their split step starts: `08-quality-security-ci.md` went with 08a's first
@@ -75,6 +77,8 @@ The steps run strictly one after another. Each lands on `main` with CI green bef
 10  07c-reply-overlay-polish
 11  08b-ci-release               workflow restructure, coverage gate, CodeQL, SBOM, release checklist,
                                  compatibility matrix, OCR end-to-end test
+12  09a-herald-redesign          the Herald's Writ look, ornament kit, liveries, fonts, R15 writing check
+13  09b-herald-motion            motion policy, reactive controls, overlay and desk animation, the Tale
 ```
 
 Why this order:
@@ -85,7 +89,8 @@ Why this order:
 - 02 defines the host options, the logging and the start-up sequence that every later area plugs into.
 - 05 comes before 04 because 04's changes sit on the rewritten watcher's tick and `CaptureFrame`.
 - 07b's lint runs after 02–07a have added their controls.
-- 08b comes last because it restructures the workflow that 06 extends.
+- 08b comes before the redesign because it restructures the workflow that 06 extends.
+- 09a and 09b come last: they restyle every window, so they land after every window exists.
 
 ## Where to look
 
