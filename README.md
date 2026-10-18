@@ -1,141 +1,199 @@
 <p align="center">
-  <img src="src/Envoy.App/Assets/envoy.png" width="96" alt="Envoy shield" />
-</p>
-
-<h1 align="center">Envoy</h1>
-
-<p align="center">
-  <b>Live chat translation for Age of Empires I–IV and Age of Mythology.</b><br />
-  Read what your opponents say. Answer in their language. Never touch the game.
+  <img src="docs/media/readme/hero.svg" width="100%" alt="Envoy: live chat translation for Age of Empires and Age of Mythology" />
 </p>
 
 <p align="center">
-  <a href="../../releases/latest/download/Envoy-win-Setup.exe"><b>Download Envoy</b></a> ·
-  <a href="docs/installing.md">Installing &amp; updates</a> ·
-  <a href="docs/getting-started.md">Getting started</a> ·
-  <a href="docs/translation-providers.md">Providers &amp; cost</a> ·
-  <a href="docs/troubleshooting.md">Troubleshooting</a> ·
-  <a href="docs/faq.md">FAQ</a> ·
-  <a href="docs/privacy.md">Privacy</a>
+  <a href="https://github.com/PinnerSinner/Envoy/releases/latest"><img src="docs/media/readme/btn-download.svg" height="64" alt="Download Envoy for Windows" /></a>
+  <a href="#set-up"><img src="docs/media/readme/btn-setup.svg" height="64" alt="Set up in two minutes" /></a>
+  <a href="#use-it-in-a-match"><img src="docs/media/readme/btn-use.svg" height="64" alt="How to use it" /></a>
 </p>
-
----
-
-Matchmaking puts you against players from everywhere: Chinese names in AoE IV ranked, Korean pros in AoE II,
-Russian teams in AoM. Envoy reads the in-game chat from your screen, translates it into your language, and shows it
-in an overlay styled after the games' own UI. Press a hotkey and type a reply in your language, and Envoy types the
-translation into the game for you.
-
-```
- What the game shows                          What Envoy adds
- ─────────────────────────────                ───────────────────────────────────────────
- [All] 龙骑士: 你好，再来一局吗？              中  龙骑士: Hello, another round?
- [All] 전략가: ㅈㅈ                           한  전략가: GG — I give up            (slang, offline)
-                                              Ctrl+Shift+T → "gg wp, sure!"
-                                                           → 好局，打得漂亮！当然！ → sent to chat
-```
 
 <p align="center">
-  <img src="docs/images/imperial-overlay.png" width="520" alt="Overlay showing translated Chinese, Korean and Russian chat" />
+  <a href="https://github.com/PinnerSinner/Envoy/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/PinnerSinner/Envoy/build.yml?branch=main&style=flat-square&label=build&color=8E2418&labelColor=2B1A0E" alt="Build status" /></a>
+  <a href="https://github.com/PinnerSinner/Envoy/releases/latest"><img src="https://img.shields.io/github/v/release/PinnerSinner/Envoy?style=flat-square&label=release&color=B98B2E&labelColor=2B1A0E&include_prereleases" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-2B4C8C?style=flat-square&labelColor=2B1A0E" alt="Windows 10 and 11" />
+  <img src="https://img.shields.io/badge/price-free-2F5E35?style=flat-square&labelColor=2B1A0E" alt="Free" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-5B2D73?style=flat-square&labelColor=2B1A0E" alt="MIT licence" /></a>
 </p>
 
-<table>
-  <tr>
-    <td><img src="docs/images/imperial-settings-dashboard.png" alt="War Room dashboard (Imperial theme)" /></td>
-    <td><img src="docs/images/imperial-reply.png" alt="Reply box with live translation and quick phrases" /></td>
-  </tr>
-  <tr>
-    <td><img src="docs/images/parchment-settings-translation.png" alt="Translation settings (Parchment theme)" /></td>
-    <td><img src="docs/images/frontier-settings-appearance.png" alt="Theme picker (Frontier theme)" /></td>
-  </tr>
-</table>
+Ranked matchmaking puts you against players from everywhere. Envoy reads the chat on your screen, translates it
+into your language and shows it over the game. Press a hotkey, type your reply in your own language, and Envoy types
+it into the game chat in theirs.
 
-<sub>Screenshots are rendered by CI from the real app on every build.</sub>
+<p align="center">
+  <img src="docs/media/readme/how.svg" width="100%" alt="How it works. 1: a player writes in Chinese. 2: Envoy shows the translation over the game. 3: you press Ctrl Shift T, type in English, and Envoy types the Korean reply into chat." />
+</p>
 
-## Highlights
+<p align="center">
+  <img src="docs/media/readme/features.svg" width="100%" alt="Free to use. Screen only. Every Age game. Gamer slang explained. A phrasebook in 13 languages. Private: no telemetry." />
+</p>
 
-- **Works with every Age game.** It reads pixels, not memory, so any game that shows chat on screen works. AoE IV,
-  II: DE, III: DE, AoM: Retold and AoE: DE are auto-detected, and each remembers its own chat area.
-- **Free out of the box.** Google Translate needs no account, with Microsoft Translator as an automatic fallback.
-  DeepL, Claude, Amazon Translate or LibreTranslate can be added with *your own* key. There's a daily spending cap,
-  and no Envoy server ever touches your credits.
-- **Understands gamers.** Slang like `666`, `ㅋㅋㅋ`, `ㅈㅈ`, `изи` and `kkkk` is explained offline. Each player's
-  language is remembered, so in a 2v2 you answer the Korean player in Korean and the Chinese player in Chinese.
-- **Replies that land.** You get a live preview and a back-translation ("Means: …") before sending. There are 16
-  hand-translated quick phrases in 13 languages, and replies are typed straight into game chat.
-- **Scan & translate anything.** Press `Ctrl+Shift+Q` and drag over lobby names, map descriptions or menus for an
-  instant translation.
-- **Herald mode.** Have translations read aloud by a Windows voice, so your eyes stay on the battle.
-- **Looks the part.** Five themes, one per game (Imperial, Parchment, Frontier, Olympian and Classic), with an
-  option to switch automatically to match the running game.
-- **Installer or one file.** A per-user installer (no admin) that keeps Envoy up to date with one click, or the
-  portable, self-contained `Envoy.exe`. Envoy lives in the tray, with global hotkeys, and can start with Windows.
-- **Private by design.** No telemetry. API keys are encrypted with Windows DPAPI. Optional chat transcripts stay on
-  your PC.
+<p align="center"><img src="docs/media/readme/h-download.svg" width="100%" alt="Download" /></p>
 
-## Quick start
+<a id="download"></a>
 
-1. Download **[Envoy-win-Setup.exe](../../releases/latest/download/Envoy-win-Setup.exe)** and run it; it installs for
-   your Windows account only (no admin) and keeps itself up to date. Prefer no install? Download the portable
-   `Envoy.exe` from the [releases page](../../releases/latest). See [Installing & updates](docs/installing.md).
-2. Set the game to **Borderless window**.
-3. Click **Select chat area** and drag a box around the in-game chat.
-4. Choose your language. Done. Press **`Ctrl+Shift+T`** in game to reply.
+Go to the **[latest release](https://github.com/PinnerSinner/Envoy/releases/latest)** and pick one file:
 
-To read Chinese, Korean, Japanese or Russian chat, install that language's free Windows OCR pack. Envoy has an
-**Install** button for it; see [OCR languages](docs/ocr-languages.md).
+| | **Envoy-win-Setup.exe** (recommended) | **Envoy.exe** (portable) |
+| --- | --- | --- |
+| What it is | A small installer for your Windows account | One file, nothing to install |
+| Admin rights | Not needed | Not needed |
+| Updates | Downloads them in the background and asks before restarting | Tells you when a new version is out |
+| Remove it | Settings › Apps › Envoy › Uninstall | Delete the file |
 
-| Hotkey | Action |
+You need Windows 10 or 11 (64-bit) and an Age game running in **windowed or borderless** mode.
+
+> [!NOTE]
+> The first time you run it, Windows may say *"Windows protected your PC"* because releases are not code-signed
+> yet. Click **More info**, check the name says Envoy, then **Run anyway**. Every release lists SHA-256 checksums
+> so you can verify the file ([how](docs/installing.md#windows-smartscreen)).
+
+<p align="center"><img src="docs/media/readme/h-setup.svg" width="100%" alt="Set up" /></p>
+
+<a id="set-up"></a>
+
+Envoy opens a setup guide the first time it starts. It takes about two minutes.
+
+<p align="center">
+  <img src="docs/media/readme/setup.svg" width="100%" alt="The setup guide in six steps: language and privacy, game in borderless window, chat area, text reading, test, hotkeys" />
+</p>
+
+1. **Language and privacy.** Pick the language you read and write. Envoy shows exactly what leaves your PC (the chat
+   text you want translated, sent to the translator you choose) and translates nothing until you agree.
+2. **Game.** Set the game's display mode to **Borderless window**. Exclusive fullscreen hides the game from every
+   other app, Envoy included.
+
+   | Game | Where |
+   | --- | --- |
+   | Age of Empires IV | Settings › Graphics › Display mode › Borderless Window |
+   | Age of Empires III: DE | Options › Graphics › Display mode › Borderless |
+   | Age of Empires II: DE | Options › Graphics › Borderless Window |
+   | Age of Mythology: Retold | Settings › Graphics › Borderless Window |
+   | Age of Empires: DE | Options › Graphics › Borderless Window |
+
+3. **Chat area.** Open a match or the lobby so chat is visible, then drag a box around it. Envoy remembers the box
+   for each game and follows the window if it moves.
+4. **Text reading.** Envoy uses Windows' own text recognition. If a language pack is missing (Chinese, Korean,
+   Japanese, Russian), click **Install** next to it.
+5. **Test.** Translate one line to check everything works.
+6. **Hotkeys.** Check the keys below are free in your game, or pick others.
+
+Stuck? [Troubleshooting](docs/troubleshooting.md) covers black captures, missing language packs and keys that
+do nothing.
+
+<p align="center"><img src="docs/media/readme/h-use.svg" width="100%" alt="Use it in a match" /></p>
+
+<a id="use-it-in-a-match"></a>
+
+**Reading.** Just play. New messages appear over the game as small scrolls: the translation, who wrote it, and the
+original underneath. Messages already in your language are left alone.
+
+**Replying.** Press <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>T</kbd>, type in your language and watch the
+translation appear, with a back-translation so you know what it says. Press <kbd>Enter</kbd> and Envoy types it into
+the game chat. It replies in the language of the last player who wrote, or the one you pick.
+
+| Keys | What they do |
 | --- | --- |
-| `Ctrl+Shift+T` | Reply box |
-| `Ctrl+Shift+O` | Show / hide overlay |
-| `Ctrl+Shift+P` | Pause / resume reading |
-| `Ctrl+Shift+R` | Select chat area |
-| `Ctrl+Shift+E` | Move / resize overlay |
-| `Ctrl+Shift+Q` | Scan & translate any part of the screen |
+| <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>T</kbd> | Write a reply |
+| <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Q</kbd> | Drag over any text (lobby names, menus) to translate it |
+| <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>O</kbd> | Show or hide the overlay |
+| <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>P</kbd> | Pause or resume reading chat |
+| <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>R</kbd> | Mark the chat area again |
+| <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>E</kbd> | Move and resize the overlay |
 
-## Is it safe for ranked?
+Envoy lives in the tray. Right-click its icon for settings, the setup guide and the hotkey cheat sheet.
 
-Envoy never opens the game's process, reads its memory, injects code or modifies files. It **reads the screen**
-like OBS or Discord and **types** like an on-screen keyboard. It doesn't automate gameplay. More in the
-[FAQ](docs/faq.md#can-i-get-banned-for-using-envoy).
+<p align="center">
+  <img src="docs/media/readme/liveries.svg" width="100%" alt="A livery for every Age game: Age of Empires, II, III, IV and Age of Mythology" />
+</p>
 
-## Documentation
+<p align="center"><img src="docs/media/readme/h-translators.svg" width="100%" alt="Translators and cost" /></p>
 
-| For players | For developers |
-| --- | --- |
-| [Installing & updates](docs/installing.md) | [Architecture](docs/architecture.md) |
-| [Getting started](docs/getting-started.md) | |
-| [Translation providers & cost](docs/translation-providers.md) | [Building from source](docs/building.md) |
-| [OCR languages](docs/ocr-languages.md) | [Theming](docs/theming.md) |
-| [Phrasebook](docs/phrasebook.md) | [Releasing](docs/releasing.md) |
-| [Troubleshooting](docs/troubleshooting.md) | [Contributing](CONTRIBUTING.md) |
-| [FAQ](docs/faq.md) | [Changelog](CHANGELOG.md) |
+Envoy works for free out of the box. Paid translators are optional and always use **your own** key, so nobody
+else can ever spend your credit, and no Envoy server sits in between.
 
-## Roadmap
+| Translator | Cost | You need |
+| --- | --- | --- |
+| Google Translate | Free | Nothing (the default) |
+| Microsoft Translator | Free | Nothing (the automatic fallback) |
+| DeepL | Free up to 500,000 characters a month | An API key |
+| Claude | A fraction of a cent per message; best with slang and tone | An API key |
+| Amazon Translate | $15 per million characters | An AWS key |
+| LibreTranslate | Free if you host it | A server address |
 
-- [ ] Offline translation model (no internet needed at all)
-- [ ] Voice chat transcription and translation
-- [ ] Per-game chat colour presets for the OCR enhancement
-- [ ] Text-to-speech for incoming messages
-- [ ] Signed releases
-- [ ] More phrasebook languages, with community review by native speakers
+A busy match is about 2,000 to 5,000 characters. Paid translators stop at a daily cap you set (50,000 characters
+by default). Details in [Translators and cost](docs/translation-providers.md).
 
-Ideas and translations are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+<p align="center"><img src="docs/media/readme/h-safe.svg" width="100%" alt="Safe for ranked play" /></p>
 
-## Building
+Envoy never opens the game's process, reads its memory, injects code or changes its files. It **looks at the
+screen** the way OBS or Discord do and **presses keys** the way an on-screen keyboard does. It does not automate
+anything in the game. Read more in the [FAQ](docs/faq.md#can-i-get-banned-for-using-envoy).
+
+No telemetry. API keys are encrypted with Windows. Chat transcripts are off unless you turn them on, and stay on your
+PC. Everything Envoy stores is listed in [Privacy](docs/privacy.md), with a button to delete it all.
+
+<p align="center"><img src="docs/media/readme/h-faq.svg" width="100%" alt="Questions" /></p>
+
+<details>
+<summary><b>Nothing shows up over the game</b></summary>
+
+Check the game is in borderless or windowed mode, then press <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>R</kbd> and
+draw the chat box again. The War Room shows what Envoy currently sees. [Troubleshooting](docs/troubleshooting.md)
+has the rest.
+</details>
+
+<details>
+<summary><b>Chinese or Korean text comes out as nonsense</b></summary>
+
+Windows needs the text recognition pack for that language. Open the setup guide from the tray and install it in
+the Text reading step. [OCR languages](docs/ocr-languages.md) explains how.
+</details>
+
+<details>
+<summary><b>Does it work with Age of Empires II, III and Mythology?</b></summary>
+
+Yes. It reads pixels, so any Age game that shows chat on screen works: Age of Empires I to IV and Age of Mythology:
+Retold. Each game remembers its own chat area, and Envoy can switch its colours to match the game.
+</details>
+
+<details>
+<summary><b>What do gg, ㅈㅈ, 666 and изи mean?</b></summary>
+
+Envoy explains common gamer slang offline, without asking a translator: 666 is "well played" in Chinese chat, ㅈㅈ
+is "gg" in Korean, изи is "easy" in Russian. The phrasebook has ready replies in 13 languages.
+</details>
+
+<details>
+<summary><b>Can I use it without the internet?</b></summary>
+
+Reading chat and the slang dictionary work offline. Translating needs a translator, which is online (or your own
+LibreTranslate server on your network).
+</details>
+
+<details>
+<summary><b>How do I uninstall it?</b></summary>
+
+Installer: Settings › Apps › Envoy › Uninstall. Portable: delete `Envoy.exe`. To remove your settings and keys
+too, use **Delete all Envoy data** on the About page first.
+</details>
+
+More in the [FAQ](docs/faq.md).
+
+<p align="center"><img src="docs/media/readme/h-build.svg" width="100%" alt="Build it yourself" /></p>
 
 ```bash
-dotnet test tests/Envoy.Core.Tests                   # any OS
-tools/typecheck/typecheck.sh                         # type-check the Windows app from Linux/macOS
-dotnet publish src/Envoy.App -c Release -o publish   # Windows → publish/Envoy.exe
+dotnet test tests/Envoy.Core.Tests                   # unit tests, any OS
+tools/typecheck/typecheck.sh                         # type-check the Windows app from Linux or macOS
+dotnet publish src/Envoy.App -c Release -o publish   # on Windows: publish/Envoy.exe
 ```
 
-Every push builds and smoke-tests `Envoy.exe` on Windows; pushes to `main` also build the installer. Pushing a `v*`
-tag publishes a release with both. See [docs/building.md](docs/building.md) and [docs/releasing.md](docs/releasing.md).
+Every push builds and smoke-tests the app on Windows. [Building](docs/building.md) ·
+[Architecture](docs/architecture.md) · [Contributing](CONTRIBUTING.md) · [Specs](docs/specs/README.md) ·
+[Changelog](CHANGELOG.md)
 
 ---
 
-<sub>Envoy is an unofficial fan project, not affiliated with or endorsed by Microsoft, Xbox Game Studios, World's Edge,
-Relic Entertainment or Forgotten Empires. <i>Age of Empires</i> and <i>Age of Mythology</i> are trademarks of
-Microsoft. MIT licensed. See <a href="THIRD-PARTY-NOTICES.md">third-party notices</a>.</sub>
+<sub>Envoy is a free fan project. It is not affiliated with or endorsed by Microsoft, Xbox Game Studios, World's
+Edge, Relic Entertainment or Forgotten Empires. <i>Age of Empires</i> and <i>Age of Mythology</i> are trademarks of
+Microsoft. Fonts: UnifrakturMaguntia, IM Fell English and EB Garamond, under the SIL Open Font License.</sub>
