@@ -14,9 +14,9 @@ Thanks for helping! Native speakers improving translations are just as valuable 
 See [docs/building.md](docs/building.md). In short:
 
 ```bash
-dotnet test                      # any OS
-tools/typecheck/typecheck.sh     # type-check the Windows app from Linux/macOS
-python3 tools/ci/check_policy.py # product promises: native calls, network, hosts, launches, manifest
+dotnet test tests/Envoy.Core.Tests   # any OS
+tools/typecheck/typecheck.sh         # type-check the Windows app (and the app tests) from Linux/macOS
+python3 tools/ci/check_policy.py     # product promises: native calls, network, hosts, launches, manifest, CI, docs
 dotnet run --project src/Envoy.App   # Windows only
 ```
 
@@ -40,4 +40,9 @@ what CI sees. See [docs/building.md](docs/building.md#analyzers-and-the-policy-c
 ## Pull requests
 
 - One topic per PR; describe what you checked (unit tests, type-check, tried in which game).
-- CI must be green: the policy check, unit tests, the Linux type-check, the Windows build and the smoke test.
+- CI must be green: the policy check, unit tests and the coverage gate, the Linux type-check, the vulnerable-package
+  gate, the Windows build, smoke test and SBOM, the app tests (OCR end-to-end) and CodeQL. See
+  [docs/building.md](docs/building.md#ci).
+- Security-sensitive changes (interop, keystrokes, launches, network, secrets, workflows) update
+  `tools/ci/policy.json` and the [threat model](docs/security/threat-model.md) in the same PR, and need the
+  maintainer's review (`.github/CODEOWNERS`). Never commit real keys; see [SECURITY.md](SECURITY.md#for-contributors).

@@ -126,7 +126,7 @@ Ideas and translations are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Building
 
 ```bash
-dotnet test                                          # any OS
+dotnet test tests/Envoy.Core.Tests                   # any OS
 tools/typecheck/typecheck.sh                         # type-check the Windows app from Linux/macOS
 dotnet publish src/Envoy.App -c Release -o publish   # Windows → publish/Envoy.exe
 ```
