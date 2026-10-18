@@ -14,12 +14,16 @@ internal static class TestClock
         return clock;
     }
 
-    /// <summary>Advances fake time in <paramref name="step"/>s, yielding real time between steps, until <paramref name="task"/> ends.</summary>
-    public static async Task RunUntil(this FakeTimeProvider clock, Task task, TimeSpan step, int maxSteps = 2000)
+    /// <summary>
+    /// Advances fake time in <paramref name="step"/>s, yielding real time between steps, until <paramref name="task"/> ends.
+    /// Before each step it waits up to <paramref name="settleMs"/> of real time for the task to finish, so a test that
+    /// bounds the fake time a task took is not broken by thread-pool continuations that run late on a busy machine.
+    /// </summary>
+    public static async Task RunUntil(this FakeTimeProvider clock, Task task, TimeSpan step, int maxSteps = 2000, int settleMs = 1)
     {
         for (var i = 0; i < maxSteps && !task.IsCompleted; i++)
         {
-            await Task.Delay(1);
+            await Task.WhenAny(task, Task.Delay(settleMs));
             if (task.IsCompleted) break;
             clock.Advance(step);
         }

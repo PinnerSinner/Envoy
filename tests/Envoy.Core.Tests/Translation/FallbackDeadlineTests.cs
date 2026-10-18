@@ -146,7 +146,8 @@ public class FallbackDeadlineTests
         pipeline.MessageUpdated += updates.Add;
 
         var processing = pipeline.ProcessAsync(["[All] 小明: 你好，再来一局？"]);
-        await clock.RunUntil(processing, TimeSpan.FromMilliseconds(250));
+        // The assertion below bounds the fake time, so give the pipeline's continuations real time between steps.
+        await clock.RunUntil(processing, TimeSpan.FromMilliseconds(250), settleMs: 25);
         var message = Assert.Single(await processing);
 
         Assert.Equal(IncomingStatus.Failed, message.Status);
