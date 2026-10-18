@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import shutil
 import sys
 import tempfile
@@ -36,6 +37,10 @@ class PolicyTreeTest(unittest.TestCase):
             target = self.root / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(REPO / rel, target)
+        # The seed tree has no release documents; DocsTests configure requiredDocs themselves.
+        policy = json.loads((self.root / "tools/ci/policy.json").read_text(encoding="utf-8"))
+        policy.pop("requiredDocs", None)
+        (self.root / "tools/ci/policy.json").write_text(json.dumps(policy), encoding="utf-8")
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -350,6 +355,249 @@ class BuildConfigTests(PolicyTreeTest):
     def test_build_config_rejects_nested_directory_build_props(self) -> None:
         self.write("src/Directory.Build.props", "<Project></Project>\n")
         self.assertRule("build-config", "src/Directory.Build.props")
+
+
+GOOD_WORKFLOW = """name: Build
+on: [push]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/local
+      - name: Step with its own timeout
+        timeout-minutes: 5
+        run: echo hi
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+  reusable:
+    uses: ./.github/workflows/other.yml
+"""
+
+
+class WorkflowTests(PolicyTreeTest):
+    def setUp(self) -> None:
+        super().setUp()
+        self.policy = check_policy.load_policy(self.root)
+        self.policy["workflows"] = {"writeJobs": {"build.yml": ["release"]}}
+
+    def workflow(self, text: str) -> list[tuple[str, str]]:
+        self.write(".github/workflows/build.yml", text)
+        return self.rules(self.policy)
+
+    def test_good_workflow_passes(self) -> None:
+        self.assertEqual([], self.workflow(GOOD_WORKFLOW))
+
+    def test_workflow_top_level_write_fails(self) -> None:
+        rules = self.workflow(GOOD_WORKFLOW.replace("permissions:\n  contents: read\n", "permissions:\n  contents: write\n", 1))
+        self.assertIn((".github/workflows/build.yml", "workflow-permissions"), rules)
+        self.assertIn(("workflow-permissions"), [r for _, r in self.workflow(GOOD_WORKFLOW.replace(
+            "permissions:\n  contents: read\n", "permissions: write-all\n", 1))])
+
+    def test_missing_top_level_permissions_fails(self) -> None:
+        rules = self.workflow(GOOD_WORKFLOW.replace("permissions:\n  contents: read\n\n", "", 1))
+        self.assertIn((".github/workflows/build.yml", "workflow-permissions"), rules)
+
+    def test_job_write_only_where_allowed(self) -> None:
+        text = GOOD_WORKFLOW.replace("    timeout-minutes: 30\n    steps:\n      - uses: actions/checkout",
+                                     "    timeout-minutes: 30\n    permissions: { contents: write }\n    steps:\n      - uses: actions/checkout")
+        violations = [str(v) for v in self._violations(text)]
+        self.assertTrue(any("job `windows` grants write access" in v for v in violations), violations)
+        self.assertFalse(any("job `release`" in v for v in violations), violations)
+
+    def test_read_only_job_permissions_pass(self) -> None:
+        text = GOOD_WORKFLOW.replace("    timeout-minutes: 30\n    steps:\n      - uses: actions/checkout",
+                                     "    timeout-minutes: 30\n    permissions:\n      contents: read  # write later?\n"
+                                     "    steps:\n      - uses: actions/checkout")
+        self.assertEqual([], self.workflow(text))
+
+    def test_unpinned_action_fails(self) -> None:
+        rules = self.workflow(GOOD_WORKFLOW.replace("actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4",
+                                                    "actions/checkout@v4"))
+        self.assertEqual([(".github/workflows/build.yml", "workflow-pins")], rules)
+
+    def test_short_sha_fails(self) -> None:
+        rules = self.workflow(GOOD_WORKFLOW.replace("@11d5960a326750d5838078e36cf38b85af677262", "@11d5960"))
+        self.assertIn((".github/workflows/build.yml", "workflow-pins"), rules)
+
+    def test_missing_timeout_fails(self) -> None:
+        text = GOOD_WORKFLOW.replace("    runs-on: windows-latest\n    timeout-minutes: 30\n    steps:",
+                                     "    runs-on: windows-latest\n    steps:", 1)
+        violations = self._violations(text)
+        self.assertEqual(["workflow-timeouts"], [v.rule for v in violations])
+        self.assertIn("job `windows`", violations[0].message)
+
+    def test_step_timeout_does_not_count_for_the_job(self) -> None:
+        text = GOOD_WORKFLOW.replace("    runs-on: windows-latest\n    timeout-minutes: 30\n    steps:",
+                                     "    runs-on: windows-latest\n    steps:", 1)
+        self.assertIn("      - name: Step with its own timeout\n        timeout-minutes: 5", text)
+        self.assertEqual(["workflow-timeouts"], [v.rule for v in self._violations(text)])
+
+    def _violations(self, text: str) -> list:
+        self.write(".github/workflows/build.yml", text)
+        return check_policy.check(self.root, self.policy)
+
+
+THREAT_MODEL = """# Threat model
+
+## Assets
+
+## Trust boundaries
+
+## Egress
+
+## Threats
+
+| ID | Threat | Asset | Mitigations | Verified by | Residual |
+| --- | --- | --- | --- | --- | --- |
+| T1 | One | A1 | `src/Envoy.App/app.manifest` | `FooTests.Works`, `FooTests.*` | none |
+| T2 | Two | A1 | x | review | none |
+| T3 | Three | A1 | x | `tools/ci/policy.json` | none |
+
+## Out of scope
+
+## Review log
+"""
+
+RELEASING = """# Releasing
+
+## Before tagging
+
+## 2. Pre-release manual pass
+
+### 1. Install
+
+- **M-DIST-1** Install it.
+- **M-CAP-1** Capture it.
+
+### 2. Last
+
+- **M-REL-3** Delete everything.
+
+## Tag
+
+- **M-QSC-9** outside the pass does not count.
+
+## After the release
+"""
+
+COMPATIBILITY = """# Compatibility
+
+| Title | Display mode | Win10 100 % | Win11 100 % |
+| --- | --- | --- | --- |
+| Age of Empires IV | Windowed | ✓ v1.0.0 | — |
+| Age of Empires IV | Borderless | ✗ v1.0.0 (black capture) | — |
+| Age of Mythology: Retold | Windowed | — | ✓ v1.0.0-rc.1 |
+| Age of Mythology: Retold | Borderless | — | — |
+"""
+
+SECURITY = """# Security
+
+## Supported versions
+
+## Verifying a download
+
+See the [threat model](docs/security/threat-model.md) and [privacy](docs/privacy.md#what-leaves-your-pc).
+
+## For contributors
+"""
+
+
+class DocsTests(PolicyTreeTest):
+    def setUp(self) -> None:
+        super().setUp()
+        self.policy = check_policy.load_policy(self.root)
+        self.policy["requiredDocs"] = {
+            "docs/security/threat-model.md": {"headings": ["Assets", "Trust boundaries", "Egress", "Threats",
+                                                           "Out of scope", "Review log"], "threats": 3},
+            "docs/releasing.md": {"headings": ["Before tagging", "Pre-release manual pass", "Tag", "After the release"],
+                                  "stepPrefixes": ["M-DIST", "M-CAP", "M-REL"]},
+            "docs/compatibility.md": {"titles": ["Age of Empires IV", "Age of Mythology: Retold"],
+                                      "modes": ["Windowed", "Borderless"]},
+            "SECURITY.md": {"headings": ["Supported versions", "Verifying a download", "For contributors"],
+                            "links": ["docs/security/threat-model.md", "docs/privacy.md"]},
+        }
+        self.write("docs/security/threat-model.md", THREAT_MODEL)
+        self.write("docs/releasing.md", RELEASING)
+        self.write("docs/compatibility.md", COMPATIBILITY)
+        self.write("SECURITY.md", SECURITY)
+        self.write("tests/Envoy.Core.Tests/FooTests.cs",
+                   "public class FooTests\n{\n    private sealed class Helper { }\n    [Fact]\n    public void Works() { }\n}\n")
+
+    def doc_violations(self, rule: str) -> list[str]:
+        return [str(v) for v in check_policy.check(self.root, self.policy) if v.rule == rule]
+
+    def test_documents_pass(self) -> None:
+        self.assertEqual([], [str(v) for v in check_policy.check(self.root, self.policy)])
+
+    def test_missing_document_fails(self) -> None:
+        (self.root / "docs/compatibility.md").unlink()
+        self.assertTrue(any("docs/compatibility.md" in v for v in self.doc_violations("required-docs")))
+
+    def test_missing_heading_fails(self) -> None:
+        self.write("docs/releasing.md", RELEASING.replace("## After the release\n", ""))
+        self.assertTrue(any('"After the release"' in v for v in self.doc_violations("required-docs")))
+
+    def test_heading_prefix_is_not_a_match(self) -> None:
+        self.write("docs/releasing.md", RELEASING.replace("## Tag\n", "## Tagging\n"))
+        self.assertTrue(any('"Tag"' in v for v in self.doc_violations("required-docs")))
+
+    def test_threat_model_rows_required(self) -> None:
+        self.write("docs/security/threat-model.md", THREAT_MODEL.replace("| T2 | Two | A1 | x | review | none |\n", ""))
+        self.assertTrue(any("T2" in v for v in self.doc_violations("required-docs")))
+        self.write("docs/security/threat-model.md", THREAT_MODEL.replace("| T3 | Three | A1 | x | `tools/ci/policy.json` | none |",
+                                                                         "| T3 | Three | A1 | x |  | none |"))
+        self.assertTrue(any("T3" in v and "Verified by" in v for v in self.doc_violations("required-docs")))
+        self.write("docs/security/threat-model.md", THREAT_MODEL.replace("| x | review |", "| x | — |"))
+        self.assertTrue(any("T2" in v for v in self.doc_violations("required-docs")))
+
+    def test_releasing_needs_every_prefix_and_unique_ids(self) -> None:
+        self.write("docs/releasing.md", RELEASING.replace("- **M-CAP-1** Capture it.\n", ""))
+        self.assertTrue(any("M-CAP" in v for v in self.doc_violations("required-docs")))
+        self.write("docs/releasing.md", RELEASING.replace("- **M-CAP-1** Capture it.\n",
+                                                          "- **M-CAP-1** Capture it.\n- **M-REL-3** Again.\n"))
+        self.assertTrue(any("M-REL-3 is used twice" in v for v in self.doc_violations("required-docs")))
+
+    def test_steps_outside_the_pass_do_not_count(self) -> None:
+        self.policy["requiredDocs"]["docs/releasing.md"]["stepPrefixes"].append("M-QSC")
+        self.assertTrue(any("no M-QSC-n step" in v for v in self.doc_violations("required-docs")))
+
+    def test_compatibility_rows(self) -> None:
+        self.write("docs/compatibility.md", COMPATIBILITY.replace("| Age of Empires IV | Borderless | ✗ v1.0.0 (black capture) | — |\n", ""))
+        self.assertTrue(any("Age of Empires IV / Borderless" in v for v in self.doc_violations("required-docs")))
+
+    def test_compatibility_cell_format(self) -> None:
+        self.write("docs/compatibility.md", COMPATIBILITY.replace("✗ v1.0.0 (black capture)", "✗ v1.0.0"))
+        self.assertTrue(any("Borderless" in v for v in self.doc_violations("required-docs")))
+        self.write("docs/compatibility.md", COMPATIBILITY.replace("✓ v1.0.0 |", "yes |"))
+        self.assertTrue(any("Windowed" in v for v in self.doc_violations("required-docs")))
+
+    def test_security_md_links(self) -> None:
+        self.write("SECURITY.md", SECURITY.replace("[privacy](docs/privacy.md#what-leaves-your-pc)", "privacy"))
+        self.assertTrue(any("docs/privacy.md" in v for v in self.doc_violations("required-docs")))
+
+    def test_threat_model_dangling_reference_fails(self) -> None:
+        self.write("docs/security/threat-model.md",
+                   THREAT_MODEL.replace("| x | review |", "| `src/Nope.cs` | `FooTests.Missing` |"))
+        violations = self.doc_violations("threat-model-refs")
+        self.assertEqual(2, len(violations), violations)
+        self.assertTrue(any("src/Nope.cs" in v for v in violations))
+        self.assertTrue(any("FooTests.Missing" in v for v in violations))
+
+    def test_threat_model_unknown_test_class_fails(self) -> None:
+        self.write("docs/security/threat-model.md", THREAT_MODEL.replace("`FooTests.*`", "`BarTests.*`"))
+        self.assertTrue(any("BarTests" in v for v in self.doc_violations("threat-model-refs")))
+
 
 if __name__ == "__main__":
     unittest.main()

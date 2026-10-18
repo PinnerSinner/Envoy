@@ -37,5 +37,17 @@
                      "P:System.Diagnostics.Process.MainModule", "T:System.Net.WebClient",
                      "P:System.Net.Http.HttpClientHandler.ServerCertificateCustomValidationCallback",
                      "T:System.Runtime.InteropServices.NativeLibrary"],
-  "manifest": "src/Envoy.App/app.manifest"
+  "manifest": "src/Envoy.App/app.manifest",
+  "workflows": { "writeJobs": { "build.yml": ["screenshots", "release"], "codeql.yml": ["analyze"] } },
+  "requiredDocs": {
+    "docs/security/threat-model.md": { "headings": ["Assets", "Trust boundaries", "Egress", "Threats", "Out of scope", "Review log"],
+                                       "threats": 16 },
+    "docs/releasing.md": { "headings": ["Before tagging", "Pre-release manual pass", "Tag", "After the release"],
+                           "stepPrefixes": ["M-UIF", "M-REL", "M-TRR", "M-CAP", "M-CHAT", "M-DIST", "M-OUX", "M-QSC"] },
+    "docs/compatibility.md": { "titles": ["Age of Empires: Definitive Edition", "Age of Empires II: Definitive Edition",
+                                          "Age of Empires III: Definitive Edition", "Age of Empires IV", "Age of Mythology: Retold"],
+                               "modes": ["Windowed", "Borderless", "Exclusive fullscreen"] },
+    "SECURITY.md": { "headings": ["Supported versions", "Verifying a download", "For contributors"],
+                     "links": ["docs/security/threat-model.md", "docs/privacy.md"] }
+  }
 }

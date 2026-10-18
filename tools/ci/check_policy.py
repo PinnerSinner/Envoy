@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Envoy's policy check: makes the product promises mechanical (docs/specs/08a-quality-gates.md §4).
+"""Envoy's policy check: makes the product promises mechanical (docs/specs/08a-quality-gates.md §4), plus the
+workflow and release-document rules of docs/specs/08b-ci-release.md §3.
 
 Usage: python3 tools/ci/check_policy.py [--root <repo>] [--policy <policy.json>]
 
@@ -400,6 +401,256 @@ def check_build_config(root: Path, policy: dict) -> list[Violation]:
 
 
 # ---------------------------------------------------------------------------------------------------------------------
+# Rules over the workflows and the release documents (docs/specs/08b-ci-release.md §3). Line-based, no YAML library.
+
+WORKFLOW_DIR = ".github/workflows"
+USES = re.compile(r"^\s*(?:-\s+)?uses:\s*(?P<value>.+?)\s*$")
+PINNED = re.compile(r"@[0-9a-f]{40}$")
+HEADING = re.compile(r"^(?P<level>#{1,6})\s+(?P<text>.+?)\s*#*\s*$")
+STEP_ID = re.compile(r"^\s*[-*]\s+\*\*(?P<id>M-[A-Z]+-[A-Z0-9]+)\b")
+THREAT_ROW = re.compile(r"^\s*\|\s*T(?P<n>\d+)\s*\|")
+TICKED = re.compile(r"`([^`\n]+)`")
+TEST_REF = re.compile(r"\b(?P<cls>[A-Z]\w*Tests)\.(?P<member>\w+|\*)")
+TEST_CLASS = re.compile(r"\bclass\s+(?P<name>\w+Tests)\b")
+TEST_METHOD = re.compile(r"\b(?:void|Task)\s+(?P<name>\w+)\s*\(")
+REPO_PREFIXES = ("src/", "tests/", "tools/", "docs/", ".github/")
+EMPTY_CELLS = {"", "-", "—", "–", "n/a", "tbd", "todo"}
+COMPAT_CELL = re.compile(r"^(?:—|✓ v\d+\.\d+\.\d+\S*|✗ v\d+\.\d+\.\d+\S* \(.+\))$")
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def _yaml_value(line: str) -> str:
+    """The value after the first ':' without a trailing comment or quotes."""
+    value = line.split(":", 1)[1] if ":" in line else ""
+    value = re.split(r"\s+#", value, maxsplit=1)[0].strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+        value = value[1:-1]
+    return value
+
+
+def _significant(lines: list[str]) -> list[tuple[int, str]]:
+    return [(i, line) for i, line in enumerate(lines) if line.strip() and not line.lstrip().startswith("#")]
+
+
+def _block(lines: list[tuple[int, str]], at: int) -> list[tuple[int, str]]:
+    """The key at lines[at] with its inline value and every more-indented line after it."""
+    head_indent = _indent(lines[at][1])
+    block = [lines[at]]
+    for i, line in lines[at + 1:]:
+        if _indent(line) <= head_indent:
+            break
+        block.append((i, line))
+    return block
+
+
+def _grants_write(block: list[tuple[int, str]]) -> bool:
+    text = " ".join(_yaml_value(line) if n == 0 else line.split("#", 1)[0] for n, (_, line) in enumerate(block))
+    return re.search(r"\bwrite\b|write-all", text) is not None
+
+
+def _jobs(lines: list[tuple[int, str]]) -> dict[str, tuple[int, int, int]]:
+    """job name -> (index into lines of its key, index of the end, the job's indentation)."""
+    start = next((n for n, (_, line) in enumerate(lines) if _indent(line) == 0 and line.strip() == "jobs:"), None)
+    if start is None:
+        return {}
+    end = next((n for n, (_, line) in enumerate(lines) if n > start and _indent(line) == 0), len(lines))
+    names: list[tuple[str, int]] = []
+    job_indent = None
+    for n in range(start + 1, end):
+        line = lines[n][1]
+        if job_indent is None:
+            job_indent = _indent(line)
+        if _indent(line) == job_indent and line.strip().endswith(":"):
+            names.append((line.strip()[:-1], n))
+    return {name: (n, names[k + 1][1] if k + 1 < len(names) else end, job_indent or 2)
+            for k, (name, n) in enumerate(names)}
+
+
+def check_workflows(root: Path, policy: dict) -> list[Violation]:
+    """workflow-permissions (REQ-QSC-23), workflow-pins (REQ-QSC-12, 24) and workflow-timeouts (REQ-QSC-12, 25)."""
+    out: list[Violation] = []
+    folder = root / WORKFLOW_DIR
+    if not folder.is_dir():
+        return out
+    write_jobs = policy.get("workflows", {}).get("writeJobs", {})
+    for path in sorted([*folder.glob("*.yml"), *folder.glob("*.yaml")]):
+        rel = _rel(root, path)
+        lines = _significant(_read(path).splitlines())
+
+        jobs_at = next((n for n, (_, line) in enumerate(lines) if _indent(line) == 0 and line.strip() == "jobs:"), len(lines))
+        top = [n for n, (_, line) in enumerate(lines[:jobs_at]) if _indent(line) == 0 and line.startswith("permissions:")]
+        if not top:
+            out.append(Violation(rel, 1, "workflow-permissions",
+                                 "the workflow needs a top-level `permissions: contents: read` block before `jobs:`"))
+        elif _grants_write(_block(lines, top[0])):
+            out.append(Violation(rel, lines[top[0]][0] + 1, "workflow-permissions",
+                                 "top-level permissions must grant no write access; give it to a job in "
+                                 "policy.json workflows.writeJobs instead"))
+
+        allowed = set(write_jobs.get(path.name, []))
+        for name, (start, end, indent) in _jobs(lines).items():
+            keys = {line.strip().split(":", 1)[0]: n for n, (_, line) in enumerate(lines[start + 1:end], start + 1)
+                    if _indent(line) == indent + 2 and ":" in line}
+            if "permissions" in keys and _grants_write(_block(lines, keys["permissions"])) and name not in allowed:
+                out.append(Violation(rel, lines[keys["permissions"]][0] + 1, "workflow-permissions",
+                                     f"job `{name}` grants write access but is not in policy.json "
+                                     f"workflows.writeJobs[\"{path.name}\"]"))
+            if "runs-on" in keys and "timeout-minutes" not in keys:
+                out.append(Violation(rel, lines[start][0] + 1, "workflow-timeouts",
+                                     f"job `{name}` has no `timeout-minutes`"))
+
+        for i, line in lines:
+            match = USES.match(line)
+            if not match:
+                continue
+            value = _yaml_value("uses:" + match.group("value"))
+            if value.startswith(("./", "docker://")):
+                continue
+            if not PINNED.search(value):
+                out.append(Violation(rel, i + 1, "workflow-pins",
+                                     f"`{value}` must be pinned to a full commit SHA (owner/action@<40 hex> # vN)"))
+    return out
+
+
+def _headings(lines: list[str]) -> list[tuple[int, int, str]]:
+    """(line index, level, normalised text) for each Markdown heading, numbering like '2. ' removed."""
+    found = []
+    for i, line in enumerate(lines):
+        match = HEADING.match(line)
+        if match:
+            text = re.sub(r"^\d+[.)]\s*", "", match.group("text")).strip().lower()
+            found.append((i, len(match.group("level")), text))
+    return found
+
+
+def _heading_matches(text: str, wanted: str) -> bool:
+    wanted = wanted.lower()
+    return text == wanted or (text.startswith(wanted) and not text[len(wanted)].isalnum())
+
+
+def _cells(line: str) -> list[str]:
+    parts = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip())]
+    return parts[1:-1] if len(parts) >= 2 else parts
+
+
+def check_required_docs(root: Path, policy: dict) -> list[Violation]:
+    """required-docs (REQ-QSC-36, 38, 40): the release and security documents keep their structure."""
+    out: list[Violation] = []
+    for rel, spec in policy.get("requiredDocs", {}).items():
+        path = root / rel
+        if not path.is_file():
+            out.append(Violation(rel, 1, "required-docs", "this document is required (policy.json requiredDocs)"))
+            continue
+        text = _read(path)
+        lines = text.splitlines()
+        headings = _headings(lines)
+        for wanted in spec.get("headings", []):
+            if not any(_heading_matches(h, wanted) for _, _, h in headings):
+                out.append(Violation(rel, 1, "required-docs", f"no heading \"{wanted}\""))
+        for link in spec.get("links", []):
+            if not re.search(r"\]\(\s*<?(?:\./)?" + re.escape(link) + r"(?:#[^)\s>]*)?>?\s*\)", text):
+                out.append(Violation(rel, 1, "required-docs", f"no Markdown link to {link}"))
+
+        if "threats" in spec:
+            rows: dict[int, tuple[int, list[str]]] = {}
+            for i, line in enumerate(lines):
+                match = THREAT_ROW.match(line)
+                if match:
+                    rows.setdefault(int(match.group("n")), (i, _cells(line)))
+            for n in range(1, int(spec["threats"]) + 1):
+                if n not in rows:
+                    out.append(Violation(rel, 1, "required-docs", f"no row for threat T{n}"))
+                    continue
+                i, cells = rows[n]
+                if len(cells) < 3 or cells[-2].strip().lower() in EMPTY_CELLS:
+                    out.append(Violation(rel, i + 1, "required-docs",
+                                         f"threat T{n} has an empty \"Verified by\" cell (the last but one)"))
+
+        if "stepPrefixes" in spec:
+            section = next(((i, level) for i, level, h in headings if _heading_matches(h, "pre-release manual pass")), None)
+            if section is not None:
+                start, level = section
+                end = next((i for i, lv, _ in headings if i > start and lv <= level), len(lines))
+                seen: dict[str, int] = {}
+                for i in range(start + 1, end):
+                    match = STEP_ID.match(lines[i])
+                    if not match:
+                        continue
+                    step = match.group("id")
+                    if step in seen:
+                        out.append(Violation(rel, i + 1, "required-docs",
+                                             f"step id {step} is used twice (first on line {seen[step] + 1})"))
+                    else:
+                        seen[step] = i
+                for prefix in spec["stepPrefixes"]:
+                    if not any(s.startswith(prefix + "-") for s in seen):
+                        out.append(Violation(rel, start + 1, "required-docs",
+                                             f"the pre-release manual pass has no {prefix}-n step"))
+
+        if "titles" in spec:
+            table = {}
+            for i, line in enumerate(lines):
+                if line.lstrip().startswith("|"):
+                    cells = _cells(line)
+                    if len(cells) >= 2:
+                        table.setdefault((cells[0], cells[1]), (i, cells[2:]))
+            for title in spec["titles"]:
+                for mode in spec.get("modes", []):
+                    if (title, mode) not in table:
+                        out.append(Violation(rel, 1, "required-docs", f"no compatibility row for {title} / {mode}"))
+                        continue
+                    i, values = table[(title, mode)]
+                    bad = [v for v in values if not COMPAT_CELL.match(v)]
+                    if not values or bad:
+                        out.append(Violation(rel, i + 1, "required-docs",
+                                             f"{title} / {mode}: each cell is '✓ vX.Y.Z', '✗ vX.Y.Z (note)' or '—'"
+                                             + (f", not {bad[0]!r}" if bad else "")))
+    return out
+
+
+def _test_members(root: Path) -> dict[str, set[str]]:
+    """*Tests class name -> its method names, from tests/**/*.cs (partial classes merged; a nested helper class's
+    members count towards the enclosing test class)."""
+    members: dict[str, set[str]] = {}
+    for path in _walk(root, root / "tests", lambda p: p.suffix == ".cs"):
+        text = _read(path)
+        classes = list(TEST_CLASS.finditer(text))
+        for k, match in enumerate(classes):
+            body = text[match.end():classes[k + 1].start() if k + 1 < len(classes) else len(text)]
+            members.setdefault(match.group("name"), set()).update(m.group("name") for m in TEST_METHOD.finditer(body))
+    return members
+
+
+def check_threat_model_refs(root: Path, policy: dict) -> list[Violation]:
+    """threat-model-refs (REQ-QSC-37): repository paths and Tests.Method names in the threat model exist."""
+    out: list[Violation] = []
+    members: dict[str, set[str]] | None = None
+    for rel, spec in policy.get("requiredDocs", {}).items():
+        path = root / rel
+        if "threats" not in spec or not path.is_file():
+            continue
+        for number, line in enumerate(_read(path).splitlines(), 1):
+            for token in TICKED.findall(line):
+                token = token.strip()
+                if token.startswith(REPO_PREFIXES):
+                    target = re.split(r"[#:]", token, maxsplit=1)[0].rstrip("/")
+                    exists = any(root.glob(target)) if any(c in target for c in "*?[") else (root / target).exists()
+                    if not exists:
+                        out.append(Violation(rel, number, "threat-model-refs", f"`{token}` does not exist"))
+                for ref in TEST_REF.finditer(token):
+                    members = members if members is not None else _test_members(root)
+                    cls, member = ref.group("cls"), ref.group("member")
+                    if cls not in members:
+                        out.append(Violation(rel, number, "threat-model-refs", f"no test class {cls} in tests/"))
+                    elif member != "*" and member not in members[cls]:
+                        out.append(Violation(rel, number, "threat-model-refs", f"no test {cls}.{member} in tests/"))
+    return out
+
+
+# ---------------------------------------------------------------------------------------------------------------------
 
 def load_policy(root: Path, policy_path: Path | None = None) -> dict:
     return json.loads((policy_path or root / "tools" / "ci" / "policy.json").read_text(encoding="utf-8"))
@@ -422,6 +673,9 @@ def check(root: Path, policy: dict | None = None) -> list[Violation]:
         *check_manifest(root, policy),
         *check_banned_symbols(root, policy),
         *check_build_config(root, policy),
+        *check_workflows(root, policy),
+        *check_required_docs(root, policy),
+        *check_threat_model_refs(root, policy),
     ]
     return sorted(set(violations), key=lambda v: (v.path, v.line, v.rule, v.message))
 

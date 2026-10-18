@@ -5,8 +5,8 @@ threats we design against, each with the code that mitigates it and the test or 
 place. It is the developer-facing companion of [privacy](../privacy.md), which says the same things for players.
 
 `python3 tools/ci/check_policy.py` checks this file (`required-docs`, `threat-model-refs`): every threat row T1–T16
-exists with a "Verified by" cell, and every back-ticked repository path or `SomethingTests.Method` below exists. A
-rename that breaks a reference fails CI.
+exists with a "Verified by" cell, and every back-ticked repository path or test name (class `…Tests`, then `.Method`
+or `.*`) below exists. A rename that breaks a reference fails CI.
 
 ## Scope and method
 
@@ -78,7 +78,7 @@ OCR and speech use Windows' own engines and send nothing. Links the user clicks 
 | T11 | Anti-cheat regression: memory reads, hooks, injection | A4 | The native allowlist and deny list; `Process.MainModule` banned; CODEOWNERS on `src/Envoy.App/Interop/` → `src/Envoy.App/Interop/Native.cs`, `tools/ci/policy.json`, `.github/CODEOWNERS` | `tools/ci/test_check_policy.py`; the policy check in CI | A publisher may still object to screen reading or synthetic input (FAQ). |
 | T12 | Elevation | A6 | `asInvoker` and no `uiAccess`; the OCR-pack install is the only elevated launch, user-started through UAC with a validated language tag → `src/Envoy.App/app.manifest`, `src/Envoy.App/Security/ShellLauncher.cs` | Policy `manifest` rule; `LaunchTargetTests.Ocr_install_arguments_only_for_catalog_languages` | None known. |
 | T13 | Telemetry or unexpected egress | A2, A7 | Network types only in `src/Envoy.Core/Translation/`, `src/Envoy.Core/Updates/` and `src/Envoy.App/AppHost.cs`; a literal-host allowlist | Policy `network-location` and `host` rules (`tools/ci/check_policy.py`) | SDK-internal endpoints (AWS, Anthropic) are reviewed, not checked mechanically. |
-| T14 | Single-instance object squatting | A6 | Accepted: needs a same-user attacker, and the result is only that Envoy does not start → `src/Envoy.App/App.xaml.cs` | — | Denial of service by a same-user process. |
+| T14 | Single-instance object squatting | A6 | Accepted: needs a same-user attacker, and the result is only that Envoy does not start → `src/Envoy.App/App.xaml.cs` | Review (accepted risk) | Denial of service by a same-user process. |
 | T15 | Chat text sent to a third-party provider without the user knowing | A2 | "What leaves your PC" in the setup guide and War Room; every translator stack is wrapped in `PrivacyGatedTranslator`, so no provider call happens before acknowledgement → `src/Envoy.Core/Translation/PrivacyGatedTranslator.cs` | `TranslationGateTests.*`; M-OUX-5 | The default free providers are unofficial endpoints (disclosed). |
 | T16 | Personal data left behind | A7 | `DataInventory` lists every Envoy file, and "Delete all Envoy data" removes exactly those; every inventory file is documented → `src/Envoy.Core/Diagnostics/DataInventory.cs`, `docs/privacy.md` | `DataInventoryTests.Enumerate_lists_only_inventory`, `DataInventoryTests.Every_item_is_documented_in_privacy_md` | Copies the user made (exported diagnostics) stay where they saved them. |
 
