@@ -1,0 +1,26 @@
+<!--
+  Linux type-check for tests/Envoy.App.Tests (docs/specs/08b-ci-release.md §9): compiles the test sources against the
+  type-checked app (../TypeCheck.csproj) with the same implicit usings as a WPF project. The real test project runs
+  only on Windows CI (the app-tests job). Built by tools/typecheck/typecheck.sh.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <NoWarn>CA1416;WFAC010</NoWarn>
+    <WarningsAsErrors>$(WarningsAsErrors);nullable</WarningsAsErrors>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- WPF projects drop these implicit usings; match that (as TypeCheck.csproj does). -->
+    <Using Remove="System.IO" />
+    <Using Remove="System.Net.Http" />
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+    <Compile Include="../../../tests/Envoy.App.Tests/**/*.cs" Exclude="../../../tests/Envoy.App.Tests/obj/**;../../../tests/Envoy.App.Tests/bin/**" />
+    <ProjectReference Include="../TypeCheck.csproj" />
+    <!-- The same xunit version as tests/Envoy.App.Tests (and Envoy.Core.Tests). -->
+    <PackageReference Include="xunit" Version="2.9.3" />
+  </ItemGroup>
+</Project>

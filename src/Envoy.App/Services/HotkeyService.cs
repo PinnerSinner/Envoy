@@ -23,8 +23,10 @@ public readonly record struct Hotkey(ModifierKeys Modifiers, Key Key)
                 case "alt": mods |= ModifierKeys.Alt; break;
                 case "win" or "windows": mods |= ModifierKeys.Windows; break;
                 default:
-                    if (Enum.TryParse<Key>(raw, ignoreCase: true, out var k)) key = k;
-                    else if (raw.Length == 1 && char.IsDigit(raw[0])) key = Key.D0 + (raw[0] - '0');
+                    // Digits first: Enum.TryParse would read "1" as the numeric value 1 (Key.Cancel), not Key.D1.
+                    if (raw.Length == 1 && raw[0] is >= '0' and <= '9') key = Key.D0 + (raw[0] - '0');
+                    else if (raw.All(char.IsAsciiLetterOrDigit) && !raw.All(char.IsAsciiDigit) &&
+                             Enum.TryParse<Key>(raw, ignoreCase: true, out var k) && Enum.IsDefined(k)) key = k;
                     else return false;
                     break;
             }

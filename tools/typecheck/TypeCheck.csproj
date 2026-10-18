@@ -22,6 +22,8 @@
     <Using Remove="System.Net.Http" />
     <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
     <Compile Remove="fixtures/**" />
+    <!-- apptests/ is its own project (the tests/Envoy.App.Tests type-check); its obj/ must not compile here. -->
+    <Compile Remove="apptests/**" />
     <Compile Include="../../src/Envoy.App/**/*.cs" Exclude="../../src/Envoy.App/obj/**;../../src/Envoy.App/bin/**" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <PackageReference Include="Velopack" Version="1.2.161" />

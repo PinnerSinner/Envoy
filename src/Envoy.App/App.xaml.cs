@@ -67,7 +67,8 @@ public partial class App : Application, IShell
         // 2. Log bootstrap and the global handlers. The smoke test adds its own file sink on its temp data folder.
         var smoke = e.Args.Contains("--smoke-test");
         var soak = e.Args.Contains(SoakTest.Flag);
-        _dataFolder = smoke || soak ? null : Path.GetDirectoryName(SettingsStore.DefaultPath);
+        var ocrE2E = e.Args.Contains(OcrEndToEnd.Flag);
+        _dataFolder = smoke || soak || ocrE2E ? null : Path.GetDirectoryName(SettingsStore.DefaultPath);
         var (hub, recent, _) = LogBootstrap.Create(_dataFolder);
         _hub = hub;
         _recent = recent;
@@ -78,10 +79,15 @@ public partial class App : Application, IShell
         _handlers = GlobalExceptionHandlers.Install(this, policy, hub.For(UnhandledErrorPolicy.Category));
         SessionEnding += OnSessionEnding;
 
-        // 3. Smoke branch. [08b --ocr-e2e]
+        // 3. Smoke branch: --smoke-test, --ocr-e2e (08b, REQ-QSC-46) and --soak (05). Each runs and exits here.
         if (smoke)
         {
             SmokeTest.Run(this, e.Args, hub, recent);
+            return;
+        }
+        if (ocrE2E)
+        {
+            OcrEndToEnd.Run(this, e.Args, hub);
             return;
         }
         if (soak)

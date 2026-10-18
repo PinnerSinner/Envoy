@@ -11,3 +11,5 @@ python3 "$here/check_resources.py" "$app"
 python3 "$here/check_a11y.py" "$app"
 python3 "$here/check_ui_rules.py" "$app"
 dotnet build "$here/TypeCheck.csproj" -nologo -v quiet "$@"
+# tests/Envoy.App.Tests (Windows-only xUnit project, spec 08b) compiled against the type-checked app.
+dotnet build "$here/apptests/AppTestsTypeCheck.csproj" -nologo -v quiet "$@"
