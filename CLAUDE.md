@@ -6,7 +6,7 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - `dotnet test tests/Envoy.Core.Tests` — unit tests (any OS). Must stay green.
 - `tools/typecheck/typecheck.sh` — type-checks `src/Envoy.App` on Linux (no WindowsDesktop SDK there): XAML base
   classes and event-handler names, resource keys, the accessibility rules in `check_a11y.py` and the UI rules in
-  `check_ui_rules.py`, including the writing rule R15 (after running its own Python tests). Run it after every app
+  `check_ui_rules.py`, including the writing rule R15 and the motion rule R16 (after running its own Python tests). Run it after every app
   change; it mirrors the real project's compiler settings (keep `tools/typecheck/TypeCheck.csproj` in sync with
   `src/Envoy.App/Envoy.App.csproj`).
 - `python3 tools/ci/check_policy.py` (+ `python3 -m unittest discover -s tools/ci -p "test_*.py"`) — the policy
@@ -56,8 +56,18 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
   `PageHeadings`; the overlay seal is Core `LanguageSeal.For`; candles are Core `ProviderCandle`. Medieval flavour
   stays in names and headings; every instruction, error and setting label says plainly what it does.
 - Writing (typecheck R15): no em dash and no en dash, and none of seamless, leverage, robust, elevate, delve, unleash,
-  empower, cutting-edge, game-changer or effortless, in XAML, Core `*Text` classes and `Ux/`, `docs/*.md`,
-  `CHANGELOG.md` or `README.md`. Rewrite the sentence; a hyphen in place of a dash is not a fix. Ranges read "5 to 30".
+  empower, cutting-edge, game-changer or effortless, and not the old slogan "never touch(es) the game" (R15 bans
+  `never touch`; say Envoy reads the screen like OBS and presses keys like a keyboard), in XAML, Core `*Text` classes
+  and `Ux/`, `docs/*.md`, `CHANGELOG.md` or `README.md`. Rewrite the sentence; a hyphen in place of a dash is not a
+  fix. Ranges read "5 to 30".
+- Motion (spec 09b): every animation starts in `Services/Motion.cs` (its `s:Motion` attached properties or methods);
+  nothing else calls `BeginAnimation`, `BeginStoryboard` or `new Storyboard`, and an animation changes only `Opacity`,
+  render-transform parts, a clip's transform, an opacity mask's stops or `StrokeDashOffset`, never layout (typecheck
+  R16). The level comes only from `AppHost.ApplyMotion` → Core `MotionPolicy.Resolve` (`Appearance.Motion`, Windows'
+  "Show animations"); Off shows end states at once, Reduced keeps fades only, loops run at Full while visible. Durations
+  are Core `Motion` constants. A template part moved by `s:Motion.React` gets no `RenderTransform` trigger. The overlay
+  runs no looping animation. An animated window gets a check in the smoke `motion({palette})` section (Off and Full);
+  the rest of the smoke test runs with motion Off. The Tale's words are Core `TaleText`, its playhead `TalePlayer`.
 - New windows must be added to `SmokeTest.cs` in the per-palette phase so CI exercises them under every palette; new
   settings pages are added to `PageIds.All` (and get a `MainWindow` host and `PageFor` case).
 - Settings changes: add the property to `AppSettings`, bind it on the relevant page in `src/Envoy.App/Pages/` (edits
@@ -68,7 +78,7 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
   `IShell`; every `MessageBox` goes through `Services/DialogService.cs`. `check_ui_rules.py` enforces this.
 - Every new interactive control gets `AutomationProperties.Name` (or `LabeledBy`), and every focusable style a focus
   visual (`FocusVisual.Ring`, never `FocusVisualStyle="{x:Null}"`); `tools/typecheck/check_a11y.py` enforces names, focus
-  visuals, Tab cycling in the guide and reply box, and no literal colours (`#…`) in `Windows/`, `Pages/` or `Controls/`.
+  visuals, Tab cycling in the guide, the reply box and the Tale, and no literal colours (`#…`) in `Windows/`, `Pages/` or `Controls/`.
   Palettes keep text at 4.5:1 and `Focus.Ring` at 3:1 on every background (`PaletteContrastTests`); a new palette key
   also goes into `Palette.highcontrast.xaml` as a `SystemColors` value.
 - The palette comes only from `AppHost.ApplyTheme` → `ThemeResolver.Resolve` (high contrast when asked or when Windows

@@ -9,6 +9,8 @@ Envoy is built so there is nothing for anti-cheat to object to:
 - It **types** through `SendInput`, the API that on-screen keyboards and input method editors use.
 - It runs as a normal user and asks for no special privileges.
 
+In short, Envoy reads the screen like OBS and presses keys like a keyboard.
+
 It doesn't automate gameplay. It only reads and writes chat text, which you could do yourself with a phone
 translator. That said, it's an unofficial tool, and no studio has reviewed or endorsed it.
 
@@ -27,6 +29,13 @@ found no published third-party-tool policy for Age of Empires II: DE, III: DE, I
 Empires: DE (checked 17 October 2026); their general community rules (the Xbox Community Standards and the World's
 Edge Code of Conduct) still apply. If a publisher publishes one, this answer will link to it. Use Envoy at your own
 judgement in ranked play.
+
+### Can I turn the animations off?
+
+Yes. Livery › Accessibility › **Motion**: **Fades only** stops everything that moves and keeps gentle fades; **Off**
+shows every change at once. The default, **Follow Windows**, uses fades only when "Show animations in Windows" is off
+(Windows Settings › Accessibility › Visual effects). The overlay never runs a looping animation, so it costs nothing
+while no message arrives.
 
 ### Does it work with every Age game?
 

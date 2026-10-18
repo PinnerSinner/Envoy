@@ -120,13 +120,42 @@ styles:
 | `WaxSeal` | `ContentControl` | A round seal; `Background` is the wax (default `Wax.Livery`), `Content` the glyph |
 | `ScrollRods` | `Control` | The rolled end of a dispatch |
 | `Crest` | `Control` | The livery's shield |
-| `Candle` | `ContentControl` | A provider's candle; `Tag` is `Lit`, `Guttering` or `Snuffed` (Core `ProviderCandle`) |
+| `Candle` | `ContentControl` | A provider's candle; `Tag` is `Lit`, `Guttering` or `Snuffed` (Core `ProviderCandle`); it flickers at Full motion |
 | `RowLabel` | `ContentControl` | A settings row's label with its drop-cap square |
 
-The nine marginal drawings are `Figure.<PageId>.Ink` and `Figure.<PageId>.Red` geometries, so spec 09b can animate
-their strokes. The overlay seal's glyph and wax come from Core `LanguageSeal.For(code)`: 中 on gules for Chinese, 한 on
+The nine marginal drawings are `Figure.<PageId>.Ink` and `Figure.<PageId>.Red` geometries; `MainWindow` splits them
+into one path per stroke and draws them stroke by stroke on a page change. The overlay seal's glyph and wax come from Core `LanguageSeal.For(code)`: 中 on gules for Chinese, 한 on
 azure for Korean, 日 on or for Japanese, Р on vert for Russian, the first letter of the language's English name on
 purpure for the rest.
+
+## Motion
+
+Spec 09b brings the reference designs' motion to WPF. Everything that moves goes through one helper,
+`Services/Motion.cs`, which reads the **Motion** setting (Livery › Accessibility › Motion):
+
+| Setting | What moves |
+| --- | --- |
+| Follow Windows (default) | Full, unless "Show animations in Windows" is off, then Fades only |
+| Full | Everything: hover and press responses, page changes, dispatches, the desk, candles, the torches, the Tale |
+| Fades only | Fades only; nothing slides, scales, draws or loops |
+| Off | Nothing: every change shows its end state at once |
+
+Durations are the named constants of Core `Motion`: `Quick` 150 ms (hover, press, focus), `Snap` 320 ms (switches,
+stamps, page turns, the desk folding), `Unroll` 450 ms (charters and dispatches) and `Ink` 1.4 s (writing and
+drawing). An animation may change only `Opacity`, a render-transform part, a clip's transform, an opacity mask's
+stops or `StrokeDashOffset`; nothing animates layout (typecheck R16). Loops (candle flames, the active tab's sway, the
+guide's current seal, the torches) run at Full only and only while their element is visible.
+
+In XAML the helper is the `s:Motion` attached properties (`xmlns:s="clr-namespace:Envoy.App.Services"`):
+
+| Property | On | Does |
+| --- | --- | --- |
+| `s:Motion.React` | a template part | `Lift` (plaques, ribbons), `Wax` (wax buttons), `Tab` (banner tabs), `Card` (livery cards); the helper owns the part's render transform, so no trigger may set it |
+| `s:Motion.HoverGlow`, `s:Motion.FocusGlow` | a template part | Fades the part in while the control is under the mouse, or has keyboard focus |
+| `s:Motion.Switch` | a seal switch's seal | Slides that many pixels and stamps when checked |
+| `s:Motion.Entrance` (+ `Delay`, `OnLoad`) | any element | `Fade`, `Rise`, `Unfurl`, `UnrollX`, `Stamp`, `Ink` or `Draw`, played on load or by `Motion.Replay` |
+| `s:Motion.StampWhen`, `s:Motion.PulseWhen` | a seal | Stamps when the binding turns true; pulses while it is true |
+| `s:Motion.Candle` (+ `CandlePart`) | the candle template | Flickers, gutters, snuffs with smoke and relights with a pop (Core `CandleMotion`) |
 
 ## Shared styles
 

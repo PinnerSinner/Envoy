@@ -236,6 +236,16 @@ The steps are described in full in [chat formats](chat-formats.md#manual-release
   behaviour.
 - **M-UIF-3 Over the game** (any title, borderless). With Envoy reading chat, open settings over the game, switch
   pages including Reading Chat, then close the window. Capture keeps running and the overlay is unaffected.
+- **M-MOT-1 Motion** (REQ-MOT-1 to 10). At Full: hover and press the buttons, a phrase ribbon, a livery card and the
+  banner tabs (lift, tilt, slide; the active tab sways); tick a seal switch (it slides and stamps); Tab into a text
+  box (a gold glow); change page (the charter unrolls, the drawing redraws at 1180 px wide, the drop cap and lede fade
+  in); the Interpreters candles flicker, and "Retry now" on a snuffed one relights it; the torches burn and stop when
+  the window is minimised. In a game, a translated message unfurls, its seal stamps, and it fades out at the end; the
+  game's frame rate does not drop while no message arrives. On the reply desk the translation writes itself and Enter
+  folds the desk away before the reply is typed. Set Motion to Fades only, then turn off "Show animations in
+  Windows" with Motion on Follow Windows: nothing moves, fades remain. Set Off: every change is instant. Play the Tale
+  at Full (it plays through in about a minute; Space, Left, Right, Esc work, Narrator reads each caption) and at Off
+  (still chapters, Next only).
 - **M-HRD-1 The Herald's Writ** (REQ-HRD-3, 6 to 9). On a PC that has none of the fonts installed, at 100 % and 150 %
   display scale, compare the settings window, the overlay (full and compact), the reply box, the setup guide and a
   problem toast with `docs/design/herald/*.dc.html`, in the herald livery and one game livery: the knotwork band,

@@ -1,6 +1,7 @@
 # The Herald's Writ in motion: animation, reactivity and the Tale
 
-Status: Proposed. Lands as step 13, after 09a. Revised against `00-integration.md` (binding).
+Status: Implemented (step 13, after 09a). Revised against `00-integration.md` (binding). Differences from the text
+below are under Deviations.
 
 Area id: `09b-herald-motion` · Requirement prefix: `MOT`.
 
@@ -77,4 +78,60 @@ never costs accessibility or game performance.
 
 ## Deviations
 
-(None yet.)
+Owners of the concepts this spec adds: Core `Motion`, `MotionPolicy` and `MotionText` (levels, durations, labels),
+`CandleMotion` (candle changes), `TaleText` and `TalePlayer` (the Tale); `Services/Motion.cs` (every animation and the
+`s:Motion` attached properties); `AppHost.ApplyMotion` (the level); `Controls/Torch.cs` (the torches).
+
+1. **What Off and Reduced mean for state changes** (REQ-MOT-1). A change of state still lands: under Off every call shows
+   its end state at once, and under Reduced everything but fades does. So a checked switch's seal, the active tab's
+   offset and a hovered button's lift still take their place (as in 09a's static look), without moving there. Loops
+   (flames, sway, pulse, torches) run at Full only and only while their element is visible. The level is process-wide,
+   like the palette, and is set at ApplySettings position 10 (09b's slot), in `Start` and when Windows' "Show
+   animations" changes (App's `SystemParameters` listener).
+2. **The setting** (REQ-MOT-1) is a Motion row in the Livery page's Accessibility frame, so the contract §8.6 order of
+   the page is unchanged. Its labels come from Core `MotionText`: Follow Windows (Auto), Full, Fades only (Reduced), Off.
+3. **Reactions** (REQ-MOT-3). A press moves a plaque 1 px down (half the lift). "The active tab drops" is the 14 px it
+   already stood out in 09a, reached with a back ease, plus a sway of under a degree. "Plaques glow gold on focus" is
+   a gold ring just outside the focus ring of buttons, text boxes, password boxes and drop-downs: a ring, not a fill,
+   so no text contrast changes. Template triggers no longer set any `RenderTransform`; the helper owns those parts.
+4. **Page change** (REQ-MOT-4): the unroll is a clip opening downwards with the page settling from 96 % height on a back
+   ease. The marginal drawing is now one path per stroke (`MainWindow.Figure`, replacing `FigureInk` and `FigureRed`)
+   and is redrawn only while the marginal column shows (1180 px and wider).
+5. **Overlay** (REQ-MOT-5): the compact ribbon unfurls and stamps like the full dispatch. "Fades out like ink" is the
+   existing opacity fade over the last 2 s, now from Core `Motion.LingerOpacity`; with motion Off a dispatch stays
+   solid until it goes.
+6. **Reply desk** (REQ-MOT-6): the desk folds as the reply is sent, before Envoy types it, because the desk must be gone
+   for the keystrokes to reach the game; this delays typing by 320 ms at Full (150 ms with fades only). Copy and the
+   clipboard send mode close without folding. The desk's candle is a small `Candle` in its heading.
+7. **Candles** (REQ-MOT-7): the button stays "Retry now" (09a Deviation 7); the relight pop plays whenever a candle
+   goes from snuffed to lit or guttering. A guide step turns with a 24 px slide and a fade, from the right going
+   forward and from the left going back.
+8. **Torches** (REQ-MOT-8, SHOULD, done): `TorchFlame` has 14 blobs, 4 smoke puffs and 3 sparks with periods from a
+   fixed seed, merged by a blur, and `TorchLight` wavers through three overlapping oscillations. The light sits under
+   the rail and the charter, so it never lights text; the torches hide below Full motion and in high contrast. Blobs
+   start within the first second instead of the SVG's negative begin times, and the colours are existing palette
+   keys (`Vellum.Light`, `Candle.Flame`, `Gules`, `Ink.Soft`, `Or.Light`), so no palette key was added.
+9. **The Tale** (REQ-MOT-9, 10): chapters last 10 s (a 60 s tour; the reference's default is 8 s). The title uses
+   `Font.Title`, since `Font.Wordmark` is for the wordmark and drop caps only. The pictures are simplified XAML versions
+   of the reference drawings, and chapter IV's key plaques spell the user's own reply hotkey. Pause finishes the
+   chapter's picture at once instead of freezing it mid-stroke. Space on a focused button presses that button, and in
+   a still tale Space acts as Next. Captions are plain English (the reference's "thy" is gone, and chapter II no
+   longer says "it never touches the game"). "Offered, not forced": the guide's last step has a "Watch a one-minute
+   tour" button that finishes the guide and opens the Tale; nothing records whether it was watched. The tray item is
+   "Play the tale…".
+10. **REQ-MOT-11** (COULD, deferred): no `Viewport3D` seal. The 2D seals stay; a 3D seal adds GPU cost to the settings
+    window for little gain.
+11. **Verification** (REQ-MOT-12): the smoke sections are `motion({palette})` (Off and Full: page change, candles,
+    torches, overlay dispatches, the desk's ink and fold, the guide's page turn; after the animations settle every part
+    is back at rest and the overlay is sampled for movement) and `tale({palette})` (all six chapters with Right under Off
+    and Full, Left, Space, Esc, the a11y audit on the first palette, `OpenTale` single instance), plus a
+    `{palette}-tale.png` screenshot. The rest of the smoke run uses Motion Off, so screenshots show finished frames.
+    R16 also keeps `BeginAnimation`, `BeginStoryboard` and `new Storyboard` inside `Services/Motion.cs`, and the helper
+    refuses any property outside its allowed list at run time. The motion checks were type-checked on Linux; they run
+    for the first time in Windows CI. A new manual step, M-MOT-1, covers what only a person can judge.
+12. **REQ-MOT-13**: besides the settings window footer, the Scouts page lede, `docs/architecture.md`,
+    `docs/installing.md` (a data-folder sentence the new phrase check also caught) and `CONTRIBUTING.md` were reworded;
+    the FAQ adds "Envoy reads the screen like OBS and presses keys like a keyboard". R15 bans the prefix `never touch`
+    in its files only; code comments elsewhere are unaffected.
+13. **MUST count**: this spec has 11 MUST rows (REQ-MOT-13 was added after the index counted 10); the index row now
+    says 11.

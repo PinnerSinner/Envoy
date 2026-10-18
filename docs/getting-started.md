@@ -34,6 +34,12 @@ steps are done and which still need attention.
   a button that reopens it where you left off. You can also reopen it any time from the tray (**Setup guide…**), from
   About (**Run setup guide again**), and jump straight to the hotkey list with tray › **Hotkey cheat sheet…**.
 
+The last step also offers **Watch a one-minute tour**: it finishes the guide and plays **the Tale**, six short
+illustrated chapters on what Envoy does and how to use it. Play it again any time from Chronicle (About) › **Play the
+tale** or the tray (**Play the tale…**). Space plays or pauses, Left and Right move between chapters, Esc closes. With
+animations off (Livery › Accessibility › Motion, or Windows' "Show animations" off) each chapter is a still picture
+and **Next** moves on.
+
 The guide never opens by itself in safe mode or when Envoy starts with `--minimized`, and existing users who already
 marked a chat area are not asked again. The rest of this page describes the same steps by hand.
 

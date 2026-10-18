@@ -5,6 +5,24 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **The Herald's Writ in motion**: buttons lift and press, wax buttons tilt and brighten, seal switches slide and
+  stamp, banner tabs slide out and the chosen one sways, and boxes glow gold when you tab into them. Changing page
+  unrolls the charter and redraws its ink drawing stroke by stroke; two torches light the war table.
+- Overlay messages unfurl from their rod, their language seal stamps in, and they fade out like ink. On the reply
+  desk the translation writes itself, a candle flickers, and the desk folds away as your reply is sent.
+- Translator candles flicker, gutter while a translator rests, go out with a wisp of smoke when a key is refused and
+  relight when it works again. The setup guide's seals stamp in as you finish each step.
+- **The Tale**: a one-minute illustrated tour of what Envoy does, in six chapters. The setup guide offers it on its
+  last step; play it any time from About (**Play the tale**) or the tray. Space, Left, Right and Esc work, and screen
+  readers read each caption.
+- **Motion** setting (Appearance › Accessibility): Follow Windows (the default), Full, Fades only or Off. With
+  "Show animations in Windows" off, Envoy keeps only fades. The overlay never runs a looping animation.
+
+### Changed
+- The settings window, the docs and the FAQ drop the old "doesn't touch the game" slogan and say what Envoy does:
+  it reads the screen like OBS and presses keys like a keyboard.
+
 ### Fixed
 - On a short screen (768 px tall) the reply box no longer cuts off its footer: the quick phrases scroll, and "Seal and
   send", Copy and the length counter stay on screen.
