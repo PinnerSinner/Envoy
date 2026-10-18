@@ -1,6 +1,6 @@
 # CI and release: workflow restructure, coverage, scanning, SBOM, OCR end-to-end, release pass
 
-Status: Proposed (revised against `00-integration.md`, which is binding)
+Status: Implemented — revised against `00-integration.md` (binding). Lands as step 11 of 11; see Deviations.
 
 Area id: `08b-ci-release` · Requirement prefix: `QSC` (ids keep the numbers from the old `08-quality-security-ci.md`)
 · **Step 11 of 11 (last).** It depends on steps 1–10, in particular 08a (policy check, analyzers, the tool manifest),
@@ -765,3 +765,66 @@ Estimated size: about 250 lines of Python, 300 lines of workflow and config, 250
 - **Dependency review** is now SHOULD, with the license check off by default (NuGet license metadata is unreliable).
 - **Removed:** the old "app-tests holds only Hotkey tests" design. The project now exists for REQ-QSC-44, and the
   Hotkey tests ride along as SHOULD.
+
+## Deviations
+
+Implemented: every MUST (REQ-QSC-14, 17, 20, 21, 23, 26, 36, 38, 40, 44) and every SHOULD (REQ-QSC-12, 13, 15, 18, 19,
+22, 24, 25, 27, 37, 39, 41, 42, 43, 45, 46). Nothing is deferred. Changes from the design above:
+
+1. **Coverage.** Re-measured at the start of the step: Envoy.Core **94.5 % lines, 87.6 % branches** (4,797 lines,
+   3,871 branches), so no tests had to be added first. The gate stays at the contract's 70 % / 55 % (§9) so the step
+   matches its acceptance criteria; the ratchet and the 1.0 target (80 % / 65 %) are documented in `docs/building.md`
+   and `CLAUDE.md`, and the maintainer may raise the floor in a follow-up. `ExcludeByAttribute` also lists
+   `CompilerGeneratedAttribute`. `coverage_summary.py` merges several XML files by unique (file, line) and compares
+   at the printed precision (70.0 % passes a 70 % gate).
+2. **Vulnerable packages.** `check_vulnerable.py` parses the real `dotnet list package --vulnerable --format json`
+   shape (`projects[].frameworks[].topLevelPackages|transitivePackages[].vulnerabilities[]`), not a
+   `vulnerablePackages` key; restore problems in the report, or a failing `dotnet list`, exit 2. Moderate and Low
+   advisories are `::warning::` lines and summary rows.
+3. **SBOM.** CycloneDX is pinned at **6.1.1**. Checked against its `--help`: the step adds `--recursive` (without it
+   Envoy.Core's packages, `Anthropic` and `AWSSDK.Translate`, are missing) and `--exclude-dev` (drops the analyzer
+   package). Verified locally on Linux: 13 components including the four required. `check_sbom.py` also requires
+   `bomFormat: CycloneDX` and compares names case-insensitively.
+4. **Action pins.** Resolved with `git ls-remote` (the GitHub API was not reachable from the session): checkout,
+   setup-dotnet, cache, upload-artifact and download-artifact at their `v4` commits, attest-build-provenance `v2`,
+   **codeql-action `v4`** (v3 is close to deprecation) and dependency-review-action **v4.9.0** (no floating `v4`
+   tag exists). Dependabot already proposes newer majors for some; they arrive as SHA-pinned updates.
+5. **Workflow details.** `OCR_E2E_SUMMARY` is written to `GITHUB_ENV` by a step, because the `runner` context is not
+   available in job-level `env`; the summary step writes the table header and the tests append rows
+   (`OcrEndToEnd.ToMarkdownRow`). The `Envoy-<v>-win-x64` artifact also carries `notes.md`, which the `release` job
+   uses for `vpk pack` and the release body. The `screenshots` job pushes from its own checkout in bash (the old
+   worktree dance is gone). The smoke log is uploaded as `smoke-log`. The release footer mentions the SBOM and the
+   attestation.
+6. **`workflow-timeouts`** checks per job (every job with `runs-on` has a job-level `timeout-minutes`; reusable-workflow
+   jobs are exempt) instead of comparing line counts, so a step-level timeout cannot hide a missing job timeout.
+   `workflow-permissions` also fails a workflow with no top-level `permissions:` block.
+7. **`required-docs`.** Steps are bullets that start with a bold id (`- **M-XXX-n`) inside the "Pre-release manual
+   pass" section; references elsewhere do not count. Placeholder "Verified by" cells (`—`, `-`, `n/a`, `TBD`) count
+   as empty, so T14 reads "Review (accepted risk)". Compatibility rows are matched by their first two cells, and each
+   cell must be `✓ vX.Y.Z`, `✗ vX.Y.Z (note)` or `—`. Headings match after dropping a leading number (`## 2. …`).
+8. **`threat-model-refs`** also accepts `FooTests.*` (the class must exist). Methods of a nested helper class count
+   towards the enclosing `*Tests` class. T9 cites the RS0030 ban and `bannedRequired` instead of
+   `EndpointPolicyTests` (not built).
+9. **Release pass ids.** The step already holds 04's calibration as **M-CHAT-5** and 05's soak as **M-CAP-6**, so the
+   design's M-CHAT-CAL and M-CAP-SOAK are those ids (recorded in the old-to-new table) rather than duplicates. 01's
+   M1–M3 became M-UIF-1…3; 07a, 07b and 07c's M-OUXA/B/C steps became M-OUX-1…14; M-QSC-6 (`--ocr-e2e`) sits in the
+   capture section. M-TRR-3's "Delete all data" half moved to M-REL-3, which ends the pass.
+10. **OCR harness.** The effect enum is `OcrTextEffect` (WPF already has `System.Windows.Media.TextEffect`). Text is
+    compared after `TextSimilarity.Normalize` (case, punctuation and the spaces Windows OCR puts between CJK
+    characters), as Envoy compares OCR readings elsewhere. The harness OCRs with the case's language only and treats
+    `OcrService.Configure`'s profile-language fallback as "no recognizer". The enlargement uses WPF's bitmap scaler at
+    `RegionMath.OutputSize`'s scale, not GDI's `StretchBlt`. Extra public members: `Flag`, `MinSimilarity`, `Score`,
+    `Describe`, `ToMarkdownRow`, `Run`. `--ocr-e2e` also keeps the log bootstrap off the data folder, like the smoke
+    and soak branches.
+11. **App tests.** `tests/Envoy.App.Tests` mirrors the app's `SupportedOSPlatformVersion` and `CA1416`/`WFAC010`
+    suppressions. `Envoy.sln` maps its Release configuration to Debug without building it (NETSDK1151). Added
+    `Markdown_rows_name_the_outcome`, and `Rejects_unknown_tokens` also covers `Ctrl+12` and `Ctrl+-5`.
+12. **Hotkey fix.** Writing `HotkeyTests.Digits_map_to_D_keys` exposed a bug: `Hotkey.TryParse("Ctrl+1")` returned
+    `Key.Cancel` (`Enum.TryParse` reads "1" as the numeric value). Digits are now checked first, and purely numeric or
+    undefined key names are rejected.
+13. **Beyond the design.** `tools/typecheck/typecheck.sh` also compiles `tests/Envoy.App.Tests` against the
+    type-checked app (`tools/typecheck/apptests/`), so the Windows-only test project is checked on Linux. Shared test
+    helpers for the `tools/ci` scripts live in `tools/ci/ci_testing.py`.
+14. **Verified only in CI.** The Windows jobs (app tests, SBOM on Windows, budgets) and the release job need the first
+    CI run, P-QSC-2 (fork rehearsal) and P-QSC-3 (vulnerable-package PR); the PR description records both job times.
+

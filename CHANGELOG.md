@@ -111,6 +111,9 @@ versioning: [SemVer](https://semver.org/).
 - **Compact overlay** (Overlay page): one line per message with sender and translation only; switches live.
 - **Copy a message from the overlay**: in edit mode (`Ctrl+Shift+E`) each message has a ⧉ button that copies the
   sender, translation and original.
+- **Every release lists what is inside it and where it came from**: `Envoy.cdx.json` (a CycloneDX software bill of
+  materials) and a GitHub build-provenance attestation (`gh attestation verify Envoy.exe -R PinnerSinner/Envoy`).
+  [SECURITY.md](SECURITY.md#verifying-a-download) explains how to check a download.
 ### Changed
 - **Translation is off until you confirm "What leaves your PC"** (setup guide, or **Turn on translation** on the War
   Room). Until then no chat or reply text is sent anywhere and the overlay shows the original lines. This applies to
@@ -171,12 +174,28 @@ versioning: [SemVer](https://semver.org/).
 
 - Caption and error text is brighter (darker in Parchment) so it reaches WCAG AA contrast (4.5:1) in every theme.
 
+### Fixed
+- A hotkey with a digit, such as `Ctrl+1`, now means the number key; it was read as an unrelated key before.
+
 ### Security
+- Signed builds come only from protected `v*` tags: signing and publishing run in a separate release job that needs a
+  reviewer's approval, builds no code and is the only place the signing certificate can be read. Every other CI job
+  has read-only access.
 - Links, files and folders are opened only through one launcher that accepts web links, Windows Settings pages and
   non-executable files in Envoy's data folder. The update check only trusts `https://github.com/…/releases/…` URLs of
   Envoy's own repository, so a spoofed update response can't open a local program or a network share.
 
 ### Internal
+- CI and release (spec 08b): `build.yml` split into least-privilege `check`, `app-tests`, `windows`, `screenshots` and
+  the tag-only `release` job (`environment: release`), actions pinned to commit SHAs, timeouts, concurrency and a
+  NuGet cache; an Envoy.Core coverage gate (70 % lines, 55 % branches, `tools/ci/coverage_summary.py`), a
+  vulnerable-package gate (`check_vulnerable.py`), the SBOM check (`check_sbom.py`) and per-job time budgets
+  (`job_budget.py`); CodeQL (C# and workflows) and dependency review workflows; policy rules `workflow-permissions`,
+  `workflow-pins`, `workflow-timeouts`, `required-docs` and `threat-model-refs`. `tests/Envoy.App.Tests` runs the OCR
+  end-to-end harness (`src/Envoy.App/OcrEndToEnd.cs`: rendered chat through the real Windows OCR, line merging and
+  chat understanding) and the `Hotkey` tests on Windows; `Envoy.exe --ocr-e2e <report.md>` runs the same cases. New
+  `docs/security/threat-model.md`, `docs/security/repository-settings.md` and `docs/compatibility.md`; one ordered
+  pre-release pass in `docs/releasing.md`; CODEOWNERS and security notes in the issue and PR templates.
 - Reply box and overlay polish (spec 07c): `Envoy.Core.Compose` (`ReplyHistory`, `ReplyLength`, `ReplyText`,
   `PhraseOrdering`), `Envoy.Core.Pipeline.OverlayCopyText`, `OutgoingText.ExceedsHardMax`; settings `Overlay.Compact`,
   `Compose.ShowCharacterCount`, `MaxMessageLength`, `PhraseOrder`, `PhraseUsage`; `Services/ClipboardHelper.cs`;

@@ -10,13 +10,20 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
   (keep `tools/typecheck/TypeCheck.csproj` in sync with `src/Envoy.App/Envoy.App.csproj`).
 - `python3 tools/ci/check_policy.py` (+ `python3 -m unittest discover -s tools/ci -p "test_*.py"`) — the policy
   check CI runs first: P/Invoke allowlist and denied names, network code and URL hosts, manifest, process launches,
-  `#pragma`s, suppressions and build settings (`tools/ci/policy.json`).
+  `#pragma`s, suppressions, build settings, the workflows (read-only permissions, SHA pins, timeouts) and the release
+  documents (`required-docs`, `threat-model-refs`) (`tools/ci/policy.json`).
+- Coverage gate (CI `check` job): `dotnet test tests/Envoy.Core.Tests -c Release --collect "XPlat Code Coverage"
+  --settings tests/coverage.runsettings --results-directory TestResults`, then `python3 tools/ci/coverage_summary.py
+  --package Envoy.Core --min-line 70 --min-branch 55 TestResults/*/coverage.cobertura.xml`.
+- `tests/Envoy.App.Tests` (Windows only, `-c Debug`): the OCR end-to-end harness and `Hotkey` tests; on Linux
+  `typecheck.sh` compiles it (`tools/typecheck/apptests/`).
 - CI sets `CI=true`, which turns every warning into an error. Run `CI=true dotnet test tests/Envoy.Core.Tests -c Release`
   and `CI=true tools/typecheck/typecheck.sh` locally before pushing.
-- The real WPF build + `Envoy.exe --smoke-test` only run on Windows CI (`.github/workflows/build.yml`).
+- The real WPF build + `Envoy.exe --smoke-test` only run on Windows CI (`.github/workflows/build.yml`: `check` →
+  `windows` + `app-tests` → `screenshots` (main) / `release` (v* tags); layout in `docs/building.md#ci`).
 - `tools/release/` (release tooling, run with `--self-test` in the `check` job): `check_velopack_pin.sh` (Velopack in
   `Envoy.App.csproj`, `TypeCheck.csproj` and `vpk` in `.config/dotnet-tools.json` are one version),
-  `check_signing_scope.py` (signing secrets only in v* tag steps), `check_release_assets.py`, `changelog_notes.py`,
+  `check_signing_scope.py` (signing secrets only in the tag-only `release` job), `check_release_assets.py`, `changelog_notes.py`,
   `render_winget.py`. Run them after touching the workflow or the pins.
 
 ## Layout
@@ -28,8 +35,13 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
   `GameWindowTracker`, OCR, hotkeys, SendInput, `DialogService`, `TrayNotifier`), `Windows/` (incl. the setup guide),
   `Pages/` (one `UserControl` per settings page, ids in `PageIds`), `ViewModels/` (`MainViewModel` partials,
   `SetupWizardViewModel`, `CapturePreviewViewModel`), `Themes/` (palettes + `Controls.xaml`).
-- `tools/ci/` — `check_policy.py` + `policy.json` (allowlists); `tools/typecheck/` — the Linux type-check.
-- `docs/` — user and developer docs. Update them with user-facing changes, plus `CHANGELOG.md`.
+- `tools/ci/` — `check_policy.py` + `policy.json` (allowlists), and the CI gates `coverage_summary.py`,
+  `check_vulnerable.py`, `check_sbom.py`, `job_budget.py` (each with a `test_*.py`); `tools/typecheck/` — the Linux
+  type-check.
+- `tests/Envoy.Core.Tests` — unit tests; `tests/Envoy.App.Tests` — only tests that need WPF or Windows types.
+- `docs/` — user and developer docs. Update them with user-facing changes, plus `CHANGELOG.md`. `docs/security/`
+  holds the threat model and the recommended repository settings; `docs/releasing.md` the one pre-release pass;
+  `docs/compatibility.md` the verified title × display mode × DPI × Windows matrix.
 
 ## Rules
 - Never read/write game memory, inject or hook. Screen pixels in, keystrokes out — that's the anti-cheat promise.
@@ -92,7 +104,8 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
   Only `Services/VelopackUpdateBackend.cs` creates an `UpdateManager`, only `Program.cs` runs `VelopackApp` (auto-apply
   stays off; typecheck UPD1/UPD2). Nothing automatic reaches the network in safe mode or with `CheckForUpdates` off.
   Never write user data under the install folder (`%LocalAppData%\Envoy`); all user data lives under
-  `Host.DataFolder`. Signing secrets appear only in v* tag steps (`check_signing_scope.py`).
+  `Host.DataFolder`. Signing secrets appear only in the tag-only `release` job under `environment: release`
+  (`check_signing_scope.py`).
 - Privacy gate (spec 07a, contract §8.1): every translator stack AppHost builds is wrapped in `PrivacyGatedTranslator`
   (outermost); nothing translates around it. Translation is off until `Onboarding.PrivacyAcknowledgedVersion >=
   PrivacyText.Version`; bump `PrivacyText.Version` when the data flows change. A new smoke or test host calls
@@ -111,3 +124,13 @@ Live chat translator for the Age of Empires / Age of Mythology games. Windows WP
 - Anything written during `Host.Dispose` or exit checks `Host.SaveSuppressed` first, so a reset or "Delete all Envoy
   data" is never undone. Handlers of background events (pipeline, watcher) are unsubscribed in `AppHost.Dispose` and
   do nothing once the host is disposed or saving is suppressed. Start-up and exit code goes in its slot of `App.OnStartup`/`ExitApp` (contract §4).
+- CI and release (spec 08b): workflows declare top-level `permissions: contents: read`; only the jobs in
+  `policy.json` → `workflows.writeJobs` (`screenshots`, `release`, CodeQL's `analyze`) get write access, and they
+  build and run no project code. Every `uses:` is pinned to a 40-hex SHA with the tag in a comment, and every job has
+  `timeout-minutes`. `check` stays within 8 min and `windows` within 20 (`job_budget.py`); never make a budget step
+  non-fatal. The coverage floor (70 % lines, 55 % branches) is never lowered; raise it when coverage rises 3+ points.
+  `[ExcludeFromCodeCoverage]` only on thin SDK adapters, with a comment.
+- A new host, data flow or security-relevant mechanism updates `docs/security/threat-model.md` (its back-ticked paths
+  and `FooTests.Method` names must exist). A new manual check goes into `docs/releasing.md`'s pre-release pass as
+  `M-<AREA>-n` with a unique id. The OCR end-to-end cases live in `src/Envoy.App/OcrEndToEnd.cs` (shared by
+  `tests/Envoy.App.Tests` and `--ocr-e2e`); the en-US cases stay required.
