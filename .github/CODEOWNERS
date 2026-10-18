@@ -1,0 +1,14 @@
+# Security-sensitive paths need the maintainer's review (REQ-QSC-41, docs/security/threat-model.md).
+/.github/                                   @PinnerSinner
+/tools/ci/                                  @PinnerSinner
+/tools/release/                             @PinnerSinner
+/Directory.Build.props                      @PinnerSinner
+/BannedSymbols.txt                          @PinnerSinner
+/.config/                                   @PinnerSinner
+/src/Envoy.App/Interop/                     @PinnerSinner
+/src/Envoy.App/Security/                    @PinnerSinner
+/src/Envoy.App/app.manifest                 @PinnerSinner
+/src/Envoy.App/Services/KeyboardSender.cs   @PinnerSinner
+/src/Envoy.Core/Security/                   @PinnerSinner
+/src/Envoy.Core/Settings/SettingsStore.cs   @PinnerSinner
+/docs/security/                             @PinnerSinner

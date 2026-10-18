@@ -7,28 +7,41 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Least privilege (REQ-QSC-23, docs/specs/08b-ci-release.md): every job reads only. Write access sits in the two short
+# jobs that build and run no project code: `screenshots` (pushes the ci-screenshots branch) and `release` (signs and
+# publishes, v* tags only, under the protected `release` environment).
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
-  # Fast cross-platform checks: policy check, core unit tests + type-check of the Windows app.
+  # Fast cross-platform checks. Budget 8 minutes (contract §6), enforced by the last step; timeout-minutes is higher
+  # so a slow run reaches the budget step and reports instead of being killed.
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - name: Start the clock
+        run: echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: 8.0.x
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props', '.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      # 08a's policy check plus 08b's workflow and document rules, and every tools/ci script's tests.
       - name: Policy check
         run: |
           python3 tools/ci/check_policy.py
           python3 -m unittest discover -s tools/ci -p "test_*.py"
-      - name: Unit tests
-        run: dotnet test tests/Envoy.Core.Tests/Envoy.Core.Tests.csproj -c Release
-      - name: Type-check Windows app
-        run: tools/typecheck/typecheck.sh
-      # Spec 06: one Velopack version everywhere, signing only in tag builds, the release asset assertion and the
-      # release-notes / winget renderers, each with its own self-test.
+      # Spec 06: one Velopack version everywhere, signing only in the tag-only release job, the release asset
+      # assertion and the release-notes / winget renderers, each with its own self-test.
       - name: Release tooling checks
         run: |
           tools/release/check_velopack_pin.sh
@@ -38,22 +51,103 @@ jobs:
           python3 tools/release/check_release_assets.py --self-test
           python3 tools/release/changelog_notes.py --self-test
           python3 tools/release/render_winget.py --self-test
+      - name: Unit tests with coverage
+        run: >
+          dotnet test tests/Envoy.Core.Tests/Envoy.Core.Tests.csproj -c Release
+          --collect "XPlat Code Coverage" --settings tests/coverage.runsettings --results-directory TestResults
+      # REQ-QSC-14: contract §9 fixes the floor (70 % lines, 55 % branches); never lower it (docs/building.md).
+      - name: Coverage gate
+        run: python3 tools/ci/coverage_summary.py --package Envoy.Core --min-line 70 --min-branch 55 TestResults/*/coverage.cobertura.xml
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: coverage
+          path: TestResults/*/coverage.cobertura.xml
+          if-no-files-found: ignore
+      - name: Type-check Windows app
+        run: tools/typecheck/typecheck.sh
+      # REQ-QSC-20: Core (through its tests) and the app's packages (mirrored by the type-check project, Velopack included).
+      - name: Vulnerable packages
+        run: python3 tools/ci/check_vulnerable.py tests/Envoy.Core.Tests/Envoy.Core.Tests.csproj tools/typecheck/TypeCheck.csproj
+      - name: Time budget
+        if: always()
+        run: python3 tools/ci/job_budget.py --label check --max-minutes 8
 
+  # The OCR end-to-end harness (REQ-QSC-44, contract §8.4) and the Hotkey tests, in parallel with `windows` so they do
+  # not count towards its budget. Debug only: in Release Envoy.App is self-contained (NETSDK1151).
+  app-tests:
+    runs-on: windows-latest
+    needs: check
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props', '.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: OCR report path
+        shell: pwsh
+        run: '"OCR_E2E_SUMMARY=$(Join-Path $env:RUNNER_TEMP ''ocr-e2e.md'')" >> $env:GITHUB_ENV'
+      # SHOULD (REQ-QSC-45): the non-English cases run when these install; otherwise they report "Skipped (no recognizer)".
+      - name: OCR language capabilities
+        continue-on-error: true
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          foreach ($t in 'ja-JP', 'zh-CN', 'ko-KR', 'ru-RU') {
+            try { Add-WindowsCapability -Online -Name "Language.OCR~~~$t~0.0.1.0" | Out-Null; Write-Output "Installed the $t OCR capability" }
+            catch { Write-Output "::warning::Could not install the $t OCR capability: $($_.Exception.Message)" }
+          }
+      - name: App tests (OCR end-to-end, hotkeys)
+        shell: pwsh
+        run: dotnet test tests/Envoy.App.Tests/Envoy.App.Tests.csproj -c Debug --logger "console;verbosity=normal"
+      - name: OCR summary
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path $env:OCR_E2E_SUMMARY) {
+            "### OCR end-to-end" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "| case | outcome | detail |" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            "| --- | --- | --- |" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+            Get-Content $env:OCR_E2E_SUMMARY | Sort-Object | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          }
+
+  # Builds and runs code from any pushed branch, so its token is read-only and it holds no secrets. Budget 20 minutes
+  # (contract §6) up to the budget step; the tag-only folder build after it is excluded.
   windows:
     runs-on: windows-latest
     needs: check
-    # Tag builds run under the protected `release` environment (required reviewers); only it holds the signing secrets
-    # as environment secrets. Untagged runs get no environment and cannot read them (REQ-DIST-8,
-    # tools/release/check_signing_scope.py).
-    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
-    permissions:
-      contents: write
+    timeout-minutes: 30
+    outputs:
+      value: ${{ steps.version.outputs.value }}
+      numeric: ${{ steps.version.outputs.numeric }}
+      tagged: ${{ steps.version.outputs.tagged }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      pack: ${{ steps.version.outputs.pack }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Start the clock
+        shell: pwsh
+        run: '"JOB_START=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" >> $env:GITHUB_ENV'
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: 8.0.x
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props', '.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore .NET tools (vpk, CycloneDX)
+        run: dotnet tool restore
 
       - name: Version
         id: version
@@ -70,8 +164,8 @@ jobs:
           $csproj = (Select-Xml -Path src/Envoy.App/Envoy.App.csproj -XPath "//Version" | Select-Object -First 1).Node.InnerText
           $pack = if ($tagged) { $v } else { "$csproj-ci.${{ github.run_number }}" }
           "pack=$pack" >> $env:GITHUB_OUTPUT
-          $packEnabled = $tagged -or ("${{ github.event_name }}" -eq "push" -and "${{ github.ref }}" -eq "refs/heads/main")
-          "pack_enabled=$($packEnabled.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          $mainPush = "${{ github.event_name }}" -eq "push" -and "${{ github.ref }}" -eq "refs/heads/main"
+          "main_push=$($mainPush.ToString().ToLower())" >> $env:GITHUB_OUTPUT
 
       # Tags: the tag's CHANGELOG.md section; a stable tag without one fails here, before anything is built or uploaded.
       - name: Release notes
@@ -102,7 +196,8 @@ jobs:
           "### Envoy.App publish: $($warnings.Count) warning(s)" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
           $warnings | Select-Object -First 50 | ForEach-Object { "- $_" } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
 
-      # Launches the real exe, builds every window under every theme, runs one capture + OCR pass, then exits.
+      # Launches the real exe, builds every window under every palette, runs one capture + OCR pass, then exits.
+      # Everything it logs goes to smoke.log (02 removed error.log), which is kept as an artifact.
       - name: Smoke test
         shell: pwsh
         run: |
@@ -111,50 +206,181 @@ jobs:
           $null = $p.Handle  # needed so ExitCode is available later
           if (-not $p.WaitForExit(600000)) { $p.Kill(); Write-Error "Smoke test timed out"; exit 1 }
           if (Test-Path $log) { Get-Content $log }
-          $errors = Join-Path $env:APPDATA "Envoy/error.log"
-          if (Test-Path $errors) { Get-Content $errors }
           if ($p.ExitCode -ne 0) { Write-Error "Smoke test failed with exit code $($p.ExitCode)"; exit 1 }
           Get-ChildItem screenshots -ErrorAction SilentlyContinue | Select-Object Name, Length
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: smoke-log
+          path: smoke.log
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: screenshots
           path: screenshots/
           if-no-files-found: ignore
 
-      # Keeps the latest UI renders on an orphan branch so docs (and agents without artifact access) can use them.
-      # Built in a separate worktree: the job's own checkout must keep every tracked file for the steps after this one
-      # (the folder build and vpk pack on main need src/ and .config/).
-      - name: Publish screenshots branch
-        if: github.ref == 'refs/heads/main' && hashFiles('screenshots/*.png') != ''
+      # REQ-QSC-21: a CycloneDX SBOM of Envoy.App with Envoy.Core's packages, checked on every build.
+      - name: SBOM
         shell: pwsh
         run: |
-          $shots = Join-Path $PWD "screenshots"
-          $wt = Join-Path $env:RUNNER_TEMP "ci-screenshots"
-          git worktree add -q --detach $wt
+          dotnet CycloneDX src/Envoy.App/Envoy.App.csproj --recursive --exclude-dev --output publish --filename Envoy.cdx.json `
+            --output-format Json --set-name Envoy --set-version "${{ steps.version.outputs.pack }}"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Push-Location $wt
+          python tools/ci/check_sbom.py publish/Envoy.cdx.json --require Anthropic AWSSDK.Translate `
+            System.Security.Cryptography.ProtectedData Velopack
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Untagged builds only: tag builds compute the checksum in `release`, after signing.
+      - name: Checksum (unsigned build)
+        if: steps.version.outputs.tagged != 'true'
+        shell: pwsh
+        run: |
+          Write-Output "::notice::Unsigned build (not a v* tag)"
+          $hash = (Get-FileHash publish/Envoy.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  Envoy.exe" | Out-File -Encoding ascii publish/Envoy.exe.sha256
+          Get-Content publish/Envoy.exe.sha256
+
+      # The Velopack installer for pushes to main (REQ-DIST-4): a folder build and an unsigned pack, without deltas.
+      - name: Publish folder build (main)
+        if: steps.version.outputs.main_push == 'true'
+        shell: pwsh
+        run: |
+          dotnet publish src/Envoy.App/Envoy.App.csproj -c Release -o publish-velo -p:PublishSingleFile=false `
+            "-p:InformationalVersion=${{ steps.version.outputs.pack }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: vpk pack (main)
+        if: steps.version.outputs.main_push == 'true'
+        shell: pwsh
+        run: |
+          dotnet vpk pack --packId Envoy --packVersion "${{ steps.version.outputs.pack }}" --packDir publish-velo --mainExe Envoy.exe `
+            --packTitle Envoy --packAuthors "Envoy contributors" --icon src/Envoy.App/Assets/envoy.ico --releaseNotes notes.md `
+            --channel win --runtime win-x64 --noPortable --shortcuts StartMenuRoot --delta None -o Releases
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: steps.version.outputs.main_push == 'true'
+        with:
+          name: Envoy-${{ steps.version.outputs.pack }}-setup
+          path: Releases/Envoy-win-Setup.exe
+          if-no-files-found: error
+
+      # The tested exe, its SBOM and release notes. `release` downloads this artifact on tags and signs that exe.
+      - name: Stage the build artifact
+        shell: pwsh
+        run: Copy-Item notes.md publish/notes.md
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Envoy-${{ steps.version.outputs.value }}-win-x64
+          path: |
+            publish/Envoy.exe
+            publish/Envoy.exe.sha256
+            publish/Envoy.cdx.json
+            publish/notes.md
+          if-no-files-found: error
+
+      - name: Time budget
+        if: always()
+        shell: pwsh
+        run: python tools/ci/job_budget.py --label windows --max-minutes 20 --smoke-log smoke.log
+
+      # ---- Tag-only, after the budget step (excluded from the budget, contract §6). ----
+      - name: Publish folder build (tag)
+        if: steps.version.outputs.tagged == 'true'
+        shell: pwsh
+        run: |
+          dotnet publish src/Envoy.App/Envoy.App.csproj -c Release -o publish-velo -p:PublishSingleFile=false `
+            "-p:Version=${{ steps.version.outputs.numeric }}" "-p:InformationalVersion=${{ steps.version.outputs.pack }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: steps.version.outputs.tagged == 'true'
+        with:
+          name: publish-velo
+          path: publish-velo/
+          if-no-files-found: error
+
+  # Keeps the latest UI renders on an orphan branch so docs (and agents without artifact access) can use them.
+  # Builds and runs no project code: it only pushes the PNGs the windows job rendered.
+  screenshots:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: true
+        with:
+          name: screenshots
+          path: ${{ runner.temp }}/screenshots
+      - name: Publish screenshots branch
+        shell: bash
+        env:
+          SHOTS: ${{ runner.temp }}/screenshots
+        run: |
+          shopt -s nullglob
+          shots=("$SHOTS"/*.png)
+          if [ ${#shots[@]} -eq 0 ]; then echo "No screenshots to publish"; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -q --orphan ci-screenshots
           git rm -rfq .
-          Copy-Item "$shots/*.png" .
-          git add *.png
+          cp "${shots[@]}" .
+          git add -- *.png
           git commit -qm "UI screenshots for ${{ github.sha }}"
           git push -qf origin ci-screenshots
-          $code = $LASTEXITCODE
-          Pop-Location
-          git worktree remove --force $wt
-          if (-not (Test-Path src/Envoy.App/Envoy.App.csproj)) { Write-Error "The screenshots step changed the job's checkout"; exit 1 }
-          exit $code
 
-      # ---- Signing: v* tags only, in the release environment (REQ-DIST-8). Runs after the smoke test, so the signed
-      #      bytes differ from the smoke-tested ones only by the signature. ----
-      - name: Unsigned build notice
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+  # ---- The release (v* tags only; contract §8.8). Waits for a reviewer in the protected `release` environment, which
+  #      alone holds the signing secrets. Builds and runs no project code: it signs the smoke-tested exe from `windows`
+  #      (so the released bytes differ from the tested ones only by the signature), packs the folder build, and uploads.
+  #      Spec 06's step bodies, moved here unchanged apart from their paths. ----
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, app-tests]
+    runs-on: windows-latest
+    environment: release
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.windows.outputs.value }}
+      PACK: ${{ needs.windows.outputs.pack }}
+      PRERELEASE: ${{ needs.windows.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore .NET tools (vpk)
+        run: dotnet tool restore
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Envoy-${{ needs.windows.outputs.value }}-win-x64
+          path: publish
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: publish-velo
+          path: publish-velo
+
+      - name: Release notes
         shell: pwsh
-        run: Write-Output "::notice::Unsigned build (not a v* tag)"
+        run: |
+          Move-Item publish/notes.md notes.md
+          Get-Content notes.md
 
       - name: Signing setup
         id: sign
@@ -185,31 +411,15 @@ jobs:
           "$hash  Envoy.exe" | Out-File -Encoding ascii publish/Envoy.exe.sha256
           Get-Content publish/Envoy.exe.sha256
 
-      # ---- The Velopack installer: tags and pushes to main (REQ-DIST-1, 4). A folder build, so deltas stay small. ----
-      - name: Publish folder build
-        if: steps.version.outputs.pack_enabled == 'true'
-        shell: pwsh
-        run: |
-          $a = @("publish", "src/Envoy.App/Envoy.App.csproj", "-c", "Release", "-o", "publish-velo", "-p:PublishSingleFile=false",
-                 "-p:InformationalVersion=${{ steps.version.outputs.pack }}")
-          if ("${{ steps.version.outputs.tagged }}" -eq "true") { $a += "-p:Version=${{ steps.version.outputs.numeric }}" }
-          dotnet @a
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Restore .NET tools (vpk)
-        if: steps.version.outputs.pack_enabled == 'true'
-        run: dotnet tool restore
-
       # The previous release's full package, so vpk can build a delta. Stable tags look at stable releases only.
       - name: Previous release for deltas
         id: previous
-        if: startsWith(github.ref, 'refs/tags/v')
         continue-on-error: true
         shell: pwsh
         run: |
           $a = @("vpk", "download", "github", "--repoUrl", "https://github.com/${{ github.repository }}", "--channel", "win",
                  "--token", "${{ secrets.GITHUB_TOKEN }}", "-o", "Releases")
-          if ("${{ steps.version.outputs.prerelease }}" -eq "true") { $a += "--pre" }
+          if ($env:PRERELEASE -eq "true") { $a += "--pre" }
           dotnet @a
           $has = [bool](Get-ChildItem Releases -Filter "*-full.nupkg" -ErrorAction SilentlyContinue)
           "has_previous=$($has.ToString().ToLower())" >> $env:GITHUB_OUTPUT
@@ -220,25 +430,23 @@ jobs:
         env:
           ENVOY_SIGN_PFX_PASSWORD: ${{ secrets.ENVOY_SIGN_PFX_PASSWORD }}
         run: |
-          dotnet vpk pack --packId Envoy --packVersion "${{ steps.version.outputs.pack }}" --packDir publish-velo --mainExe Envoy.exe `
+          dotnet vpk pack --packId Envoy --packVersion "$env:PACK" --packDir publish-velo --mainExe Envoy.exe `
             --packTitle Envoy --packAuthors "Envoy contributors" --icon src/Envoy.App/Assets/envoy.ico --releaseNotes notes.md `
             --channel win --runtime win-x64 --noPortable --shortcuts StartMenuRoot --delta BestSpeed -o Releases `
             --signTemplate "pwsh -NoProfile -File tools/release/sign.ps1 {{file}}"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: vpk pack
-        if: steps.version.outputs.pack_enabled == 'true' && steps.sign.outputs.signing != 'true'
+        if: steps.sign.outputs.signing != 'true'
         shell: pwsh
         run: |
-          $delta = if ("${{ steps.version.outputs.tagged }}" -eq "true") { "BestSpeed" } else { "None" }
-          dotnet vpk pack --packId Envoy --packVersion "${{ steps.version.outputs.pack }}" --packDir publish-velo --mainExe Envoy.exe `
+          dotnet vpk pack --packId Envoy --packVersion "$env:PACK" --packDir publish-velo --mainExe Envoy.exe `
             --packTitle Envoy --packAuthors "Envoy contributors" --icon src/Envoy.App/Assets/envoy.ico --releaseNotes notes.md `
-            --channel win --runtime win-x64 --noPortable --shortcuts StartMenuRoot --delta $delta -o Releases
+            --channel win --runtime win-x64 --noPortable --shortcuts StartMenuRoot --delta BestSpeed -o Releases
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: SHA256SUMS.txt
         id: sums
-        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
           $exe = (Get-FileHash publish/Envoy.exe -Algorithm SHA256).Hash.ToLower()
@@ -248,32 +456,22 @@ jobs:
           Get-Content SHA256SUMS.txt
           "setup_sha256=$setup" >> $env:GITHUB_OUTPUT
 
-      - uses: actions/upload-artifact@v4
+      # SHOULD (REQ-QSC-22): `gh attestation verify Envoy.exe -R <repo>` proves the binary came from this workflow.
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
-          name: Envoy-${{ steps.version.outputs.value }}-win-x64
-          path: |
+          subject-path: |
             publish/Envoy.exe
-            publish/Envoy.exe.sha256
-
-      - uses: actions/upload-artifact@v4
-        if: steps.version.outputs.pack_enabled == 'true'
-        with:
-          name: Envoy-${{ steps.version.outputs.pack }}-setup
-          path: |
             Releases/Envoy-win-Setup.exe
-            SHA256SUMS.txt
-          if-no-files-found: error
 
-      # ---- The release (tags only): a draft until every asset is uploaded and asserted (REQ-DIST-2, 3, 5, 7). ----
-      - name: GitHub release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
+      # A draft until every asset is uploaded and asserted (REQ-DIST-2, 3, 5, 7).
+      - name: GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
           $repo = "${{ github.repository }}"
-          $pre = "${{ steps.version.outputs.prerelease }}" -eq "true"
+          $pre = $env:PRERELEASE -eq "true"
           $delta = if ("${{ steps.previous.outputs.has_previous }}" -eq "true") { "true" } else { "false" }
           $a = @("vpk", "upload", "github", "--repoUrl", "https://github.com/$repo", "--token", "${{ secrets.GITHUB_TOKEN }}",
                  "--channel", "win", "-o", "Releases", "--tag", $tag, "--releaseName", "Envoy $tag",
@@ -281,9 +479,9 @@ jobs:
           if ($pre) { $a += "--pre" }
           dotnet @a
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          gh release upload $tag publish/Envoy.exe publish/Envoy.exe.sha256 SHA256SUMS.txt --clobber --repo $repo
+          gh release upload $tag publish/Envoy.exe publish/Envoy.exe.sha256 SHA256SUMS.txt publish/Envoy.cdx.json --clobber --repo $repo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python tools/release/check_release_assets.py --repo $repo --tag $tag --version "${{ steps.version.outputs.pack }}" `
+          python tools/release/check_release_assets.py --repo $repo --tag $tag --version "$env:PACK" `
             --delta $delta --exe publish/Envoy.exe --setup Releases/Envoy-win-Setup.exe --sums SHA256SUMS.txt
           if ($LASTEXITCODE -ne 0) { Write-Error "The draft release's assets are wrong; it stays a draft."; exit 1 }
           $body = (Get-Content notes.md -Raw) + "`n`n" + (Get-Content tools/release/release-footer.md -Raw)
@@ -295,16 +493,16 @@ jobs:
 
       # winget manifests for stable tags (REQ-DIST-28); submitted by hand (docs/releasing.md).
       - name: winget manifests
-        if: startsWith(github.ref, 'refs/tags/v') && steps.version.outputs.prerelease != 'true'
+        if: needs.windows.outputs.prerelease != 'true'
         shell: pwsh
         run: |
-          python tools/release/render_winget.py --version "${{ steps.version.outputs.value }}" `
+          python tools/release/render_winget.py --version "$env:VERSION" `
             --installer-url "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Envoy-win-Setup.exe" `
             --sha256 "${{ steps.sums.outputs.setup_sha256 }}" --out winget
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - uses: actions/upload-artifact@v4
-        if: startsWith(github.ref, 'refs/tags/v') && steps.version.outputs.prerelease != 'true'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: needs.windows.outputs.prerelease != 'true'
         with:
           name: winget-manifests
           path: winget/

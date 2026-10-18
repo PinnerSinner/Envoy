@@ -1,0 +1,20 @@
+name: Dependency review
+
+# REQ-QSC-19 (SHOULD): fails a pull request that adds a dependency with a known high or critical vulnerability.
+# The licence check stays off: NuGet packages often report only a licence URL, which shows up as unknown;
+# THIRD-PARTY-NOTICES.md review covers licences instead.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          fail-on-severity: high

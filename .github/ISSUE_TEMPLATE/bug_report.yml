@@ -2,6 +2,11 @@ name: Bug report
 description: Something doesn't work as expected
 labels: [bug]
 body:
+  - type: markdown
+    attributes:
+      value: >
+        **Please don't paste `settings.json` or API keys.** Use About › Troubleshooting › Copy diagnostics instead;
+        it hides them.
   - type: textarea
     id: what
     attributes:

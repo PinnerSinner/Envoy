@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """The last gate before a release is published (REQ-DIST-2, 3, 5, 7): the GitHub release must still be a draft, hold
-exactly the expected assets (a delta package only when a previous release was found), and SHA256SUMS.txt must match
+exactly the expected assets (a delta package only when a previous release was found, and the CycloneDX SBOM
+Envoy.cdx.json, REQ-QSC-21), and SHA256SUMS.txt must match
 the local Envoy.exe and Envoy-win-Setup.exe.
 
 Standard library only; reads the release with `gh release view <tag> --json assets,isDraft`. The prerelease flag is
@@ -23,7 +24,7 @@ import tempfile
 
 def expected_assets(version: str, delta: bool) -> set[str]:
     names = {"Envoy.exe", "Envoy.exe.sha256", "SHA256SUMS.txt", "Envoy-win-Setup.exe", f"Envoy-{version}-full.nupkg",
-             "releases.win.json", "assets.win.json", "RELEASES"}
+             "releases.win.json", "assets.win.json", "RELEASES", "Envoy.cdx.json"}
     if delta:
         names.add(f"Envoy-{version}-delta.nupkg")
     return names
@@ -110,6 +111,7 @@ def self_test() -> int:
             ("prerelease", release(sorted(expected_assets("1.3.0-beta.1", False)), pre=True), "v1.3.0-beta.1", False, True),
             ("already published", release(full, draft=False), "v1.2.0", True, False),
             ("missing setup", release([n for n in full if n != "Envoy-win-Setup.exe"]), "v1.2.0", True, False),
+            ("missing SBOM", release([n for n in full if n != "Envoy.cdx.json"]), "v1.2.0", True, False),
             ("missing delta", release(sorted(expected_assets("1.2.0", False))), "v1.2.0", True, False),
             ("extra asset", release(full + ["Envoy-win-Portable.zip"]), "v1.2.0", True, False),
             ("duplicate asset", release(full + ["Envoy.exe"]), "v1.2.0", True, False),

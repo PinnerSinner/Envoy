@@ -1,12 +1,14 @@
 version: 2
 updates:
+  # The app and Core (/) and the type-check project that mirrors the app's packages (REQ-QSC-27).
   - package-ecosystem: nuget
-    directory: /
+    directories: ["/", "/tools/typecheck"]
     schedule:
       interval: monthly
     groups:
       nuget:
         patterns: ["*"]
+  # Actions are pinned to commit SHAs with the tag in a trailing comment (REQ-QSC-24); Dependabot updates both.
   - package-ecosystem: github-actions
     directory: /
     schedule:

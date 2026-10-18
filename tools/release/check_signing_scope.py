@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Tag-only code signing (REQ-DIST-8): fails unless every `secrets.ENVOY_SIGN_` reference in the workflow sits inside a
-step whose `if:` requires a v* tag, directly (`startsWith(github.ref, 'refs/tags/v')`) or through the tag-gated
-`steps.sign.outputs.signing`, and the `windows` job's `environment:` is the tag expression.
+"""Tag-only code signing (REQ-DIST-8, REQ-QSC-23, contract §8.8): fails unless
+- every `secrets.ENVOY_SIGN_` reference sits inside the `release` job;
+- that job has `environment: release` and `if: startsWith(github.ref, 'refs/tags/v')` (job level);
+- no other job declares an `environment:` (only the release environment holds the signing secrets).
 
 Line-based, standard library only. Usage: check_signing_scope.py [workflow] | --self-test
 """
 from __future__ import annotations
 
 import os
-import re
 import sys
 import tempfile
 
 SECRET = "secrets.ENVOY_SIGN_"
 TAG_CONDITION = "startsWith(github.ref, 'refs/tags/v')"
-SIGN_OUTPUT = re.compile(r"steps\.sign\.outputs\.signing\s*==\s*'true'")
-ENVIRONMENT = "${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}"
+RELEASE_JOB = "release"
+ENVIRONMENT = "release"
 DEFAULT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".github", "workflows", "build.yml")
 
 
@@ -98,47 +98,63 @@ def _parse(lines: list[str]):
     return jobs, steps
 
 
+def _job_keys(lines: list[str], start: int, end: int, indent: int) -> dict[str, tuple[int, str]]:
+    """The job's own keys (one level below its name): key -> (line index, value)."""
+    keys: dict[str, tuple[int, str]] = {}
+    for i in range(start + 1, end):
+        line = lines[i]
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or _indent(line) != indent + 2 or ":" not in stripped:
+            continue
+        key = stripped.split(":", 1)[0].strip()
+        keys.setdefault(key, (i, _value(stripped)))
+    return keys
+
+
 def check(path: str) -> list[str]:
     with open(path, encoding="utf-8") as f:
         lines = f.read().splitlines()
     problems: list[str] = []
-    jobs, steps = _parse(lines)
+    jobs, _ = _parse(lines)
 
-    windows = jobs.get("windows")
-    if windows is None:
-        problems.append(f"{path}:1: no `windows` job")
+    release = jobs.get(RELEASE_JOB)
+    if release is None:
+        problems.append(f"{path}:1: no `{RELEASE_JOB}` job")
     else:
-        start, end, indent = windows
-        env = [(i, _value(lines[i].strip())) for i in range(start + 1, end)
-               if _indent(lines[i]) == indent + 2 and lines[i].strip().startswith("environment:")]
-        if not env:
-            problems.append(f"{path}:{start + 1}: the windows job has no `environment:` line")
-        elif env[0][1] != ENVIRONMENT:
-            problems.append(f"{path}:{env[0][0] + 1}: the windows job's environment must be {ENVIRONMENT}")
+        start, end, indent = release
+        keys = _job_keys(lines, start, end, indent)
+        if "environment" not in keys:
+            problems.append(f"{path}:{start + 1}: the {RELEASE_JOB} job has no `environment: {ENVIRONMENT}` line")
+        elif keys["environment"][1] != ENVIRONMENT:
+            problems.append(f"{path}:{keys['environment'][0] + 1}: the {RELEASE_JOB} job's environment must be "
+                            f"`{ENVIRONMENT}`, not `{keys['environment'][1]}`")
+        if "if" not in keys or TAG_CONDITION not in keys["if"][1]:
+            problems.append(f"{path}:{start + 1}: the {RELEASE_JOB} job must run only on v* tags (if: {TAG_CONDITION})")
 
-    sign_steps = [s for s in steps if s["id"] == "sign"]
-    sign_gated = bool(sign_steps) and all(TAG_CONDITION in (s["if"] or "") for s in sign_steps)
-    if sign_steps and not sign_gated:
-        problems.append(f"{path}:{sign_steps[0]['start'] + 1}: the `sign` step must run only on v* tags ({TAG_CONDITION})")
+    for name, (start, end, indent) in jobs.items():
+        if name == RELEASE_JOB:
+            continue
+        keys = _job_keys(lines, start, end, indent)
+        if "environment" in keys:
+            problems.append(f"{path}:{keys['environment'][0] + 1}: only the {RELEASE_JOB} job may declare an "
+                            f"environment (job `{name}` does)")
 
+    first_job = min((s for s, _, _ in jobs.values()), default=len(lines))
     for i, line in enumerate(lines):
         if SECRET not in line or line.strip().startswith("#"):
             continue
-        step = next((s for s in steps if s["start"] <= i < s["end"]), None)
-        if step is None:
-            problems.append(f"{path}:{i + 1}: {SECRET}* is used outside a step")
-            continue
-        condition = step["if"] or ""
-        if TAG_CONDITION in condition:
-            continue
-        if SIGN_OUTPUT.search(condition) and sign_gated:
-            continue
-        problems.append(f"{path}:{i + 1}: {SECRET}* is used in a step that can run without a v* tag (if: {condition or 'none'})")
+        owner = next((n for n, (s, e, _) in jobs.items() if s <= i < e), None)
+        if owner != RELEASE_JOB:
+            where = f"the `{owner}` job" if owner else ("the workflow header" if i < first_job else "no job")
+            problems.append(f"{path}:{i + 1}: {SECRET}* is used in {where}; signing secrets belong only in the "
+                            f"tag-only `{RELEASE_JOB}` job")
     return problems
 
 
 GOOD = """name: Build
 on: [push]
+permissions:
+  contents: read
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -146,11 +162,17 @@ jobs:
       - run: echo hi
   windows:
     runs-on: windows-latest
-    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
+    steps:
+      - name: Other
+        run: echo ${{ secrets.GITHUB_TOKEN }}
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows]
+    runs-on: windows-latest
+    environment: release
     steps:
       - name: Signing setup
         id: sign
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           PFX: ${{ secrets.ENVOY_SIGN_PFX_BASE64 }}
         run: echo setup
@@ -159,21 +181,27 @@ jobs:
         env:
           ENVOY_SIGN_PFX_PASSWORD: ${{ secrets.ENVOY_SIGN_PFX_PASSWORD }}
         run: echo sign
-      - name: Other
-        run: echo ${{ secrets.GITHUB_TOKEN }}
 """
 
 
 def self_test() -> int:
     cases = {
         "good": (GOOD, True),
-        "secret in an ungated step": (GOOD.replace("        if: steps.sign.outputs.signing == 'true'\n", ""), False),
-        "secret in job env": (GOOD.replace("    environment:", "    env:\n      X: ${{ secrets.ENVOY_SIGN_PFX_PASSWORD }}\n    environment:"), False),
-        "sign step not tag-gated": (GOOD.replace("        if: startsWith(github.ref, 'refs/tags/v')\n", "        if: always()\n"), False),
-        "environment always release": (GOOD.replace("${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}", "release"), False),
-        "no environment": (GOOD.replace("    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}\n", ""), False),
+        "secret in the windows job": (GOOD.replace("        run: echo ${{ secrets.GITHUB_TOKEN }}",
+                                                   "        run: echo ${{ secrets.ENVOY_SIGN_PFX_BASE64 }}"), False),
         "secret in the check job": (GOOD.replace("      - run: echo hi", "      - run: echo ${{ secrets.ENVOY_SIGN_PFX_PASSWORD }}"), False),
-        "secret in a later ungated step": (GOOD + "      - name: Leak\n        run: echo ${{ secrets.ENVOY_SIGN_PFX_BASE64 }}\n", False),
+        "secret in workflow env": (GOOD.replace("permissions:\n", "env:\n  X: ${{ secrets.ENVOY_SIGN_PFX_PASSWORD }}\npermissions:\n"), False),
+        "release without environment": (GOOD.replace("    environment: release\n", ""), False),
+        "release in another environment": (GOOD.replace("    environment: release\n", "    environment: staging\n"), False),
+        "release environment by expression": (GOOD.replace("    environment: release\n",
+            "    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}\n"), False),
+        "release not tag-only": (GOOD.replace("    if: startsWith(github.ref, 'refs/tags/v')\n", ""), False),
+        "release on every push": (GOOD.replace("    if: startsWith(github.ref, 'refs/tags/v')\n", "    if: always()\n"), False),
+        "another job with an environment": (GOOD.replace("  windows:\n    runs-on: windows-latest\n",
+                                                         "  windows:\n    runs-on: windows-latest\n    environment: release\n"), False),
+        "no release job": (GOOD.replace("  release:\n", "  publish:\n"), False),
+        "tag condition only on a step": (GOOD.replace("    if: startsWith(github.ref, 'refs/tags/v')\n", "")
+                                         .replace("        id: sign\n", "        id: sign\n        if: startsWith(github.ref, 'refs/tags/v')\n"), False),
     }
     failures = 0
     with tempfile.TemporaryDirectory() as tmp:
@@ -204,7 +232,7 @@ def main(argv: list[str]) -> int:
         print(p)
     if problems:
         return 1
-    print("signing scope ok: signing secrets are used only in v* tag steps")
+    print("signing scope ok: signing secrets are used only in the tag-only release job (environment: release)")
     return 0
 
 
