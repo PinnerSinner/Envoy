@@ -48,6 +48,30 @@ public partial class ChatLineParserTests
         Assert.Null(msg.Channel);
         Assert.Equal("[CLAN] Bob", msg.Sender);
     }
+
+    [Theory]
+    [InlineData("[AllJ Henry: attack the gold at 3", "All", "Henry", "attack the gold at 3")]
+    [InlineData("[Team| Ada: need wood pls", "Team", "Ada", "need wood pls")]
+    [InlineData("(AllI Bob: hi", "All", "Bob", "hi")]
+    [InlineData("[Teaml Kim: ok", "Team", "Kim", "ok")]
+    public void Reads_a_channel_tag_whose_closing_bracket_OCR_misread(string line, string channel, string sender, string text)
+    {
+        var msg = ChatLineParser.Parse(line);
+        Assert.Equal(channel, msg.Channel);
+        Assert.Equal(sender, msg.Sender);
+        Assert.Equal(text, msg.Text);
+    }
+
+    [Theory]
+    [InlineData("[Jill Bob: hi", "[Jill Bob")]
+    [InlineData("[CLANJ Bob: hi", "[CLANJ Bob")]
+    [InlineData("[AllX Bob: hi", "[AllX Bob")]
+    public void A_misread_closer_needs_a_known_channel_word(string line, string sender)
+    {
+        var msg = ChatLineParser.Parse(line);
+        Assert.Null(msg.Channel);
+        Assert.Equal(sender, msg.Sender);
+    }
 }
 
 public partial class ChatDeduplicatorTests

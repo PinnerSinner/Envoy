@@ -46,6 +46,7 @@ public sealed class ChatFormatProfile
             foreach (var word in words) _aliases.TryAdd(word.Trim(), canonical);
         }
 
+        _openers = string.Concat(brackets.Select(b => b[0]));
         var openers = ClassEscape(brackets.Select(b => b[0]));
         var closers = ClassEscape(brackets.Select(b => b[1]));
         BracketPrefix = new Regex($@"^\s*[{openers}](?<ch>[^{closers}]{{1,16}})[{closers}]\s*:?\s*", RegexOptions.None, MatchTimeout);
@@ -80,6 +81,11 @@ public sealed class ChatFormatProfile
 
     /// <summary>The built-in <c>generic</c> profile.</summary>
     public static ChatFormatProfile Generic => ChatFormatCatalog.BuiltIn.Generic;
+
+    private readonly string _openers;
+
+    /// <summary>True for an opening bracket of this profile's channel tags.</summary>
+    internal bool IsOpeningBracket(char c) => _openers.Contains(c, StringComparison.Ordinal);
 
     internal Regex BracketPrefix { get; }
     internal Regex BracketSuffix { get; }

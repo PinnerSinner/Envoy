@@ -175,6 +175,8 @@ versioning: [SemVer](https://semver.org/).
 - Caption and error text is brighter (darker in Parchment) so it reaches WCAG AA contrast (4.5:1) in every theme.
 
 ### Fixed
+- A channel tag whose closing bracket OCR misreads (`[AllJ Henry: …`) no longer hides the sender's name; the channel
+  is still recognised.
 - A hotkey with a digit, such as `Ctrl+1`, now means the number key; it was read as an unrelated key before.
 
 ### Security

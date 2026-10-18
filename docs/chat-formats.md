@@ -13,7 +13,8 @@ Each capture goes through these steps (Reading Chat › **Understanding chat** h
    icons** on (the default), symbols that rank, civilisation or platform icons turn into at the start of a line
    (`■`, `©`, `•`, `|`, …) are removed, full-width letters and digits (`Ｐｌａｙｅｒ１`) become ordinary ones, and
    punctuation around a name is trimmed. Brackets such as a clan tag `[CLAN]` are kept, and Korean `ㅋㅋ`/`ㄱㄱ` stay
-   as they are.
+   as they are. A channel tag whose closing bracket OCR read as `J`, `I`, `l`, `1` or `|` (`[AllJ Bob: hi`) still
+   counts as the channel when the word is one of the profile's channel words.
 2. **Notices.** A line that matches one of your notice patterns is a game notice, even if it contains a `:`.
 3. **Messages.** A line with a sender (`Name: text`, `[All] Name: text`, `Name (Team): text`, `12:04 Name: text`, and
    the full-width `：`) starts a message.

@@ -1,0 +1,9 @@
+# OCR reads a channel tag's closing ']' as J, I, l, 1 or a bar; a known channel word still counts as the channel.
+@frame
+ 10  28 | [AllJ Henry: attack the gold at 3
+ 32  50 | [Team| Ada: need wood pls
+ 54  72 | [CLANJ Bob_99: gg wp
+@expect
+chat | All | Henry | attack the gold at 3
+chat | Team | Ada | need wood pls
+chat | - | [CLANJ Bob_99 | gg wp

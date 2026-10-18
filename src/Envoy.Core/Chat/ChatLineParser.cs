@@ -31,6 +31,11 @@ public static partial class ChatLineParser
             channel = prefixChannel;
             rest = rest[prefix.Length..];
         }
+        else if (MisreadPrefix(rest, profile) is { } misread)
+        {
+            channel = misread.Channel;
+            rest = rest[misread.Length..];
+        }
 
         string? sender = null;
         var (separator, length) = FindSeparator(rest, profile);
@@ -55,6 +60,29 @@ public static partial class ChatLineParser
         }
 
         return new ChatMessage(raw, channel, sender, rest.Trim());
+    }
+
+    /// <summary>Glyphs OCR reads in place of a closing ']' ("[AllJ Bob: hi", "[Team| Ada: ok").</summary>
+    private const string MisreadClosers = "JIl1|";
+
+    /// <summary>
+    /// A channel tag whose closing bracket OCR misread as a letter, digit or bar: an opening bracket, a known channel
+    /// word, one of <see cref="MisreadClosers"/> and a space. Only a known channel word counts, so "[CLAN] Bob" and
+    /// "[Jill Bob" stay as they are.
+    /// </summary>
+    private static (string Channel, int Length)? MisreadPrefix(string s, ChatFormatProfile profile)
+    {
+        var start = 0;
+        while (start < s.Length && char.IsWhiteSpace(s[start])) start++;
+        if (start >= s.Length || !profile.IsOpeningBracket(s[start])) return null;
+        var space = s.IndexOf(' ', start + 1);
+        if (space < start + 3 || space - start > 17) return null;
+        var token = s[(start + 1)..space];
+        if (!MisreadClosers.Contains(token[^1], StringComparison.Ordinal)) return null;
+        if (profile.CanonicalChannel(token[..^1]) is not { } channel) return null;
+        var end = space;
+        while (end < s.Length && char.IsWhiteSpace(s[end])) end++;
+        return (channel, end);
     }
 
     /// <summary>The line without a leading timestamp (generic format), for notice patterns.</summary>
