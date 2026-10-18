@@ -484,14 +484,16 @@ internal static class SmokeTest
         foreach (var (key, family, style, weight) in HeraldFonts)
         {
             Check(app.TryFindResource(key) is FontFamily, $"{key} is not a FontFamily");
-            var source = ((FontFamily)app.FindResource(key)).Source;
+            var resource = (FontFamily)app.FindResource(key);
+            var source = resource.Source;
             Check(source.EndsWith("Segoe UI", StringComparison.Ordinal), $"{key} does not end its fallback chain in Segoe UI: {source}");
-            // The pack URI itself contains commas ("pack://application:,,,/"), so the first family ends at the first comma after '#'.
-            var hash = source.IndexOf('#', StringComparison.Ordinal);
-            var end = source.IndexOf(',', Math.Max(hash, 0));
-            var first = new FontFamily((end < 0 ? source : source[..end]).Trim());
+            // The first family is a relative pack location ("/Envoy;component/Assets/Fonts/#Name", no commas: WPF reads a
+            // doubled comma in a family list as an escape, and the absolute "pack://application:,,,/" form failed on CI). It
+            // resolves against the dictionary's base URI, as it does for every control that uses the resource.
+            var end = source.IndexOf(',', StringComparison.Ordinal);
+            var first = new FontFamily(resource.BaseUri ?? new Uri("pack://application:,,,/"), (end < 0 ? source : source[..end]).Trim());
             var typeface = new Typeface(first, style, weight, FontStretches.Normal);
-            Check(typeface.TryGetGlyphTypeface(out var glyphs), $"{key} ({family} {style} {weight}) has no glyph typeface");
+            Check(typeface.TryGetGlyphTypeface(out var glyphs), $"{key} ({family} {style} {weight}) has no glyph typeface (source {source}, base {resource.BaseUri})");
             Check(glyphs.FamilyNames.Values.Any(n => string.Equals(n, family, StringComparison.OrdinalIgnoreCase))
                   || glyphs.Win32FamilyNames.Values.Any(n => n.StartsWith(family, StringComparison.OrdinalIgnoreCase)),
                 $"{key} resolved to {string.Join("/", glyphs.FamilyNames.Values)}, not {family}");
