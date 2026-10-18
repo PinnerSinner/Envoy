@@ -812,9 +812,32 @@ internal static class SmokeTest
         app.OpenMainWindow!.Close();
         await Pump();
 
-        // Start the per-palette checks as a user who has not finished the guide (the Finish-setup callout shows).
+        // REQ-HRD-12 (2): Skip or close on the guide the start-up choice opened shows the War Room, so Envoy is never
+        // left with no window. The step list cannot jump past the privacy step while it is not acknowledged (1).
+        host.Settings.Onboarding.Skipped = false;
+        app.OpenSetupWizard(nameof(OnboardingStep.Language), autoOpened: true);
+        await Pump();
+        host.SetPrivacyAcknowledged(false);
+        app.Wizard!.ViewModel.GoTo(OnboardingStep.Hotkeys);
+        Check(app.Wizard.ViewModel.Current == OnboardingStep.Language, "the step list skipped the privacy step while it was not acknowledged");
+        host.SetPrivacyAcknowledged(true);
+        app.Wizard.ViewModel.GoTo(OnboardingStep.Hotkeys);
+        Check(app.Wizard.ViewModel.Current == OnboardingStep.Hotkeys, "the step list did not move on once privacy was acknowledged");
+        app.Wizard.Close();
+        await Pump();
+        Check(app.Wizard is null && host.Settings.Onboarding.Skipped, "closing the auto-opened guide did not record Skip");
+        Check(app.OpenMainWindow is { } fallback && fallback.PageFor(PageIds.Dashboard).IsVisible,
+            "closing the auto-opened guide did not open MainWindow on the War Room");
+        app.OpenMainWindow!.Close();
+        await Pump();
+
+        // Start the per-palette checks as a user who has not finished the guide (the Finish-setup callout shows), and with
+        // FirstRunCompleted cleared and saved, so close-flush checks that closing MainWindow sets it again (REQ-HRD-12 (5)).
         host.Settings.Onboarding.Completed = false;
+        host.Settings.Onboarding.Skipped = false;
         host.Settings.Onboarding.LastStep = "";
+        host.Settings.FirstRunCompleted = false;
+        host.SaveNow();
     }
 
     /// <summary>AC-OUXA-7: a seeded OCR notice is in the War Room list.</summary>

@@ -38,6 +38,7 @@ public partial class App : Application, IShell
     private OverlayWindow? _overlay;
     private ComposeWindow? _compose;
     private SetupWizardWindow? _wizard;
+    private bool _wizardAutoOpened;
     private TrayNotifier? _notifier;
     private LogHub? _hub;
     private MemoryLogSink? _recent;
@@ -164,7 +165,11 @@ public partial class App : Application, IShell
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
         // 9. Start (no automatic capture in safe mode), then automatic update checks unless in safe mode (06). The
-        //    coordinator exists either way, so About's "Check for updates" works in safe mode too.
+        //    coordinator exists either way, so About's "Check for updates" works in safe mode too. When the guide will
+        //    open by itself at step 11, advisories are held from here, so none balloons over it (REQ-HRD-12).
+        var minimized = e.Args.Contains("--minimized");
+        var guideAutoOpens = OnboardingGate.ShouldAutoOpenAtStartup(plan.SafeMode, minimized, Host.Settings);
+        if (guideAutoOpens) Host.Notices?.Hold(true);
         Host.Start();
         if (plan.AutoCheckUpdates) Host.StartUpdates();
 
@@ -190,8 +195,7 @@ public partial class App : Application, IShell
         //     mode, the tray only with --minimized, the setup guide for a new user (07a), else the first-run rule.
         CreateTray(plan.SafeMode);
         if (_tray is not null) _notifier?.Attach(_tray);
-        var minimized = e.Args.Contains("--minimized");
-        if (OnboardingGate.ShouldAutoOpenAtStartup(plan.SafeMode, minimized, Host.Settings)) OpenSetupWizard(Host.Settings.Onboarding.LastStep);
+        if (guideAutoOpens) OpenSetupWizard(Host.Settings.Onboarding.LastStep, autoOpened: true);
         else if (plan.ShowMainWindow) ShowMain();
         ShowStartupProblem(history);
 
@@ -493,7 +497,7 @@ public partial class App : Application, IShell
         _tray = new Forms.NotifyIcon
         {
             Icon = new System.Drawing.Icon(iconStream),
-            Text = safeMode ? SafeModeText.Tray : "Envoy — chat translator",
+            Text = safeMode ? SafeModeText.Tray : "Envoy chat translator",
             Visible = true,
         };
         var menu = new Forms.ContextMenuStrip();
@@ -632,7 +636,13 @@ public partial class App : Application, IShell
     internal MainWindow? OpenMainWindow => _main;
 
     /// <inheritdoc />
-    public void OpenSetupWizard(string? stepId = null)
+    public void OpenSetupWizard(string? stepId = null) => OpenSetupWizard(stepId, autoOpened: false);
+
+    /// <summary>
+    /// <paramref name="autoOpened"/>: the start-up window choice opened the guide; Skip or close then opens the War Room
+    /// (REQ-HRD-12), because no other window is showing.
+    /// </summary>
+    internal void OpenSetupWizard(string? stepId, bool autoOpened)
     {
         if (_exiting) return;
         if (_wizard is { IsClosing: false } open)
@@ -645,6 +655,7 @@ public partial class App : Application, IShell
         }
         var start = stepId is null ? OnboardingStep.Language : OnboardingGate.ParseStep(stepId);
         _wizard = new SetupWizardWindow(Host, this, start);
+        _wizardAutoOpened = autoOpened;
         _wizard.ViewModel.Finished += OnWizardFinished;
         Host.Notices?.Hold(true); // every advisory waits while the guide is open (contract §2.2)
         _log.Info("Setup guide opened", LogField.Of("step", start));
@@ -674,7 +685,8 @@ public partial class App : Application, IShell
         Host.Notices?.Hold(false);
         Host.ReleaseDeferredNotices();
         if (!wizard.IsClosing) wizard.Close();
-        if (completed) ShowPage(PageIds.Dashboard);
+        if (OnboardingGate.OpensWarRoomAfterClose(completed, _wizardAutoOpened)) ShowPage(PageIds.Dashboard);
+        _wizardAutoOpened = false;
     }
 
     /// <summary>Exit step 1: the guide closes without counting as Skip; its step is kept unless saving is suppressed.</summary>

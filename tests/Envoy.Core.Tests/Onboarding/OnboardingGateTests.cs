@@ -81,4 +81,12 @@ public class OnboardingGateTests
         s.Onboarding.LastStep = nameof(OnboardingStep.OcrLanguages);
         Assert.Equal(OnboardingStep.OcrLanguages, OnboardingGate.ResumeStep(s));
     }
+
+    [Theory]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    [InlineData(false, true, true)] // Skip or close on the auto-opened guide: Envoy is never left invisible
+    [InlineData(false, false, false)] // the guide opened from the tray or About: closing it leaves things as they were
+    public void War_room_opens_after_the_guide_closes(bool completed, bool autoOpened, bool expected) =>
+        Assert.Equal(expected, OnboardingGate.OpensWarRoomAfterClose(completed, autoOpened));
 }

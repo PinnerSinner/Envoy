@@ -89,6 +89,22 @@ public sealed class OnboardingFlow
     }
 
     /// <summary>
+    /// The step list's jump (spec 09a, REQ-HRD-12): like <see cref="GoTo(OnboardingStep)"/>, but a step after
+    /// <see cref="OnboardingStep.Language"/> (which holds the privacy disclosure) is refused while the disclosure is not
+    /// acknowledged, the same rule Next follows. True when <paramref name="step"/> is now current.
+    /// </summary>
+    public bool GoTo(OnboardingStep step, bool privacyAcknowledged)
+    {
+        if (!CanReach(step, privacyAcknowledged) || IndexOf(step) < 0) return false;
+        GoTo(step);
+        return true;
+    }
+
+    /// <summary>Language is always reachable; every later step needs the privacy acknowledgement.</summary>
+    public static bool CanReach(OnboardingStep step, bool privacyAcknowledged) =>
+        privacyAcknowledged || step <= OnboardingStep.Language;
+
+    /// <summary>
     /// The step list's status (REQ-OUXA-11). NotVisited if not visited. NeedsAttention: Language → privacy not
     /// acknowledged; Game → likely exclusive fullscreen; ChatArea → no region; OcrLanguages → a pack missing;
     /// TestTranslation → failed; Hotkeys → a problem. Skipped: TestTranslation visited but never run. Otherwise Done.

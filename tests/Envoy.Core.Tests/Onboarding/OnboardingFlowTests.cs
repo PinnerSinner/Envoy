@@ -63,6 +63,33 @@ public class OnboardingFlowTests
     }
 
     [Fact]
+    public void Step_list_cannot_skip_the_privacy_step_until_acknowledged()
+    {
+        var flow = new OnboardingFlow(OnboardingFlow.AllSteps);
+        foreach (var step in OnboardingFlow.AllSteps.Where(s => s != OnboardingStep.Language))
+        {
+            Assert.False(flow.GoTo(step, privacyAcknowledged: false));
+            Assert.Equal(OnboardingStep.Language, flow.Current);
+            Assert.False(OnboardingFlow.CanReach(step, privacyAcknowledged: false));
+        }
+        Assert.True(OnboardingFlow.CanReach(OnboardingStep.Language, privacyAcknowledged: false));
+        Assert.Equal([OnboardingStep.Language], flow.Visited);
+
+        Assert.True(flow.GoTo(OnboardingStep.Hotkeys, privacyAcknowledged: true));
+        Assert.Equal(OnboardingStep.Hotkeys, flow.Current);
+        Assert.True(flow.GoTo(OnboardingStep.Language, privacyAcknowledged: false)); // going back to the disclosure is always fine
+        Assert.Equal(OnboardingStep.Language, flow.Current);
+    }
+
+    [Fact]
+    public void Step_list_jump_to_an_unbuilt_step_is_refused()
+    {
+        var flow = new OnboardingFlow([OnboardingStep.Language, OnboardingStep.Game]);
+        Assert.False(flow.GoTo(OnboardingStep.Hotkeys, privacyAcknowledged: true));
+        Assert.Equal(OnboardingStep.Language, flow.Current);
+    }
+
+    [Fact]
     public void GoTo_unknown_step_is_ignored()
     {
         var flow = new OnboardingFlow([OnboardingStep.Language, OnboardingStep.Game, OnboardingStep.ChatArea, OnboardingStep.OcrLanguages]);

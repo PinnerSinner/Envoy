@@ -37,6 +37,12 @@ public static class OnboardingGate
     /// <summary>Contract §4 step 11: never in safe mode, never with <c>--minimized</c>; otherwise <see cref="ShouldAutoOpen"/>.</summary>
     public static bool ShouldAutoOpenAtStartup(bool safeMode, bool minimized, AppSettings s) =>
         !safeMode && !minimized && ShouldAutoOpen(s);
+
+    /// <summary>
+    /// Whether closing the guide opens <c>MainWindow</c> on the War Room (spec 09a, REQ-HRD-12): always after Finish, and
+    /// after Skip or close when the guide opened by itself at start-up, so Envoy is never left with no window at all.
+    /// </summary>
+    public static bool OpensWarRoomAfterClose(bool completed, bool autoOpened) => completed || autoOpened;
 }
 
 /// <summary>What closing the guide records (REQ-OUXA-10). Pure, so Finish and Skip are unit-tested.</summary>
