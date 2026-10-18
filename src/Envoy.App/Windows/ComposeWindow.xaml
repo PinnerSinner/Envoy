@@ -93,7 +93,7 @@
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                             <Button x:Name="CopyButton" Content="Copy" Click="OnCopy" TabIndex="2" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="Copy the translation (Ctrl+Enter)" />
                             <Button x:Name="SendButton" Content="Seal and send" TabIndex="3" Style="{StaticResource Button.Primary}" Click="OnSend" ToolTip="Send to game (Enter)"
-                                    AutomationProperties.Name="Send to game" />
+                                    AutomationProperties.Name="Seal and send" AutomationProperties.HelpText="Send to game (Enter)" />
                         </StackPanel>
                         <!-- REQ-OUXC-41: the length of what will be sent; Danger above the user's limit. -->
                         <TextBlock x:Name="CharCount" DockPanel.Dock="Right" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,12,0"

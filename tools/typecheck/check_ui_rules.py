@@ -22,8 +22,9 @@ R13 ReplyHistory never appears in Envoy.Core/Settings/SettingsStore.cs or AppSet
     Windows/ComposeWindow.xaml.cs mentions History (reply history is memory only)          AC-OUXC-1
 R14 Clipboard.SetText only in Services/ClipboardHelper.cs (use ClipboardHelper.TrySetText)  spec 07c
 R15 No em dash (U+2014) or en dash (U+2013) and no filler word (seamless, leverage, robust, ...) in user-facing text:
-    src/**/*.xaml, src/Envoy.Core/**/*Text.cs, src/Envoy.Core/Ux/*.cs, docs/*.md, CHANGELOG.md and README.md (paths
-    from the repository root, two folders above the app dir; docs/specs/ and docs/design/ are exempt)  REQ-HRD-10
+    src/**/*.xaml, src/Envoy.Core/**/*Text.cs, src/Envoy.Core/Ux/*.cs, the built-in phrases
+    (src/Envoy.Core/Phrases/*.json), docs/*.md, CHANGELOG.md and README.md (paths from the repository root, two
+    folders above the app dir; docs/specs/ and docs/design/ are exempt)                  REQ-HRD-10
 UPD1 `new UpdateManager(`, `UpdateManager m = new(` and `: UpdateManager` only in
     Services/VelopackUpdateBackend.cs; VelopackFlowSource and ApplyUpdatesAndRestart nowhere
     (also scanned in Envoy.Core)                                                          REQ-DIST-14, 12
@@ -85,8 +86,8 @@ CLIPBOARD_HELPER = "Services/ClipboardHelper.cs"
 CLIPBOARD_SET = re.compile(r"\bClipboard\s*\.\s*SetText\s*\(")
 DATACONTEXT_ASSIGN = re.compile(r"\bDataContext\s*=(?!=)")
 # R15 (spec 09a): the files whose text a user reads, as globs from the repository root.
-WRITING_GLOBS = ("src/**/*.xaml", "src/Envoy.Core/**/*Text.cs", "src/Envoy.Core/Ux/*.cs", "docs/*.md", "CHANGELOG.md",
-                 "README.md")
+WRITING_GLOBS = ("src/**/*.xaml", "src/Envoy.Core/**/*Text.cs", "src/Envoy.Core/Ux/*.cs",
+                 "src/Envoy.Core/Phrases/*.json", "docs/*.md", "CHANGELOG.md", "README.md")
 DASHES = {"\u2014": "em dash", "\u2013": "en dash"}
 FILLER_WORDS = ("seamless", "seamlessly", "leverage", "robust", "elevate", "delve", "unleash", "empower", "cutting-edge",
                 "game-changer", "effortless")

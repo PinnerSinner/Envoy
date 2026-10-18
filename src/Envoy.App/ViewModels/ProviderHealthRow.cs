@@ -14,6 +14,7 @@ public sealed class ProviderHealthRow(string providerId) : ObservableObject
     private string _stateText = "";
     private string _lastSuccessText = "";
     private ProviderState _state;
+    private TranslationErrorKind? _lastErrorKind;
 
     public string ProviderId { get; } = providerId;
     public string Name { get; } = ProviderCatalog.NameOf(providerId);
@@ -34,7 +35,7 @@ public sealed class ProviderHealthRow(string providerId) : ObservableObject
     }
 
     /// <summary>The candle's look, a <see cref="CandleState"/> name: Lit, Guttering or Snuffed (spec 09a).</summary>
-    public string Candle => ProviderCandle.For(State).ToString();
+    public string Candle => ProviderCandle.For(State, _lastErrorKind).ToString();
 
     public string StateText
     {
@@ -54,7 +55,10 @@ public sealed class ProviderHealthRow(string providerId) : ObservableObject
     public void Update(ProviderHealthSnapshot snapshot, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        var candle = Candle;
+        _lastErrorKind = snapshot.LastErrorKind;
         State = snapshot.State;
+        if (Candle != candle) OnPropertyChanged(nameof(Candle));
         StateText = ProviderHealthText.Describe(snapshot, now);
         LastSuccessText = ProviderHealthText.LastSuccess(snapshot, now);
     }

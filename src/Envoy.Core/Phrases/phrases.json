@@ -44,19 +44,19 @@
     "category": "Greetings",
     "icon": "✎",
     "text": {
-      "en": "I don't speak your language — I'm using a translator.",
+      "en": "I don't speak your language. I'm using a translator.",
       "zh-CN": "我不会说你的语言，我在用翻译器。",
       "zh-TW": "我不會說你的語言，我在用翻譯器。",
       "ko": "저는 당신의 언어를 못 해서 번역기를 쓰고 있어요.",
       "ja": "あなたの言語は話せないので、翻訳ツールを使っています。",
-      "ru": "Я не говорю на вашем языке — пользуюсь переводчиком.",
+      "ru": "Я не говорю на вашем языке, пользуюсь переводчиком.",
       "es": "No hablo tu idioma, estoy usando un traductor.",
       "pt": "Não falo seu idioma, estou usando um tradutor.",
-      "de": "Ich spreche deine Sprache nicht – ich benutze einen Übersetzer.",
+      "de": "Ich spreche deine Sprache nicht. Ich benutze einen Übersetzer.",
       "fr": "Je ne parle pas ta langue, j'utilise un traducteur.",
       "tr": "Senin dilini bilmiyorum, çevirmen kullanıyorum.",
       "vi": "Mình không biết tiếng của bạn, mình đang dùng trình dịch.",
-      "pl": "Nie znam twojego języka — używam tłumacza."
+      "pl": "Nie znam twojego języka, używam tłumacza."
     }
   },
   {

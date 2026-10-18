@@ -28,7 +28,7 @@
                 <StackPanel>
                     <TextBlock Text="Accessibility" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="High contrast" />
                         <ComboBox x:Name="HighContrastBox" Grid.Column="1" Width="260" HorizontalAlignment="Left" ItemsSource="{Binding HighContrastModes}"
                                   DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Accessibility.HighContrast}"

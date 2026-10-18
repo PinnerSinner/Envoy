@@ -14,7 +14,7 @@
                 <StackPanel>
                     <TextBlock Text="Chat area" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Region" />
                         <TextBlock Grid.Column="1" Text="{Binding RegionText, Mode=OneWay}" Style="{StaticResource Text.Label}" TextWrapping="Wrap" />
                         <Button Grid.Column="2" Content="Select chat area" Command="{Binding SelectRegionCommand}" />
@@ -22,7 +22,7 @@
                     <TextBlock Text="{Binding RegionHint, Mode=OneWay}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="260,0,0,6"
                                Visibility="{Binding HasRegionHint, Mode=OneWay, Converter={StaticResource BoolToVisibility}}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Game" />
                         <ComboBox AutomationProperties.Name="Game" Grid.Column="1" ItemsSource="{Binding Games}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Game}" />
                     </Grid>
@@ -66,33 +66,33 @@
                     <CheckBox Content="Adapt reading speed to chat activity" IsChecked="{Binding Settings.Capture.AdaptivePolling}"
                               AutomationProperties.Name="Adapt reading speed to chat activity" />
                     <Grid Style="{StaticResource SettingRow}" Visibility="{Binding Settings.Capture.AdaptivePolling, Converter={StaticResource BoolToVisibility}}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Fastest check (chat is moving)" />
                         <Slider Grid.Column="1" Minimum="150" Maximum="1000" TickFrequency="50" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.MinIntervalMs}"
                                 AutomationProperties.Name="Fastest check" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.MinIntervalMs, StringFormat='{}{0} ms'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}" Visibility="{Binding Settings.Capture.AdaptivePolling, Converter={StaticResource BoolToVisibility}}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Slowest check (chat is quiet)" />
                         <Slider Grid.Column="1" Minimum="500" Maximum="5000" TickFrequency="100" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.MaxIntervalMs}"
                                 AutomationProperties.Name="Slowest check" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.MaxIntervalMs, StringFormat='{}{0} ms'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}" Visibility="{Binding Settings.Capture.AdaptivePolling, Converter={StaticResource InverseBoolToVisibility}}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Check for new messages every" />
                         <Slider AutomationProperties.Name="Check for new messages every" Grid.Column="1" Minimum="250" Maximum="3000" TickFrequency="50" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.IntervalMs}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.IntervalMs, StringFormat='{}{0} ms'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Enlarge before reading" />
                         <Slider AutomationProperties.Name="Enlarge before reading" Grid.Column="1" Minimum="1" Maximum="4" TickFrequency="0.25" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.Upscale}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.Upscale, StringFormat='{}{0:0.##}×'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Contrast" />
                         <Slider AutomationProperties.Name="Contrast" Grid.Column="1" Minimum="0.5" Maximum="3" TickFrequency="0.1" IsSnapToTickEnabled="True" Value="{Binding Settings.Capture.Contrast}" />
                         <TextBlock Grid.Column="2" Text="{Binding Settings.Capture.Contrast, StringFormat='{}{0:0.0}'}" Style="{StaticResource Text.Label}" Margin="12,0,0,0" />
@@ -106,7 +106,7 @@
                     <CheckBox Content="Pause when the game isn't the active window" IsChecked="{Binding Settings.Capture.PauseWhenNotForeground}"
                               AutomationProperties.Name="Pause when the game isn't the active window" />
                     <Grid Style="{StaticResource SettingRow}" Visibility="{Binding HasCaptureBackendChoice, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Capture method" />
                         <ComboBox Grid.Column="1" ItemsSource="{Binding CaptureBackends}" DisplayMemberPath="Label" SelectedValuePath="Value"
                                   SelectedValue="{Binding Settings.Capture.Backend}" AutomationProperties.Name="Capture method" />
@@ -129,7 +129,7 @@
                     <CheckBox Content="Remove stray symbols that OCR reads from icons" IsChecked="{Binding Settings.Chat.CleanSymbols}"
                               AutomationProperties.Name="Remove stray symbols that OCR reads from icons" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Chat format" />
                         <ComboBox Grid.Column="1" ItemsSource="{Binding ChatFormatOptions, Mode=OneWay}" DisplayMemberPath="Label" SelectedValuePath="Value"
                                   SelectedValue="{Binding Settings.Chat.FormatProfile}" AutomationProperties.Name="Chat format" />

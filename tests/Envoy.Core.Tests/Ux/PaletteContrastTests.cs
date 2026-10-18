@@ -12,7 +12,7 @@ public class PaletteContrastTests
 {
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly string[] Backgrounds = ["Bg.Window", "Bg.Panel", "Bg.PanelAlt", "Bg.Input"];
-    private static readonly string[] TextKeys = ["Text.Primary", "Text.Secondary", "Text.Muted", "Danger"];
+    private static readonly string[] TextKeys = ["Text.Primary", "Text.Secondary", "Text.Muted", "Danger", "Success"];
 
     public static TheoryData<string> GamePalettes()
     {
@@ -79,11 +79,14 @@ public class PaletteContrastTests
         // Vellum.Deep is the darkest stop of the charter's Vellum.Gradient; "Wax.X.Mid" is the halfway blend of a seal's
         // radial wax, where its glyph sits.
         foreach (var bg in Backgrounds.Append("Vellum.Deep")) pairs.Add(("Accent", bg, ContrastMath.TextTarget));
+        foreach (var text in TextKeys) pairs.Add((text, "Vellum.Deep", ContrastMath.TextTarget));
         foreach (var wax in new[] { "Gules", "Azure", "Vert", "Or", "Purpure", "Sable", "Livery" })
         {
             pairs.Add(("Wax.Text", $"Wax.{wax}.Dark", ContrastMath.TextTarget));
             pairs.Add(("Wax.Text", $"Wax.{wax}.Mid", ContrastMath.TextTarget));
         }
+        // Plain wax is pale, so its glyph is ink (the numbers of the setup guide's unvisited steps).
+        foreach (var stop in new[] { "Light", "Mid", "Dark" }) pairs.Add(("Wax.Plain.Text", $"Wax.Plain.{stop}", ContrastMath.TextTarget));
         foreach (var bg in new[] { "Accent", "Accent.Bright", "Livery.Primary", "Livery.Dark" }) pairs.Add(("Text.OnAccent", bg, ContrastMath.TextTarget));
         var data = new TheoryData<string, string, string>();
         foreach (var id in PaletteIds().Where(id => id != ThemeResolver.HighContrast))

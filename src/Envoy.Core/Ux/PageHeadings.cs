@@ -17,8 +17,11 @@ public sealed record PageHeading(string PageId, string Name, string PlainName, s
 /// <summary>The nine headings, in sidebar order. Medieval flavour stays in names and headings (REQ-HRD-11).</summary>
 public static class PageHeadings
 {
-    /// <summary>Below this window width the marginal drawing column is hidden (the reference shows it from 1100 px).</summary>
-    public const double MarginaliaMinWidth = 1100;
+    /// <summary>
+    /// Below this window width the marginal drawing column is hidden. The reference shows it from 1100 px; Envoy waits until
+    /// 1180 px (the default window) so a 220 px label and a 260 px control still fit beside the drawing (09a Deviation 17).
+    /// </summary>
+    public const double MarginaliaMinWidth = 1180;
 
     public static IReadOnlyList<PageHeading> All { get; } =
     [

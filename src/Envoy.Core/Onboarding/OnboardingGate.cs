@@ -27,6 +27,17 @@ public static class OnboardingGate
         return OnboardingStep.Language;
     }
 
+    /// <summary>
+    /// The step a new guide opens at (spec 09a, REQ-HRD-12 (1)): <paramref name="stepId"/> parsed as in <see cref="ParseStep"/>,
+    /// or Language while the privacy step is not acknowledged and the step lies past it, so no entry point (tray, resume,
+    /// a page link) lands beyond "What leaves your PC".
+    /// </summary>
+    public static OnboardingStep StartStep(string? stepId, bool privacyAcknowledged)
+    {
+        var step = ParseStep(stepId);
+        return OnboardingFlow.CanReach(step, privacyAcknowledged) ? step : OnboardingStep.Language;
+    }
+
     /// <summary>The step the guide resumes at: <c>Onboarding.LastStep</c>.</summary>
     public static OnboardingStep ResumeStep(AppSettings s)
     {

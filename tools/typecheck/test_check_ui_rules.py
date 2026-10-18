@@ -361,6 +361,10 @@ namespace Envoy.App.Services; class ChatWatcher
         self.assertTrue(any("en dash" in p and "PageHintText.cs:1" in p for p in problems), problems)
         self.assertTrue(any("em dash" in p and "NoticeText.cs:1" in p for p in problems), problems)
 
+    def test_r15_built_in_phrases(self):
+        self.repo_write("src/Envoy.Core/Phrases/phrases.json", '[{"text": {"en": "Sorry \u2014 lag"}}]\n')
+        self.assertR15("src/Envoy.Core/Phrases/phrases.json:1")
+
     def test_r15_docs_changelog_and_readme(self):
         self.repo_write("docs/privacy.md", "# Privacy\n\nIt reads pixels \u2014 nothing else.\n")
         self.assertR15("docs/privacy.md:3")

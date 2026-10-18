@@ -10,32 +10,32 @@
             <ContentControl Style="{StaticResource OrnateFrame}">
                 <StackPanel>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="300" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Open the reply box" />
                         <c:HotkeyBox AutomationProperties.Name="Open the reply box" Grid.Column="1" Text="{Binding Settings.Hotkeys.Compose}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="300" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Show / hide the overlay" />
                         <c:HotkeyBox AutomationProperties.Name="Show / hide the overlay" Grid.Column="1" Text="{Binding Settings.Hotkeys.ToggleOverlay}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="300" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Pause / resume reading chat" />
                         <c:HotkeyBox AutomationProperties.Name="Pause / resume reading chat" Grid.Column="1" Text="{Binding Settings.Hotkeys.ToggleCapture}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="300" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Select the chat area" />
                         <c:HotkeyBox AutomationProperties.Name="Select the chat area" Grid.Column="1" Text="{Binding Settings.Hotkeys.SelectRegion}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="300" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Scan &amp; translate any part of the screen" />
                         <c:HotkeyBox AutomationProperties.Name="Scan &amp; translate any part of the screen" Grid.Column="1" Text="{Binding Settings.Hotkeys.ScanAndTranslate}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="300" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Move the overlay" />
                         <c:HotkeyBox AutomationProperties.Name="Move the overlay" Grid.Column="1" Text="{Binding Settings.Hotkeys.OverlayEditMode}" />
                     </Grid>

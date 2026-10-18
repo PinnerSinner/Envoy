@@ -73,6 +73,17 @@ public class OnboardingGateTests
     public void ParseStep_reads_names_case_insensitively(string id, OnboardingStep expected) =>
         Assert.Equal(expected, OnboardingGate.ParseStep(id));
 
+    [Theory]
+    [InlineData("Hotkeys", false, OnboardingStep.Language)]
+    [InlineData("ChatArea", false, OnboardingStep.Language)]
+    [InlineData("Language", false, OnboardingStep.Language)]
+    [InlineData(null, false, OnboardingStep.Language)]
+    [InlineData("Hotkeys", true, OnboardingStep.Hotkeys)]
+    [InlineData("chatarea", true, OnboardingStep.ChatArea)]
+    [InlineData("nope", true, OnboardingStep.Language)]
+    public void StartStep_stays_on_the_privacy_step_until_acknowledged(string? id, bool acknowledged, OnboardingStep expected) =>
+        Assert.Equal(expected, OnboardingGate.StartStep(id, acknowledged));
+
     [Fact]
     public void ResumeStep_uses_last_step()
     {

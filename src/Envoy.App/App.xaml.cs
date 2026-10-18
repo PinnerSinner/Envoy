@@ -653,7 +653,7 @@ public partial class App : Application, IShell
             open.Activate();
             return;
         }
-        var start = stepId is null ? OnboardingStep.Language : OnboardingGate.ParseStep(stepId);
+        var start = OnboardingGate.StartStep(stepId, Host.PrivacyAcknowledged);
         _wizard = new SetupWizardWindow(Host, this, start);
         _wizardAutoOpened = autoOpened;
         _wizard.ViewModel.Finished += OnWizardFinished;

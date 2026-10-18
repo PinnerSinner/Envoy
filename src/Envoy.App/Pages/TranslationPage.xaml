@@ -16,7 +16,7 @@
                     <TextBlock Text="Providers" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="260" />
+                            <ColumnDefinition Width="220" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="Main provider" Style="{StaticResource Text.Label}" />
@@ -25,7 +25,7 @@
                     <TextBlock Text="{Binding PrimaryInfo.Blurb}" Style="{StaticResource Text.Caption}" Margin="260,0,0,8" />
                     <Grid Style="{StaticResource SettingRow}">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="260" />
+                            <ColumnDefinition Width="220" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="If it fails, try" Style="{StaticResource Text.Label}" />
@@ -74,7 +74,7 @@
                 <StackPanel>
                     <TextBlock Text="DeepL" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="API key" />
                         <PasswordBox AutomationProperties.Name="API key" Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.DeepLKey}" />
                     </Grid>
@@ -88,12 +88,12 @@
                 <StackPanel>
                     <TextBlock Text="Claude" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Anthropic API key" />
                         <PasswordBox AutomationProperties.Name="Anthropic API key" Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.ClaudeKey}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Model" />
                         <ComboBox AutomationProperties.Name="Model" Grid.Column="1" ItemsSource="{Binding ClaudeModels}" IsEditable="False" SelectedItem="{Binding Settings.Translation.ClaudeModel}" />
                     </Grid>
@@ -108,17 +108,17 @@
                 <StackPanel>
                     <TextBlock Text="Amazon Translate" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Access key ID" />
                         <TextBox AutomationProperties.Name="Access key ID" Grid.Column="1" Text="{Binding Settings.Translation.AwsAccessKeyId, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Secret access key" />
                         <PasswordBox AutomationProperties.Name="Secret access key" Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.AwsSecretAccessKey}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Region" />
                         <TextBox AutomationProperties.Name="Region" Grid.Column="1" Width="200" HorizontalAlignment="Left" Text="{Binding Settings.Translation.AwsRegion, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
@@ -132,12 +132,12 @@
                 <StackPanel>
                     <TextBlock Text="LibreTranslate" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Server URL" />
                         <TextBox AutomationProperties.Name="Server URL" Grid.Column="1" Text="{Binding Settings.Translation.LibreTranslateUrl, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="API key (if required)" />
                         <PasswordBox AutomationProperties.Name="API key (if required)" Grid.Column="1" c:SecretBox.Value="{Binding Settings.Translation.LibreTranslateKey}" />
                     </Grid>
@@ -150,7 +150,7 @@
                     <CheckBox Content="Don't translate messages already in my language" IsChecked="{Binding Settings.Translation.SkipMyLanguage}" />
                     <CheckBox Content="Explain gamer slang (666, ㅈㅈ, изи, kkkk…) instantly and offline" IsChecked="{Binding Settings.Translation.UseSlangGlossary}" />
                     <Grid Style="{StaticResource SettingRow}" Margin="0,12,0,0">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Daily cap for paid providers" />
                         <Slider AutomationProperties.Name="Daily cap for paid providers" AutomationProperties.HelpText="When the cap is reached Envoy switches to the free provider until tomorrow. 0 means no cap." Grid.Column="1" Minimum="0" Maximum="500000" SmallChange="5000" LargeChange="25000" TickFrequency="5000" IsSnapToTickEnabled="True"
                                 Value="{Binding Settings.Translation.DailyCharacterLimit}" />
@@ -158,7 +158,7 @@
                     </Grid>
                     <TextBlock Style="{StaticResource Text.Caption}" Text="A busy match is roughly 2,000 to 5,000 characters. When the cap is reached Envoy switches to the free provider until tomorrow. 0 = no cap." Margin="260,0,0,0" />
                     <Grid Style="{StaticResource SettingRow}" Margin="0,12,0,0">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Give up after" />
                         <Slider Grid.Column="1" Minimum="5" Maximum="30" SmallChange="1" LargeChange="5" TickFrequency="1" IsSnapToTickEnabled="True"
                                 Value="{Binding Settings.Translation.RequestTimeoutSeconds}" AutomationProperties.Name="Give up on a chat line after this many seconds" />
@@ -187,12 +187,12 @@
                 <StackPanel>
                     <TextBlock Text="Filters" Style="{StaticResource Text.H2}" />
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Translate" />
                         <ComboBox AutomationProperties.Name="Translate" Grid.Column="1" ItemsSource="{Binding ChannelOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Channels}" />
                     </Grid>
                     <Grid Style="{StaticResource SettingRow}">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="260" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource RowLabel}" Content="Muted players" />
                         <TextBox AutomationProperties.Name="Muted players" Grid.Column="1" Text="{Binding MutedPlayersText, UpdateSourceTrigger=LostFocus}" />
                     </Grid>

@@ -45,8 +45,9 @@ public class PageHeadingsTests
     public void Unknown_page_is_the_war_room() => Assert.Equal("War Room", PageHeadings.For("nope").Name);
 
     [Theory]
-    [InlineData(1099.9, false)]
-    [InlineData(1100, true)]
+    [InlineData(1100, false)]
+    [InlineData(1179.9, false)]
+    [InlineData(1180, true)]
     [InlineData(1400, true)]
-    public void Marginalia_from_1100_px(double width, bool shown) => Assert.Equal(shown, PageHeadings.ShowsMarginalia(width));
+    public void Marginalia_from_1180_px(double width, bool shown) => Assert.Equal(shown, PageHeadings.ShowsMarginalia(width));
 }

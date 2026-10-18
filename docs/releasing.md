@@ -240,7 +240,8 @@ The steps are described in full in [chat formats](chat-formats.md#manual-release
   display scale, compare the settings window, the overlay (full and compact), the reply box, the setup guide and a
   problem toast with `docs/design/herald/*.dc.html`, in the herald livery and one game livery: the knotwork band,
   bosses and filigree sit on the charter's edges; each banner tab shows its playful and plain name; the drop cap and
-  title follow the selected tab; the ink drawing shows from 1100 px wide and hides below; Chinese, Korean and Russian
+  title follow the selected tab; the ink drawing shows from 1180 px wide (the default window) and hides below; no
+  setting row cuts off a box or a drop-down at the default width or at the minimum width; Chinese, Korean and Russian
   names and originals render without boxes; no text spills out of a plaque, ribbon or seal.
 
 ### 10. Delete all Envoy data (last)

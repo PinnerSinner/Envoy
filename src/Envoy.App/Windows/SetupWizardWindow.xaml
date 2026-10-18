@@ -55,7 +55,7 @@
                                     Command="{Binding DataContext.GoToStepCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                     CommandParameter="{Binding Step}" AutomationProperties.Name="{Binding AccessibleName}">
                                 <DockPanel Width="196">
-                                    <ContentControl x:Name="StepSeal" DockPanel.Dock="Left" Style="{StaticResource WaxSeal}" Background="{DynamicResource Wax.Plain}"
+                                    <ContentControl x:Name="StepSeal" DockPanel.Dock="Left" Style="{StaticResource WaxSeal}" Background="{DynamicResource Wax.Plain}" Foreground="{DynamicResource Wax.Plain.Text}"
                                                     Content="{Binding Number}" Width="36" Height="36" FontWeight="Normal" FontFamily="{StaticResource Font.Title}" FontSize="16" Margin="0,0,12,0" />
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock x:Name="StepTitle" Text="{Binding Title}" FontFamily="{StaticResource Font.Title}" FontSize="16"
@@ -68,13 +68,16 @@
                             <DataTemplate.Triggers>
                                 <DataTrigger Binding="{Binding IsDone}" Value="True">
                                     <Setter TargetName="StepSeal" Property="Background" Value="{DynamicResource Wax.Vert}" />
+                                    <Setter TargetName="StepSeal" Property="Foreground" Value="{DynamicResource Wax.Text}" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding NeedsAttention}" Value="True">
                                     <Setter TargetName="StepSeal" Property="Background" Value="{DynamicResource Wax.Or}" />
+                                    <Setter TargetName="StepSeal" Property="Foreground" Value="{DynamicResource Wax.Text}" />
                                     <Setter TargetName="StepStatus" Property="Foreground" Value="{DynamicResource Or.Light}" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                     <Setter TargetName="StepSeal" Property="Background" Value="{DynamicResource Wax.Livery}" />
+                                    <Setter TargetName="StepSeal" Property="Foreground" Value="{DynamicResource Wax.Text}" />
                                     <Setter TargetName="StepTitle" Property="Foreground" Value="{DynamicResource Or.Light}" />
                                 </DataTrigger>
                             </DataTemplate.Triggers>

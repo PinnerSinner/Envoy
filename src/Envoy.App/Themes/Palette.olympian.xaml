@@ -18,7 +18,7 @@
   <Color x:Key="Text.OnAccent.Color">#F8E3C9</Color>
   <Color x:Key="Border.Subtle.Color">#B89A63</Color>
   <Color x:Key="Danger.Color">#8A1C12</Color>
-  <Color x:Key="Success.Color">#3F6B3A</Color>
+  <Color x:Key="Success.Color">#2F5229</Color>
   <Color x:Key="Overlay.Text.Color">#2A1D12</Color>
   <Color x:Key="Overlay.Sender.Color">#5B2D73</Color>
   <Color x:Key="Overlay.Original.Color">#5C4529</Color>
@@ -50,6 +50,7 @@
   <Color x:Key="Ornament.Filigree.Color">#8C6516</Color>
   <Color x:Key="Ornament.Rule.Color">#7A5A2E</Color>
   <Color x:Key="Wax.Text.Color">#F8E3C9</Color>
+  <Color x:Key="Wax.Plain.Text.Color">#2A1D12</Color>
   <Color x:Key="Wax.Gules.Light.Color">#D45542</Color>
   <Color x:Key="Wax.Gules.Dark.Color">#8E1F14</Color>
   <Color x:Key="Wax.Azure.Light.Color">#4B6FB4</Color>
@@ -114,6 +115,7 @@
   <SolidColorBrush x:Key="Ornament.Filigree" Color="{StaticResource Ornament.Filigree.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Ornament.Rule" Color="{StaticResource Ornament.Rule.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Wax.Text" Color="{StaticResource Wax.Text.Color}" po:Freeze="True" />
+  <SolidColorBrush x:Key="Wax.Plain.Text" Color="{StaticResource Wax.Plain.Text.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Overlay.HitTest" Color="{StaticResource Overlay.HitTest.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Overlay.Dim" Color="{StaticResource Overlay.Dim.Color}" po:Freeze="True" />
   <RadialGradientBrush x:Key="Wax.Gules" GradientOrigin="0.35,0.3" Center="0.5,0.5" RadiusX="0.7" RadiusY="0.7" po:Freeze="True"><GradientStop Offset="0" Color="{StaticResource Wax.Gules.Light.Color}" /><GradientStop Offset="1" Color="{StaticResource Wax.Gules.Dark.Color}" /></RadialGradientBrush>

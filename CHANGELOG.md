@@ -130,7 +130,8 @@ versioning: [SemVer](https://semver.org/).
 ### Changed
 - Writing: no em or en dashes and no filler words in the app, the docs or this changelog; a check (typecheck R15)
   keeps it that way.
-- The setup guide: its step list no longer skips past "What leaves your PC" before you confirm it; closing or skipping
+- The setup guide: neither its step list nor a shortcut (the tray's **Hotkey cheat sheet…**, a page link, resuming
+  where you left off) skips past "What leaves your PC" before you confirm it; closing or skipping
   the guide that opened by itself at start-up now opens the War Room, so Envoy never seems to vanish; tray tips wait
   while that guide is opening.
 - **Translation is off until you confirm "What leaves your PC"** (setup guide, or **Turn on translation** on the War
@@ -193,6 +194,10 @@ versioning: [SemVer](https://semver.org/).
 - Caption and error text is brighter (darker in Parchment) so it reaches WCAG AA contrast (4.5:1) in every theme.
 
 ### Fixed
+- Settings rows no longer cut off a box or drop-down at the default or minimum window width; the ink drawing beside
+  the page now shows from 1180 px wide.
+- The built-in phrase "I don't speak your language. I'm using a translator." no longer has a dash (also in Russian,
+  German and Polish); a translator that is not set up shows a snuffed candle, not a lit one.
 - A channel tag whose closing bracket OCR misreads (`[AllJ Henry: …`) no longer hides the sender's name; the channel
   is still recognised.
 - A hotkey with a digit, such as `Ctrl+1`, now means the number key; it was read as an unrelated key before.

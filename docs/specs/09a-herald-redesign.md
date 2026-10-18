@@ -1,6 +1,7 @@
 # The Herald's Writ: visual redesign of every window
 
-Status: Implemented (step 12, after 08b). Revised against `00-integration.md` (binding); where this spec adds a
+Status: Implemented (step 12, after 08b) except one open item: REQ-HRD-13's refresh of `docs/images/` waits for the
+first Windows CI screenshots of this look (Deviation 12). Revised against `00-integration.md` (binding); where this spec adds a
 shared concept it names the owner here. Differences from the text below are under Deviations.
 
 Area id: `09a-herald-redesign` · Requirement prefix: `HRD`.
@@ -144,7 +145,8 @@ figure captions), `LanguageSeal` (overlay seals), `ProviderCandle` (candles) and
    label is a binding or a two-line block (War Room "Get ready", the first two Translation rows) keep a plain label.
 7. **Callouts and banners use seals** (E for information, ! for a warning or error) instead of Segoe icon glyphs.
    Provider health's heading reads "The candles: is each translator answering?"; its button stays "Retry now"
-   (REQ-HRD-11).
+   (REQ-HRD-11). `ProviderState.Unknown` covers both "never called" and "not set up" (a `Configuration` failure), so
+   `ProviderCandle.For` also takes the last error kind: never called is lit, not set up is snuffed.
 8. **Language seals** (REQ-HRD-8): Japanese is 日 on or (the reference's amber wax); a language Envoy does not know shows
    "?" on sable. The overlay text lost its drop shadow: the vellum card, whose alpha 07b keeps readable, carries it.
 9. **Fonts** (REQ-HRD-3): EB Garamond ships as three static instances of the Google Fonts variable font (WPF reads no
@@ -152,18 +154,25 @@ figure captions), `LanguageSeal` (overlay seals), `ProviderCandle` (candles) and
    four OFL texts are `requiredDocs` in `tools/ci/policy.json` and listed in `THIRD-PARTY-NOTICES.md`. The smoke test
    checks the fonts once (`herald-fonts`), not per palette, because they do not depend on the palette.
 10. **Writing** (REQ-HRD-10): the compatibility matrix marked an unverified cell with an em dash; it now reads
-    `untested` (the policy check follows). `PhrasebookText.Missing` reads "not yet translated". Code-built strings
+    `untested` (the policy check follows). `PhrasebookText.Missing` reads "not yet translated". The built-in "I'm using
+    a translator" phrase (en, ru, de, pl) lost its dash, and R15 now also scans `src/Envoy.Core/Phrases/*.json`, since
+    Envoy types those phrases into game chat. Code-built strings
     outside R15's globs (the tray tooltip, the lookup window, language display names, the slang gloss, the transcript
     header) were rewritten too; R15 itself scans only the globs this spec names.
 11. **Carry-over** (REQ-HRD-12): finding 3 (notices held before `Host.Start()` when the guide will open by itself) is
     App start-up code the smoke test cannot drive; it is covered by M-OUX-1 and code review. Findings 1, 2 and 5 have
-    unit tests (`OnboardingFlowTests`, `OnboardingGateTests`) and `guide-entry` smoke checks. CLAUDE.md's privacy rule
+    unit tests (`OnboardingFlowTests`, `OnboardingGateTests`) and `guide-entry` smoke checks. Finding 1 covers every
+    way in, not only the step list: a new guide opens at `OnboardingGate.StartStep`, which keeps it on Language while
+    privacy is not acknowledged (the tray's cheat sheet, the resume of `LastStep` after a `PrivacyText.Version` bump, a
+    page link). For finding 5, close-flush clears `FirstRunCompleted` and saves again right before it closes
+    `MainWindow` (earlier checks close other `MainWindow`s, which set it) and first checks the file reads false. CLAUDE.md's privacy rule
     now names the soak host's exception (finding 4).
 12. **Verification** (REQ-HRD-13): the smoke sections are `herald-fonts`, `war-table({palette})`,
     `herald-controls({palette})`, `desk({palette})` and `oath({palette})`, beside the existing `pages({palette})`;
     the setup-guide screenshots are now taken for `herald` instead of `imperial`. `docs/images/` is not refreshed in
-    this change: the new screenshots exist only after the Windows CI run on `main`, so they are copied from
-    `ci-screenshots` in a follow-up task. A new manual step, M-HRD-1, compares every window with the references. The CI
+    this change: the new screenshots exist only after the Windows CI run on `main` (the `ci-screenshots` branch still
+    holds the previous look), so they are copied from `ci-screenshots` in a follow-up task. Until then REQ-HRD-13 is
+    open, and the Status line says so. A new manual step, M-HRD-1, compares every window with the references. The CI
     desktop is 1024x768 and Windows keeps a window within the screen, so the `war-table` section drives the marginal
     column's rule with a 1180 px width directly (`MainWindow.LayoutWarTable`) and checks that the real window agrees with
     `PageHeadings.ShowsMarginalia` at whatever width the screen allows; CI screenshots of the settings window therefore
@@ -176,10 +185,20 @@ figure captions), `LanguageSeal` (overlay seals), `ProviderCandle` (candles) and
 15. **Contrast on gradients** (REQ-HRD-1, 07b): `PaletteContrastTests` also checks rubrics (`Accent`) on the darkest
     stop of the charter's `Vellum.Gradient` (now the palette key `Vellum.Deep`) and the seal glyph on the halfway blend
     of every wax. To pass, Frontier's vert is `#2A5530` (REQ-HRD-2 names `#2F5E35`, 4.21:1 on that stop) and
-    `Wax.Or.Light` is `#957026`. In high contrast the drop cap is window text on the window colour (it was window text
+    `Wax.Or.Light` is `#957026`. The gradient's last stop is `#D7BE91`, not REQ-HRD-1's `#D3B987` (which stays as
+    `Vellum.Dark`): on `#D3B987` Parchment's azure rubric is 4.40:1, so the stop is a shade lighter. Plain wax (the
+    setup guide's unvisited step numbers) is pale, so its glyph is ink, `Wax.Plain.Text`, not `Wax.Text` (1.9 to
+    2.6:1). `Success` is `#2F5229` (was `#3F6B3A`, 3.5 to 4.4:1 on vellum) and is now a checked text colour, on the four
+    backgrounds and on `Vellum.Deep`, with the other text colours. In high contrast the drop cap is window text on the window colour (it was window text
     on the highlight colour). The `WaxSeal` style's SemiBold weight is set back to Normal wherever a seal uses
     `Font.Title` or `Font.Wordmark`, which have only a Regular face, so WPF never fakes a bold; `Font.Wordmark` gains the
     same CJK fallback chain as the other font resources.
 16. **One Herald** (REQ-HRD-11): the read-aloud feature was also called "Herald". Its Overlay heading and its
     CHANGELOG, README and getting-started entries now say "Read aloud", so "Herald" names the livery (and, in the
     plural, the Overlay tab's playful name).
+17. **Room for the rows** (REQ-HRD-6, 7): the rail, the charter and the marginal column left the pages less width than
+    their fixed rows needed, so boxes and drop-downs were cut off. Setting rows' label columns are 220 px (were 260 and,
+    on Hotkeys, 300), the charter's side padding is 36 px (was 54), the marginal column is 140 px (was 160), and the
+    drawing shows from 1180 px, the default window (REQ-HRD-6 says 1100 px). The `rows-fit` smoke section checks that
+    every setting row's controls end inside the row at the default size, at `MinWidth`, and at the narrowest width that
+    shows the drawing.

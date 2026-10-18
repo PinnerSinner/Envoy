@@ -77,7 +77,7 @@ apart. Every brush also has a matching `*.Color` resource.
 | `Gules`, `Or`, `Vellum`, `Oak`, `Ink` and their `.Light`/`.Dark`/`.Deep`/`.Soft` shades, `Oak.Tab` | The tokens of `Tokens.dc.html` |
 | `Leather.Text`, `Leather.Muted` | Text on oak and leather |
 | `Livery.Primary`, `Livery.Secondary`, `Livery.Dark` | The livery: active tab, crest, drop-cap letter, slider, knotwork band |
-| `Wax.Gules`, `Wax.Azure`, `Wax.Vert`, `Wax.Or`, `Wax.Purpure`, `Wax.Sable`, `Wax.Plain`, `Wax.Livery`, `Wax.Text` | Seal wax (radial brushes) and the glyph on it |
+| `Wax.Gules`, `Wax.Azure`, `Wax.Vert`, `Wax.Or`, `Wax.Purpure`, `Wax.Sable`, `Wax.Plain`, `Wax.Livery`, `Wax.Text`, `Wax.Plain.Text` | Seal wax (radial brushes) and the glyph on it (`Wax.Plain.Text`, ink, on the pale plain wax) |
 | `Ornament.Gold`, `Ornament.Pip`, `Ornament.Edge`, `Ornament.Filigree`, `Ornament.Rule` | Ornament strokes and fills |
 | `Knot.Horizontal`, `Knot.Vertical`, `Damask.Oak` | The knotwork band tiles and the damask wall (tiled `DrawingBrush`es) |
 | `Vellum.Gradient`, `Oak.Gradient`, `Gold.Gradient`, `DropCap.Gradient`, `Boss.Gradient`, `Rod.Gradient`, `Plaque.Gradient`, `Crest.Field`, `Candle.Flame`, `Candle.Wax`, `Row.Rule` | Charter, rail, wordmark, drop caps, bosses, scroll rods, plaques, crest, candles, ruled rows |
@@ -91,12 +91,12 @@ The palettes are written together by `tools/themes/make_palettes.py`, so a new k
 
 `PaletteContrastTests` (Core unit tests) read every `Palette.*.xaml` except `highcontrast` and fail the build unless:
 
-- `Text.Primary`, `Text.Secondary`, `Text.Muted`, `Danger` and `Accent` reach **4.5:1** against `Bg.Window`,
-  `Bg.Panel`, `Bg.PanelAlt` and `Bg.Input`;
+- `Text.Primary`, `Text.Secondary`, `Text.Muted`, `Danger`, `Success` and `Accent` reach **4.5:1** against `Bg.Window`,
+  `Bg.Panel`, `Bg.PanelAlt`, `Bg.Input` and `Vellum.Deep` (the darkest stop of the charter);
 - `Focus.Ring` reaches **3:1** against the same four backgrounds, and `Focus.Ring.Oak` against `Oak`, `Oak.Deep` and
   `Oak.Tab`;
 - `Leather.Text` and `Leather.Muted` reach **4.5:1** on the three oak shades;
-- `Wax.Text` reaches **4.5:1** on every lettered wax, and `Text.OnAccent` on `Accent`, `Accent.Bright`, `Livery.Primary`
+- `Wax.Text` reaches **4.5:1** on every lettered wax, `Wax.Plain.Text` on the plain wax, and `Text.OnAccent` on `Accent`, `Accent.Bright`, `Livery.Primary`
   and `Livery.Dark`;
 - `Overlay.Text` and `Overlay.Sender` reach **4.5:1** against an opaque `Overlay.Bg`.
 

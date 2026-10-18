@@ -54,6 +54,7 @@
   <x:Static x:Key="Ornament.Filigree.Color" Member="SystemColors.WindowTextColor" />
   <x:Static x:Key="Ornament.Rule.Color" Member="SystemColors.WindowTextColor" />
   <x:Static x:Key="Wax.Text.Color" Member="SystemColors.HighlightTextColor" />
+  <x:Static x:Key="Wax.Plain.Text.Color" Member="SystemColors.HighlightTextColor" />
   <x:Static x:Key="Wax.Gules.Light.Color" Member="SystemColors.HighlightColor" />
   <x:Static x:Key="Wax.Gules.Dark.Color" Member="SystemColors.HighlightColor" />
   <x:Static x:Key="Wax.Azure.Light.Color" Member="SystemColors.HighlightColor" />
@@ -118,6 +119,7 @@
   <SolidColorBrush x:Key="Ornament.Filigree" Color="{StaticResource Ornament.Filigree.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Ornament.Rule" Color="{StaticResource Ornament.Rule.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Wax.Text" Color="{StaticResource Wax.Text.Color}" po:Freeze="True" />
+  <SolidColorBrush x:Key="Wax.Plain.Text" Color="{StaticResource Wax.Plain.Text.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Overlay.HitTest" Color="{StaticResource Overlay.HitTest.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Overlay.Dim" Color="{StaticResource Overlay.Dim.Color}" po:Freeze="True" />
   <SolidColorBrush x:Key="Wax.Gules" Color="{StaticResource Wax.Gules.Dark.Color}" po:Freeze="True" />

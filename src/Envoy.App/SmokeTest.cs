@@ -289,6 +289,11 @@ internal static class SmokeTest
             // ---- 09a: the war table (rail, charter heading, marginal drawing, crest) and the control gallery ----
             await CheckWarTableAsync(main, palette);
             Section($"war-table({palette})", sw);
+            if (first)
+            {
+                await CheckRowsFitAsync(main);
+                Section("rows-fit", sw);
+            }
             await CheckHeraldControlsAsync(palette, shots);
             Section($"herald-controls({palette})", sw);
 
@@ -342,6 +347,12 @@ internal static class SmokeTest
             // ---- close ----
             if (first)
             {
+                // Earlier checks closed other MainWindows, which set FirstRunCompleted; clear it again and confirm the file
+                // reads false, so the assertion below can fail (REQ-HRD-12 (5)).
+                host.Settings.FirstRunCompleted = false;
+                host.SaveNow();
+                Check(!new SettingsStore(settingsPath, new DpapiProtector()).Load().FirstRunCompleted,
+                    "close-flush could not clear FirstRunCompleted before closing MainWindow");
                 var showProvider = FindShowProviderCheckBox(main);
                 var expected = !(showProvider.IsChecked ?? false);
                 showProvider.IsChecked = expected;
@@ -546,6 +557,49 @@ internal static class SmokeTest
         await Pump();
         var crest = ThemeCatalog.Find(palette) is { } livery ? $"{livery.Name} livery" : "High contrast";
         Check(main.CrestName.Text == crest, $"the crest reads '{main.CrestName.Text}', not '{crest}'");
+        main.Navigate(PageIds.Dashboard);
+        await Pump();
+    }
+
+    /// <summary>
+    /// REQ-HRD-6/7: every setting row's controls fit inside the row's slot on the charter, at the default size, at
+    /// <c>MinWidth</c>, and at the narrowest width that shows the marginal drawing. The CI desktop may be narrower than that
+    /// width, so the last case forces the drawing on and credits the row with the width the window could not grow by
+    /// (the charter's columns are all star-sized, so a wider window widens every row by the same amount).
+    /// </summary>
+    private static async Task CheckRowsFitAsync(MainWindow main)
+    {
+        var width = main.Width;
+        var rowStyle = (Style)main.FindResource("SettingRow");
+        async Task CheckAt(double windowWidth, bool forceMarginalia, string label)
+        {
+            main.Width = windowWidth;
+            await Pump();
+            main.LayoutWarTable(forceMarginalia ? PageHeadings.MarginaliaMinWidth : main.ActualWidth);
+            await Pump();
+            var credit = forceMarginalia ? Math.Max(0, PageHeadings.MarginaliaMinWidth - main.ActualWidth) : 0;
+            foreach (var pageId in PageIds.All)
+            {
+                main.Navigate(pageId);
+                await Pump();
+                foreach (var row in VisualDescendants(main.PageFor(pageId)).OfType<Grid>().Where(g => g.Style == rowStyle && g.IsVisible))
+                {
+                    var slot = LayoutInformation.GetLayoutSlot(row).Width - row.Margin.Left - row.Margin.Right;
+                    foreach (var child in row.Children.OfType<FrameworkElement>().Where(c => c.IsVisible))
+                    {
+                        var right = child.TransformToAncestor(row).Transform(new Point(child.ActualWidth, 0)).X;
+                        Check(right <= slot + credit + 0.5,
+                            $"a {child.GetType().Name} ('{AutomationProperties.GetName(child)}') on {pageId} ends at {right:0} px in a {slot + credit:0} px row ({label}, window {main.ActualWidth:0} px)");
+                    }
+                }
+            }
+        }
+        await CheckAt(width, forceMarginalia: false, "default size");
+        await CheckAt(main.MinWidth, forceMarginalia: false, "MinWidth");
+        await CheckAt(Math.Max(width, PageHeadings.MarginaliaMinWidth), forceMarginalia: true, "marginal drawing shown");
+        main.Width = width;
+        await Pump();
+        main.LayoutWarTable(main.ActualWidth);
         main.Navigate(PageIds.Dashboard);
         await Pump();
     }
@@ -1049,6 +1103,15 @@ internal static class SmokeTest
         Check(app.OpenMainWindow is { } shown && shown.PageFor(PageIds.Dashboard).IsVisible, "Finish did not open MainWindow on the War Room");
         app.OpenMainWindow!.Close();
         await Pump();
+
+        // REQ-HRD-12 (1): a new guide asked to open past the privacy step opens on it while privacy is not acknowledged.
+        host.SetPrivacyAcknowledged(false);
+        shell.OpenSetupWizard(nameof(OnboardingStep.Hotkeys));
+        await Pump();
+        Check(app.Wizard?.ViewModel.Current == OnboardingStep.Language, $"a new guide opened at {app.Wizard?.ViewModel.Current} before privacy was acknowledged");
+        app.Wizard?.Close();
+        await Pump();
+        host.SetPrivacyAcknowledged(true);
 
         // REQ-HRD-12 (2): Skip or close on the guide the start-up choice opened shows the War Room, so Envoy is never
         // left with no window. The step list cannot jump past the privacy step while it is not acknowledged (1).

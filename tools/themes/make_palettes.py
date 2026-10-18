@@ -15,7 +15,7 @@ BASE = {
     # existing keys, herald values
     "Bg.Window": "#E2CDA2", "Bg.Panel": "#EAD8B4", "Bg.PanelAlt": "#F4E8CC", "Bg.Input": "#F1E3C2",
     "Text.Primary": "#2A1D12", "Text.Secondary": "#3F2D1A", "Text.Muted": "#5C4529", "Text.OnAccent": "#F8E3C9",
-    "Border.Subtle": "#B89A63", "Danger": "#8A1C12", "Success": "#3F6B3A",
+    "Border.Subtle": "#B89A63", "Danger": "#8A1C12", "Success": "#2F5229",
     "Overlay.Text": "#2A1D12", "Overlay.Original": "#5C4529", "Overlay.Bg": "#EAD8B4",
     "Focus.Ring": "#7A5410",
     # herald tokens (Tokens.dc.html)
@@ -24,7 +24,7 @@ BASE = {
     "Oak": "#3A2414", "Oak.Deep": "#2B1A0E", "Oak.Tab": "#4A3020", "Ink": "#2A1D12", "Ink.Soft": "#5C4529",
     "Leather.Text": "#D9C298", "Leather.Muted": "#B89A63", "Focus.Ring.Oak": "#E9CC7A",
     "Ornament.Gold": "#D8B04A", "Ornament.Pip": "#F3D98C", "Ornament.Edge": "#B98B2E", "Ornament.Filigree": "#8C6516",
-    "Ornament.Rule": "#7A5A2E", "Wax.Text": "#F8E3C9",
+    "Ornament.Rule": "#7A5A2E", "Wax.Text": "#F8E3C9", "Wax.Plain.Text": "#2A1D12",
     "Wax.Gules.Light": "#D45542", "Wax.Gules.Dark": "#8E1F14",
     "Wax.Azure.Light": "#4B6FB4", "Wax.Azure.Dark": "#1E3460",
     "Wax.Vert.Light": "#5E8C49", "Wax.Vert.Dark": "#2B4A22",
@@ -51,6 +51,7 @@ HC = {  # high contrast: SystemColors members
     "Text.OnAccent": "HighlightTextColor", "Border.Subtle": "WindowTextColor", "Danger": "WindowTextColor",
     "Success": "WindowTextColor", "Overlay.Text": "WindowTextColor", "Overlay.Sender": "WindowTextColor",
     "Overlay.Original": "GrayTextColor", "Overlay.Bg": "WindowColor", "Focus.Ring": "HighlightColor",
+    "Wax.Plain.Text": "HighlightTextColor",
 }
 
 ORDER = ["Bg.Window", "Bg.Panel", "Bg.PanelAlt", "Bg.Input", "Accent", "Accent.Bright", "Accent.Dim", "Text.Primary",
@@ -59,7 +60,7 @@ ORDER = ["Bg.Window", "Bg.Panel", "Bg.PanelAlt", "Bg.Input", "Accent", "Accent.B
 NEW = ["Gules", "Gules.Dark", "Or", "Or.Light", "Or.Dark", "Vellum", "Vellum.Light", "Vellum.Dark", "Vellum.Deep", "Oak", "Oak.Deep",
        "Oak.Tab", "Ink", "Ink.Soft", "Leather.Text", "Leather.Muted", "Focus.Ring.Oak", "Livery.Primary",
        "Livery.Secondary", "Livery.Dark", "Ornament.Gold", "Ornament.Pip", "Ornament.Edge", "Ornament.Filigree",
-       "Ornament.Rule", "Wax.Text"]
+       "Ornament.Rule", "Wax.Text", "Wax.Plain.Text"]
 WAXES = ["Gules", "Azure", "Vert", "Or", "Purpure", "Sable", "Plain", "Livery"]
 
 
@@ -131,7 +132,7 @@ def gen(pid):
     w('  <!-- Functional alphas (not decorative): the region selector\'s hit-test surface and dim. Same in every palette. -->')
     w('  <Color x:Key="Overlay.HitTest.Color">#01000000</Color>')
     w('  <Color x:Key="Overlay.Dim.Color">#99000000</Color>')
-    solid = [k for k in colour_keys() if not k.startswith("Wax.") or k == "Wax.Text"] + ["Overlay.HitTest", "Overlay.Dim"]
+    solid = [k for k in colour_keys() if not k.startswith("Wax.") or k in ("Wax.Text", "Wax.Plain.Text")] + ["Overlay.HitTest", "Overlay.Dim"]
     for k in solid:
         w(f'  <SolidColorBrush x:Key="{k}" Color="{{StaticResource {k}.Color}}" po:Freeze="True" />')
     S = lambda k: f'{{StaticResource {k}.Color}}'
