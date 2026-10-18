@@ -373,6 +373,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
     {
         RefreshGame();
         ApplyTheme();
+        ApplyMotion();
         _gameTimer.Start();
         _windowTimer.Start();
         RefreshGameWindow();
@@ -534,6 +535,7 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         Updates.Configure(UpdatePreferences.From(Settings, IsSafeMode), UpdatesToken).Forget(_updatesLog, "update channel check"); // 7 (06)
         CheckOcrReadiness(); // 8 (07a)
         ApplyTheme(); // 9: theme through ThemeResolver (07b)
+        ApplyMotion(); // 10: the motion level (09b)
         StartupRegistration.Apply(Settings.StartWithWindows);
         ScheduleSave();
         Notify(nameof(PrivacyAcknowledged));
@@ -631,6 +633,19 @@ public sealed class AppHost : INotifyPropertyChanged, IDisposable
         var id = ThemeResolver.Resolve(Settings.Theme, GameCatalog.Find(CurrentGameId)?.ThemeId, SystemHighContrast,
             Settings.Accessibility.HighContrast, ThemeManager.ThemeIds);
         ThemeManager.Apply(id, force: id == ThemeResolver.HighContrast);
+    }
+
+    /// <summary>Whether Windows' "Show animations in Windows" is on (UI thread).</summary>
+    public bool SystemAnimations => SystemParameters.ClientAreaAnimation;
+
+    /// <summary>
+    /// The motion level through <see cref="MotionPolicy"/> (spec 09b, REQ-MOT-1): ApplySettings position 10, Start, and
+    /// App's listener for Windows' animation setting. Process-wide, like the palette. UI thread.
+    /// </summary>
+    public void ApplyMotion()
+    {
+        if (_disposed) return;
+        Services.Motion.Apply(MotionPolicy.Resolve(Settings.Appearance.Motion, SystemAnimations));
     }
 
     /// <summary>Feeds sample messages through the overlay so the user can see and position it without a game.</summary>

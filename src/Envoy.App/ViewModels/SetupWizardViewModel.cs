@@ -53,6 +53,7 @@ public sealed class SetupWizardViewModel : ObservableObject, IDisposable
         RecheckOcrCommand = new RelayCommand(RecheckOcr);
         TestTranslateCommand = new AsyncRelayCommand(TestTranslateAsync, ReportCommandError);
         OpenHotkeysCommand = new RelayCommand(() => _shell.ShowPage(PageIds.Hotkeys));
+        WatchTaleCommand = new RelayCommand(WatchTale, () => _flow.IsLast);
 
         _flow.Changed += OnStepChanged;
         Host.SettingsApplied += OnHostChanged;
@@ -213,6 +214,16 @@ public sealed class SetupWizardViewModel : ObservableObject, IDisposable
 
     private void Back() => _flow.Back();
 
+    /// <summary>"Watch a one-minute tour" on the last step (REQ-MOT-10): finishes the guide, then opens the Tale. Offered, never forced.</summary>
+    public RelayCommand WatchTaleCommand { get; }
+
+    private void WatchTale()
+    {
+        if (!_flow.IsLast) return;
+        Finish(completed: true);
+        _shell.OpenTale();
+    }
+
     private void Finish(bool completed)
     {
         if (_finished) return;
@@ -237,6 +248,7 @@ public sealed class SetupWizardViewModel : ObservableObject, IDisposable
             OnPropertyChanged(name);
         NextCommand.RaiseCanExecuteChanged();
         BackCommand.RaiseCanExecuteChanged();
+        WatchTaleCommand.RaiseCanExecuteChanged();
         RefreshDisplay();
         RefreshStatuses();
     }

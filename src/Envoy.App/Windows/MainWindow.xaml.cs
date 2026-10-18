@@ -53,6 +53,8 @@ public partial class MainWindow : Window
         SizeChanged += (_, _) => LayoutWarTable(ActualWidth);
         Rail.SizeChanged += (_, _) => LayoutRail(Rail.ActualHeight);
         ThemeManager.Applied += ShowCrest;
+        Services.Motion.LevelChanged += ShowTorches;
+        SizeChanged += (_, _) => LayoutTorches();
         ShowHeading();
         ShowCrest();
 #if DEBUG
@@ -108,22 +110,89 @@ public partial class MainWindow : Window
     /// <summary>The heading the charter shows (the smoke test reads it).</summary>
     public PageHeading Heading { get; private set; } = PageHeadings.All[0];
 
-    /// <summary>Drop cap, title, plain name, lede and marginal drawing of the checked page.</summary>
+    /// <summary>
+    /// Drop cap, title, plain name, lede and marginal drawing of the checked page. A page change unrolls the charter, redraws
+    /// the drawing stroke by stroke and fades the drop cap and the lede in on the same beat (spec 09b, REQ-MOT-4).
+    /// </summary>
     private void ShowHeading()
     {
+        var previous = Heading;
         Heading = PageHeadings.For(CurrentPage);
         PageDropCap.Content = Heading.DropCap;
         PageTitle.Text = Heading.Name;
         PagePlainName.Text = Heading.PlainName == Heading.Name ? "" : Heading.PlainName;
         PageLede.Text = Heading.Lede;
-        FigureInk.SetResourceReference(System.Windows.Shapes.Path.DataProperty, $"Figure.{Heading.PageId}.Ink");
-        FigureRed.SetResourceReference(System.Windows.Shapes.Path.DataProperty, $"Figure.{Heading.PageId}.Red");
         FigureCaption.Text = Heading.FigureCaption;
+        var strokes = DrawFigure(Heading.PageId);
+        if (!IsLoaded || ReferenceEquals(previous, Heading)) return;
+        Services.Motion.UnrollDown(PageStage);
+        Services.Motion.FadeIn(PageDropCap, Core.Ux.Motion.Unroll);
+        Services.Motion.FadeIn(PageLede, Core.Ux.Motion.Unroll);
+        if (Marginalia.IsVisible) Services.Motion.DrawInTurn(strokes, Core.Ux.Motion.Ink);
+    }
+
+    /// <summary>
+    /// The page's marginal drawing as one Path per stroke: the ink strokes, then the red ones (Ornaments.xaml's
+    /// <c>Figure.{page}.Ink</c> and <c>.Red</c>), so a page change can draw it stroke by stroke.
+    /// </summary>
+    private List<System.Windows.Shapes.Shape> DrawFigure(string pageId)
+    {
+        Figure.Children.Clear();
+        var strokes = new List<System.Windows.Shapes.Shape>();
+        foreach (var (part, brush) in new[] { ("Ink", "Ink.Soft"), ("Red", "Livery.Primary") })
+        {
+            if (TryFindResource($"Figure.{pageId}.{part}") is not System.Windows.Media.Geometry geometry) continue;
+            foreach (var stroke in Services.Motion.StrokesOf(geometry))
+            {
+                var path = new System.Windows.Shapes.Path
+                {
+                    Data = stroke,
+                    StrokeThickness = 1.8,
+                    StrokeStartLineCap = System.Windows.Media.PenLineCap.Round,
+                    StrokeEndLineCap = System.Windows.Media.PenLineCap.Round,
+                    StrokeLineJoin = System.Windows.Media.PenLineJoin.Round,
+                };
+                path.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, brush);
+                Figure.Children.Add(path);
+                strokes.Add(path);
+            }
+        }
+        return strokes;
+    }
+
+    /// <summary>The wall torches burn at Full motion only, and never in high contrast (REQ-MOT-8).</summary>
+    private void ShowTorches()
+    {
+        var show = Services.Motion.Level == MotionLevel.Full && ThemeManager.CurrentId != ThemeResolver.HighContrast;
+        Torches.Visibility = TorchLights.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        LayoutTorches();
+    }
+
+    /// <summary>One torch between the rail and the charter near the foot, one on the right edge near the top (WarRoom.dc.html).</summary>
+    private void LayoutTorches()
+    {
+        if (Torches.Visibility != Visibility.Visible) return;
+        var height = WarTable.ActualHeight;
+        var width = WarTable.ActualWidth;
+        if (height <= 0 || width <= 0) return;
+        Place(LeftTorch, LeftTorchLight, Rail.ActualWidth + 11, Math.Max(60, height - 96 - LeftTorch.Height));
+        Place(RightTorch, RightTorchLight, width - 15, Math.Min(170, Math.Max(60, height / 4)));
+
+        static void Place(FrameworkElement torch, FrameworkElement light, double centerX, double top)
+        {
+            Canvas.SetLeft(torch, centerX - torch.Width / 2);
+            Canvas.SetTop(torch, top);
+            Canvas.SetLeft(light, centerX - light.Width / 2);
+            Canvas.SetTop(light, top + 30 - light.Height / 2);
+        }
     }
 
     /// <summary>The rail's crest names the palette in use.</summary>
-    private void ShowCrest() =>
+    private void ShowCrest()
+    {
         CrestName.Text = ThemeCatalog.Find(ThemeManager.CurrentId) is { } livery ? $"{livery.Name} livery" : "High contrast";
+        ShowTorches();
+    }
 
     /// <summary>The marginal column shows from 1100 px wide (the smoke test also calls this with widths the screen cannot hold).</summary>
     internal void LayoutWarTable(double width) =>
@@ -182,6 +251,7 @@ public partial class MainWindow : Window
     {
         _statusTimer.Stop();
         ThemeManager.Applied -= ShowCrest;
+        Services.Motion.LevelChanged -= ShowTorches;
         // After a reset or "Delete all Envoy data" nothing may be applied or written again (contract §4). During
         // ExitApp, step 2 already applied and saved, and the host is disposed by the time Shutdown closes this window.
         if (!_appExiting && !_host.SaveSuppressed)

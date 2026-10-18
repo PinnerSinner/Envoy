@@ -2,6 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:c="clr-namespace:Envoy.App.Controls"
+        xmlns:s="clr-namespace:Envoy.App.Services"
+        xmlns:ux="clr-namespace:Envoy.Core.Ux;assembly=Envoy.Core"
         xmlns:pv="clr-namespace:Envoy.Core.Privacy;assembly=Envoy.Core"
         KeyboardNavigation.TabNavigation="Cycle"
         Title="Envoy setup guide" Width="900" Height="680" MinWidth="760" MinHeight="560"
@@ -55,8 +57,10 @@
                                     Command="{Binding DataContext.GoToStepCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                     CommandParameter="{Binding Step}" AutomationProperties.Name="{Binding AccessibleName}">
                                 <DockPanel Width="196">
+                                    <!-- a step's seal stamps in when it is done; the current one pulses (spec 09b, REQ-MOT-7) -->
                                     <ContentControl x:Name="StepSeal" DockPanel.Dock="Left" Style="{StaticResource WaxSeal}" Background="{DynamicResource Wax.Plain}" Foreground="{DynamicResource Wax.Plain.Text}"
-                                                    Content="{Binding Number}" Width="36" Height="36" FontWeight="Normal" FontFamily="{StaticResource Font.Title}" FontSize="16" Margin="0,0,12,0" />
+                                                    Content="{Binding Number}" Width="36" Height="36" FontWeight="Normal" FontFamily="{StaticResource Font.Title}" FontSize="16" Margin="0,0,12,0"
+                                                    s:Motion.StampWhen="{Binding IsDone}" s:Motion.PulseWhen="{Binding IsCurrent}" />
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock x:Name="StepTitle" Text="{Binding Title}" FontFamily="{StaticResource Font.Title}" FontSize="16"
                                                    Foreground="{DynamicResource Leather.Text}" TextWrapping="Wrap" />
@@ -89,7 +93,8 @@
             <!-- ===== The current step ===== -->
             <ContentControl Grid.Row="1" Grid.Column="1" Style="{StaticResource CharterFrame}" Padding="46,40,40,26" Margin="6,4,18,8">
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
-                <StackPanel>
+                <!-- the step page turns with a short slide (REQ-MOT-7) -->
+                <StackPanel x:Name="StepPage">
                     <DockPanel Margin="0,0,0,8">
                         <ContentControl x:Name="StepDropCap" DockPanel.Dock="Left" Style="{StaticResource DropCap}" Width="58" Height="58" FontSize="42" Margin="0,0,14,0"
                                         Content="{Binding CurrentTitle, Mode=OneWay, Converter={StaticResource FirstLetter}}" />
@@ -267,6 +272,11 @@
                             Foreground="{DynamicResource Or.Light}" FocusVisualStyle="{StaticResource FocusVisual.Ring.Oak}"
                             IsCancel="True" AutomationProperties.Name="Skip setup" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <!-- the last step offers the Tale (spec 09b, REQ-MOT-10): finishes the guide, then plays the tour -->
+                        <Button x:Name="WatchTaleButton" Style="{StaticResource Button.Ghost}" Content="{x:Static ux:TaleText.Offer}" Command="{Binding WatchTaleCommand}"
+                                Foreground="{DynamicResource Or.Light}" FocusVisualStyle="{StaticResource FocusVisual.Ring.Oak}" Margin="0,0,12,0"
+                                Visibility="{Binding IsLast, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                                AutomationProperties.Name="{x:Static ux:TaleText.Offer}" />
                         <Button x:Name="BackButton" Content="Back" Command="{Binding BackCommand}" AutomationProperties.Name="Back" Margin="0,0,8,0" />
                         <Button x:Name="NextButton" Content="{Binding NextLabel, Mode=OneWay}" Style="{StaticResource Button.Primary}" Command="{Binding NextCommand}"
                                 IsDefault="True" AutomationProperties.Name="{Binding NextLabel, Mode=OneWay}" />

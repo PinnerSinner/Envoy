@@ -116,6 +116,9 @@ internal static class SmokeTest
             log.AddSink(file);
             LogBootstrap.WriteHeader(log, null, host.SettingsLoad);
             Check(host.DataFolder.StartsWith(root, StringComparison.OrdinalIgnoreCase), $"host data folder {host.DataFolder} is outside the smoke root");
+            // 09b: every check runs with motion off, so screenshots and layout checks see finished frames; the motion and
+            // tale sections turn it on. The level is process-wide, so every smoke host gets the same setting.
+            SetMotion(host, MotionSetting.Off);
             Section("host", sw);
 
             Log("ocr languages: " + string.Join(", ", OcrService.InstalledLanguages().Select(l => l.WindowsTag)));
@@ -166,6 +169,7 @@ internal static class SmokeTest
 
             // ---- 02: safe host, diagnostics, handler wiring ----
             safeHost = CheckSafeHost(app, root, log, recent);
+            SetMotion(safeHost, MotionSetting.Off);
             Section("safe-host", sw);
             CheckDiagnostics(host, root);
             Section("diagnostics", sw);
@@ -176,6 +180,7 @@ internal static class SmokeTest
             host.Settings.Updates.AutoDownload = false;
             host.ApplySettings();
             portableHost = await CheckPortableUpdatesAsync(app, root, log, recent);
+            SetMotion(portableHost, MotionSetting.Off);
             Section("updates-portable", sw);
 
             // ---- 07a: the guide's entry points (AC-OUXA-3), and a notice so the War Room list renders ----
@@ -267,6 +272,8 @@ internal static class SmokeTest
             ThemeManager.Apply(palette);
         }
         Check(ThemeManager.CurrentId == palette, $"palette {palette} did not load (current: {ThemeManager.CurrentId})");
+        SetMotion(host, MotionSetting.Off);
+        Check(Services.Motion.Level == MotionLevel.Off, $"motion is {Services.Motion.Level} at the start of palette {palette}");
 
         var listener = new BindingErrorListener();
         PresentationTraceSources.DataBindingSource.Listeners.Add(listener);
@@ -445,6 +452,12 @@ internal static class SmokeTest
             selector.Close();
             await Pump();
             Section($"region-selector({palette})", sw);
+
+            // ---- 09b: every animated window with motion Off and Full, then the Tale through all six chapters ----
+            await CheckMotionAsync(app, host, palette);
+            Section($"motion({palette})", sw);
+            await CheckTaleAsync(app, host, palette, first, shots);
+            Section($"tale({palette})", sw);
         }
         finally
         {
@@ -519,7 +532,7 @@ internal static class SmokeTest
             Check(main.Heading == heading && Equals(main.PageDropCap.Content, heading.DropCap) && main.PageTitle.Text == heading.Name
                   && main.PageLede.Text == heading.Lede && main.FigureCaption.Text == heading.FigureCaption,
                 $"the charter heading for {heading.PageId} reads '{main.PageTitle.Text}' ({palette})");
-            Check(main.FigureInk.Data is not null && main.FigureRed.Data is not null, $"the {heading.PageId} drawing has no geometry ({palette})");
+            Check(main.Figure.Children.Count > 0, $"the {heading.PageId} drawing has no strokes ({palette})");
             Check(tab.ActualWidth > 0 && tab.IsVisible, $"the {heading.PageId} tab is not rendered ({palette})");
         }
         // The CI desktop is 1024x768 and Windows keeps a window within the screen, so a real 1180 px window may not be
@@ -734,6 +747,199 @@ internal static class SmokeTest
             wizard.Close();
             await Pump();
         }
+    }
+
+    // ---------------- 09b: motion and the Tale ----------------
+
+    /// <summary>Long enough for every one-off animation to finish: the ink (1.4 s) after the longest delay, with margin.</summary>
+    private static readonly TimeSpan SettleTime = Core.Ux.Motion.Ink + TimeSpan.FromMilliseconds(800);
+
+    /// <summary>Sets the Motion setting on a host and applies it (the level is process-wide).</summary>
+    private static void SetMotion(AppHost host, MotionSetting setting)
+    {
+        host.Settings.Appearance.Motion = setting;
+        host.ApplyMotion();
+    }
+
+    /// <summary>
+    /// True when nothing under <paramref name="root"/> moves: every part this helper moved is back at rest, and two samples
+    /// of every opacity and transform 300 ms apart agree (no loop is running). Returns the first mover, or null.
+    /// </summary>
+    private static async Task<string?> MoverUnderAsync(DependencyObject root)
+    {
+        static Dictionary<UIElement, string> Sample(DependencyObject root) =>
+            VisualDescendants(root).OfType<UIElement>().ToDictionary(e => e, e =>
+                FormattableString.Invariant($"{e.Opacity:0.###}|{Services.Motion.ExistingTransformOf(e)?.Snapshot}"));
+        foreach (var node in VisualDescendants(root).OfType<UIElement>())
+            if (Services.Motion.ExistingTransformOf(node) is { IsIdentity: false }) return $"{node.GetType().Name} (not at rest)";
+        var before = Sample(root);
+        await Task.Delay(300);
+        var after = Sample(root);
+        foreach (var (node, value) in before)
+            if (after.TryGetValue(node, out var later) && later != value) return $"{node.GetType().Name} ({value} then {later})";
+        return null;
+    }
+
+    /// <summary>
+    /// AC-MOT-3 to 8 (spec 09b): the animated windows render with motion Off and Full under the palette: page change,
+    /// candles, torches, the overlay's dispatches, the desk's ink and fold, and the guide's page turn and seals. After the
+    /// animations settle, every part is back at rest: the overlay (REQ-MOT-2) runs nothing once its dispatches are in.
+    /// </summary>
+    private static async Task CheckMotionAsync(App app, AppHost host, string palette)
+    {
+        foreach (var setting in new[] { MotionSetting.Off, MotionSetting.Full })
+        {
+            SetMotion(host, setting);
+            var level = MotionPolicy.Resolve(setting, host.SystemAnimations);
+            Check(Services.Motion.Level == level, $"Motion {setting} resolved to {Services.Motion.Level}, not {level} ({palette})");
+            var full = level == MotionLevel.Full;
+
+            var main = new MainWindow(host);
+            var overlay = new OverlayWindow(host);
+            var compose = new ComposeWindow(host);
+            var wizard = new SetupWizardWindow(host, app, OnboardingStep.Game);
+            var candle = new ContentControl { Tag = nameof(CandleState.Lit) };
+            candle.SetResourceReference(FrameworkElement.StyleProperty, "Candle");
+            var holder = new Window { Content = candle, Width = 120, Height = 140, WindowStyle = WindowStyle.None, ShowActivated = false, Title = "Candle" };
+            holder.SetResourceReference(Control.BackgroundProperty, "Vellum.Gradient");
+            try
+            {
+                main.Show();
+                await Pump();
+                var torches = full && palette != ThemeResolver.HighContrast;
+                Check(main.Torches.IsVisible == torches && main.TorchLights.IsVisible == torches,
+                    $"the torches are {(main.Torches.IsVisible ? "lit" : "out")} with motion {setting} ({palette})");
+                main.Navigate(PageIds.Translation); // the charter unrolls, the drawing redraws, the candles burn
+                await Pump();
+                main.Navigate(PageIds.Appearance);
+                await Pump();
+
+                overlay.Show();
+                host.ShowDemoMessages(); // dispatches unfurl, seals stamp
+                compose.Open(IntPtr.Zero);
+                compose.Preview.Text = "좋은 게임이었어요! 한 판 더?";
+                Services.Motion.InkWrite(compose.Preview); // the scribe writes
+                wizard.Show();
+                await Pump();
+                wizard.ViewModel.NextCommand.Execute(null); // the step page turns
+                holder.Show();
+                await Pump();
+                candle.Tag = nameof(CandleState.Snuffed); // smoke rises
+                await Pump();
+                candle.Tag = nameof(CandleState.Lit); // relights with a pop
+                await Pump();
+
+                if (full) await Task.Delay(SettleTime);
+                await Pump();
+
+                Check(main.PageStage.Clip is null && Services.Motion.ExistingTransformOf(main.PageStage) is null or { IsIdentity: true },
+                    $"the charter did not settle after unrolling (motion {setting}, {palette})");
+                Check(main.PageDropCap.Opacity == 1 && main.PageLede.Opacity == 1,
+                    $"the drop cap or lede did not settle (motion {setting}, {palette})");
+                Check(main.Figure.Children.OfType<System.Windows.Shapes.Shape>().All(p =>
+                        p.ReadLocalValue(System.Windows.Shapes.Shape.StrokeDashArrayProperty) == DependencyProperty.UnsetValue),
+                    $"the marginal drawing did not finish (motion {setting}, {palette})");
+                Check(overlay.Items.Items.Count > 0, $"the overlay shows no dispatches (motion {setting}, {palette})");
+                var moving = await MoverUnderAsync(overlay);
+                Check(moving is null, $"the overlay still animates {moving} after its dispatches came in (motion {setting}, {palette})");
+                Check(!overlay.IsActive && !overlay.IsKeyboardFocusWithin, $"the overlay took focus (motion {setting}, {palette})");
+                Check(compose.Preview.OpacityMask is null && compose.Preview.Opacity == 1, $"the desk's ink did not finish (motion {setting}, {palette})");
+                Check(Services.Motion.ExistingTransformOf(wizard.StepPage) is null or { IsIdentity: true },
+                    $"the guide's page did not finish turning (motion {setting}, {palette})");
+                Check(wizard.StepPage.Opacity == 1, $"the guide's page did not fade in (motion {setting}, {palette})");
+
+                // The desk folds toward the chat when a reply is sent, and opens whole again.
+                var fold = Services.Motion.FoldAwayAsync(compose.Desk);
+                Check(await Task.WhenAny(fold, Task.Delay(TimeSpan.FromSeconds(3))) == fold, $"the desk never finished folding (motion {setting}, {palette})");
+                Services.Motion.Unfold(compose.Desk);
+                Check(compose.Desk.Opacity == 1 && Services.Motion.ExistingTransformOf(compose.Desk) is null or { IsIdentity: true },
+                    $"the desk did not unfold (motion {setting}, {palette})");
+            }
+            finally
+            {
+                holder.Close();
+                wizard.Close();
+                compose.Close();
+                overlay.Close();
+                main.Close();
+                await Pump();
+            }
+        }
+        SetMotion(host, MotionSetting.Off);
+    }
+
+    /// <summary>
+    /// AC-MOT-9, 10 (spec 09b): the Tale steps through all six chapters with Right under motion Off (a still tale) and Full
+    /// (playing), each caption from Core TaleText and only its chapter shown; Left, Space and Esc work; OpenTale is single
+    /// instance (first palette).
+    /// </summary>
+    private static async Task CheckTaleAsync(App app, AppHost host, string palette, bool first, string? shots)
+    {
+        var hotkey = host.Settings.Hotkeys.Compose;
+        var chapters = TaleText.Chapters(hotkey);
+        foreach (var setting in new[] { MotionSetting.Off, MotionSetting.Full })
+        {
+            SetMotion(host, setting);
+            var full = Services.Motion.Level == MotionLevel.Full;
+            var tale = new TaleWindow(hotkey, null);
+            tale.Show();
+            await Pump();
+            try
+            {
+                Check(tale.Player.AutoPlay == full && tale.Player.IsPlaying == full, $"the tale's autoplay is {tale.Player.AutoPlay} with motion {setting} ({palette})");
+                for (var i = 0; i < chapters.Count; i++)
+                {
+                    if (i > 0) tale.Press(TaleKey.Right);
+                    await Pump();
+                    Check(tale.Player.Chapter == i, $"Right reached chapter {tale.Player.Chapter + 1}, not {i + 1} (motion {setting}, {palette})");
+                    Check(tale.CaptionHeadingText == chapters[i].Heading && tale.CaptionSentence == chapters[i].Sentence,
+                        $"chapter {i + 1}'s caption reads '{tale.CaptionHeadingText}: {tale.CaptionSentence}' ({palette})");
+                    for (var k = 0; k < chapters.Count; k++)
+                        Check(tale.ChapterView(k).IsVisible == (k == i), $"chapter {k + 1} visibility is wrong on chapter {i + 1} ({palette})");
+                    Check(tale.ChapterView(i).ActualWidth > 0, $"chapter {i + 1} did not render (motion {setting}, {palette})");
+                    if (!full && i == 2 && shots is not null) Save(tale, Path.Combine(shots, $"{palette}-tale.png"));
+                }
+                tale.Press(TaleKey.Right);
+                Check(tale.Player.Chapter == chapters.Count - 1, $"Right moved past chapter VI ({palette})");
+                tale.Press(TaleKey.Left);
+                Check(tale.Player.Chapter == chapters.Count - 2, $"Left did not go back to chapter V ({palette})");
+                tale.Press(TaleKey.Space);
+                if (full)
+                {
+                    Check(!tale.Player.IsPlaying, $"Space did not pause the tale ({palette})");
+                    tale.Press(TaleKey.Space);
+                    Check(tale.Player.IsPlaying, $"Space did not resume the tale ({palette})");
+                }
+                else
+                {
+                    Check(tale.Player.Chapter == chapters.Count - 1, $"Space did not move a still tale on ({palette})");
+                }
+                await Pump();
+                if (first && !full) AuditWindow(tale, "tale");
+                Check(tale.Press(TaleKey.Escape), $"Esc was not handled ({palette})");
+                await Pump();
+                Check(!tale.IsVisible, $"Esc did not close the tale ({palette})");
+            }
+            finally
+            {
+                if (tale.IsLoaded) tale.Close();
+                await Pump();
+            }
+        }
+        SetMotion(host, MotionSetting.Off);
+
+        if (!first) return;
+        IShell shell = app;
+        shell.OpenTale();
+        await Pump();
+        var opened = app.Tale;
+        Check(opened is { IsVisible: true }, "OpenTale did not show the tale");
+        shell.OpenTale();
+        await Pump();
+        Check(ReferenceEquals(app.Tale, opened), "a second OpenTale opened another tale");
+        opened!.Close();
+        await Pump();
+        Check(app.Tale is null, "the closed tale is still App's tale");
     }
 
     // ---------------- setup helpers ----------------
@@ -1078,7 +1284,8 @@ internal static class SmokeTest
         {
             app.AddGuideItems(menu);
             var items = menu.Items.Cast<Forms.ToolStripItem>().Select(i => i.Text).ToList();
-            Check(items.Contains(App.TrayGuideItem) && items.Contains(App.TrayCheatSheetItem), $"the tray menu has [{string.Join(", ", items)}]");
+            Check(items.Contains(App.TrayGuideItem) && items.Contains(App.TrayCheatSheetItem) && items.Contains(App.TrayTaleItem),
+                $"the tray menu has [{string.Join(", ", items)}]");
         }
 
         IShell shell = app;

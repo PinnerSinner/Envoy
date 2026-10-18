@@ -25,6 +25,10 @@ R15 No em dash (U+2014) or en dash (U+2013) and no filler word (seamless, levera
     src/**/*.xaml, src/Envoy.Core/**/*Text.cs, src/Envoy.Core/Ux/*.cs, the built-in phrases
     (src/Envoy.Core/Phrases/*.json), docs/*.md, CHANGELOG.md and README.md (paths from the repository root, two
     folders above the app dir; docs/specs/ and docs/design/ are exempt)                  REQ-HRD-10
+    Spec 09b adds the phrase "never touch" (the old slogan; say what Envoy does)          REQ-MOT-13
+R16 Motion (spec 09b): a XAML Storyboard.TargetProperty names only Opacity, RenderTransform, Clip, OpacityMask or
+    StrokeDashOffset (nothing animates layout); in C#, BeginAnimation, BeginStoryboard and `new Storyboard` appear only
+    in Services/Motion.cs, the one animation helper                                       REQ-MOT-1, REQ-MOT-2
 UPD1 `new UpdateManager(`, `UpdateManager m = new(` and `: UpdateManager` only in
     Services/VelopackUpdateBackend.cs; VelopackFlowSource and ApplyUpdatesAndRestart nowhere
     (also scanned in Envoy.Core)                                                          REQ-DIST-14, 12
@@ -92,6 +96,14 @@ DASHES = {"\u2014": "em dash", "\u2013": "en dash"}
 FILLER_WORDS = ("seamless", "seamlessly", "leverage", "robust", "elevate", "delve", "unleash", "empower", "cutting-edge",
                 "game-changer", "effortless")
 FILLER = re.compile(r"(?<![\w-])(?:" + "|".join(re.escape(w) for w in FILLER_WORDS) + r")(?![\w-])", re.IGNORECASE)
+# R15 (spec 09b, REQ-MOT-13): phrases, matched as a prefix ("never touches" too).
+BANNED_PHRASES = ("never touch",)
+PHRASE = re.compile(r"(?<![\w-])(?:" + "|".join(re.escape(p) for p in BANNED_PHRASES) + r")", re.IGNORECASE)
+# R16 (spec 09b): what an animation may change, and the one file that starts animations.
+MOTION_HELPER = "Services/Motion.cs"
+ALLOWED_TARGET = re.compile(r"^\(?(?:(?:UIElement|FrameworkElement|Shape|Path|Control)\.)?"
+                            r"(?:Opacity|RenderTransform|Clip|OpacityMask|StrokeDashOffset)\b")
+ANIMATION_START = re.compile(r"\.\s*BeginAnimation\s*\(|\bBeginStoryboard\b|\bnew\s+Storyboard\b")
 
 
 def _rel(root, path):
@@ -260,7 +272,34 @@ def check(root):
 
     _check_velopack(root, report)
     _check_writing(root, report)
+    _check_motion(root, report)
     return problems
+
+
+def _check_motion(root, report):
+    """R16 (spec 09b, REQ-MOT-1, 2): animations change only render properties, and start only in Services/Motion.cs."""
+    for path in sorted(glob.glob(os.path.join(root, "**", "*.xaml"), recursive=True)):
+        parts = os.path.normpath(os.path.relpath(path, root)).split(os.sep)
+        if parts[0] in ("obj", "bin"):
+            continue
+        try:
+            elements = _xaml_elements(path)
+        except xml.parsers.expat.ExpatError:
+            continue  # R1 reports pages that do not parse; the build reports the rest
+        for line, local, attrs in elements:
+            for attr, value in attrs.items():
+                if attr.rsplit(" ", 1)[-1] == "Storyboard.TargetProperty" and not ALLOWED_TARGET.match(value.strip()):
+                    report(path, line, "R16", f"Storyboard.TargetProperty=\"{value}\" animates layout; animate only Opacity, "
+                                              "RenderTransform, Clip, OpacityMask or StrokeDashOffset")
+            if local == "BeginStoryboard":
+                report(path, line, "R16", "start animations through Services/Motion.cs (it honours the Motion setting)")
+    helper = os.path.normpath(os.path.join(root, *MOTION_HELPER.split("/")))
+    for path in _app_sources(root):
+        if os.path.normpath(path) == helper:
+            continue
+        for n, line in _code_lines(_read(path)):
+            if ANIMATION_START.search(line):
+                report(path, n, "R16", "animations start only in Services/Motion.cs (it honours the Motion setting)")
 
 
 def writing_files(repo):
@@ -285,6 +324,9 @@ def _check_writing(root, report):
             m = FILLER.search(line)
             if m:
                 report(path, n, "R15", f"filler word \"{m.group(0)}\"; say plainly what it does", repo)
+            m = PHRASE.search(line)
+            if m:
+                report(path, n, "R15", f"\"{m.group(0)}\" is the old slogan; say plainly what Envoy does (reads the screen, types like a keyboard)", repo)
 
 
 def _check_velopack(root, report):

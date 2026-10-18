@@ -22,11 +22,15 @@
             <!-- ===== Setup guide (spec 07a, REQ-OUXA-3) ===== -->
             <ContentControl x:Name="SetupGuideFrame" Style="{StaticResource OrnateFrame}" Margin="0,0,0,14">
                 <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="Run setup guide again" Command="{Binding OpenSetupGuideCommand}" CommandParameter="Language"
-                            AutomationProperties.Name="Run setup guide again" VerticalAlignment="Center" Margin="12,0,0,0" />
+                    <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <Button Content="Run setup guide again" Command="{Binding OpenSetupGuideCommand}" CommandParameter="Language"
+                                AutomationProperties.Name="Run setup guide again" Margin="0,0,0,8" />
+                        <!-- the one-minute tour (spec 09b, REQ-MOT-10) -->
+                        <Button x:Name="PlayTaleButton" Content="Play the tale" Command="{Binding PlayTaleCommand}" AutomationProperties.Name="Play the tale" />
+                    </StackPanel>
                     <StackPanel>
                         <TextBlock Text="Setup guide" Style="{StaticResource Text.H2}" />
-                        <TextBlock Text="Walks through privacy, display mode, the chat area, text recognition, a test translation and your hotkeys."
+                        <TextBlock Text="Walks through privacy, display mode, the chat area, text recognition, a test translation and your hotkeys. The tale is a one-minute tour of what Envoy does."
                                    Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
                     </StackPanel>
                 </DockPanel>

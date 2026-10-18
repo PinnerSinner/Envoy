@@ -64,4 +64,9 @@ public interface IShell
 
     /// <summary>Shows MainWindow on a <c>PageIds</c> page.</summary>
     void ShowPage(string pageId);
+
+    // 09b
+
+    /// <summary>Opens the Tale, the one-minute animated tour (REQ-MOT-10), or activates the open one (single instance).</summary>
+    void OpenTale();
 }

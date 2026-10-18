@@ -14,6 +14,7 @@ using Envoy.Core.Onboarding;
 using Envoy.Core.Security;
 using Envoy.Core.Settings;
 using Envoy.Core.Updates;
+using Envoy.Core.Ux;
 using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 
@@ -228,6 +229,8 @@ public partial class App : Application, IShell
     private void OnSystemParameterChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SystemParameters.HighContrast)) Dispatcher.InvokeAsync(ReapplyTheme);
+        // "Show animations in Windows" decides the motion level under Auto (spec 09b).
+        if (e.PropertyName == nameof(SystemParameters.ClientAreaAnimation)) Dispatcher.InvokeAsync(() => { if (!_exiting) Host.ApplyMotion(); });
     }
 
     /// <summary>The contrast theme or a system colour changed (a system thread): re-apply on the UI thread.</summary>
@@ -374,6 +377,7 @@ public partial class App : Application, IShell
         _hotkeys?.Dispose();
         _hotkeys = null;
         CloseWizardForExit();
+        _tale?.Close(); // 09b: the Tale holds no state
 
         // 2. Apply pending edits and save, unless a reset or Delete-all suppressed saving. This is the last settings write:
         //    MainWindow.OnClosed (run later by Shutdown) no longer applies or saves.
@@ -624,10 +628,38 @@ public partial class App : Application, IShell
     {
         menu.Items.Add(TrayGuideItem, null, (_, _) => OpenSetupWizard());
         menu.Items.Add(TrayCheatSheetItem, null, (_, _) => OpenSetupWizard(nameof(OnboardingStep.Hotkeys)));
+        menu.Items.Add(TrayTaleItem, null, (_, _) => OpenTale()); // 09b (REQ-MOT-10)
     }
 
     internal const string TrayGuideItem = "Setup guide…";
     internal const string TrayCheatSheetItem = "Hotkey cheat sheet…";
+    internal const string TrayTaleItem = TaleText.PlayTale + "…";
+
+    // ---- 09b ----
+
+    private TaleWindow? _tale;
+
+    /// <summary>The open Tale, if any (the smoke test checks the single instance).</summary>
+    internal TaleWindow? Tale => _tale;
+
+    /// <inheritdoc />
+    public void OpenTale()
+    {
+        if (_exiting) return;
+        if (_tale is { IsLoaded: true } open)
+        {
+            if (open.WindowState == WindowState.Minimized) open.WindowState = WindowState.Normal;
+            open.Activate();
+            return;
+        }
+        var hotkey = Host.Settings.Hotkeys.Compose;
+        var tale = new TaleWindow(hotkey, () => OpenSetupWizard());
+        tale.Closed += (_, _) => { if (ReferenceEquals(_tale, tale)) _tale = null; };
+        _tale = tale;
+        _log.Info("Tale opened", LogField.Of("motion", Services.Motion.Level));
+        tale.Show();
+        tale.Activate();
+    }
 
     /// <summary>The open setup guide, if any (the smoke test checks the single instance).</summary>
     internal SetupWizardWindow? Wizard => _wizard;

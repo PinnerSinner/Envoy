@@ -35,6 +35,12 @@ public static class TaleText
     public const string WatchAgain = "Watch again";
     public const string Offer = "Watch a one-minute tour";
 
+    /// <summary>Chapter IV's key plaque when no reply hotkey is set.</summary>
+    public const string TrayKey = "Tray";
+
+    /// <summary>The tray menu item and the Chronicle (About) button.</summary>
+    public const string PlayTale = "Play the tale";
+
     /// <summary>Under reduced motion or none, the Tale does not play by itself.</summary>
     public const string StillHint = "Animations are off, so each chapter shows its finished picture. Press Next to go on.";
 

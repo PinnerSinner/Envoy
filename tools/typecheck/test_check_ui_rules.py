@@ -388,6 +388,52 @@ namespace Envoy.App.Services; class ChatWatcher
         self.repo_write("src/Envoy.App/obj/Debug/Generated.xaml", "<x>\u2014</x>\n")
         self.assertEqual([], [p for p in check_ui_rules.check(self.root) if ": UIF-R15 " in p])
 
+    def test_r15_the_old_slogan(self):
+        self.repo_write("docs/faq.md", "Envoy reads the screen and Never touches the game.\n")
+        self.assertR15("docs/faq.md:1")
+        self.repo_write("docs/faq.md", "It will never touch it.\n")
+        self.assertR15("docs/faq.md:1")
+        self.repo_write("docs/faq.md", "Reads the screen like OBS; touching nothing.\n")
+        self.assertR15("docs/faq.md", count=0)
+
+    # R16 (spec 09b, REQ-MOT-1, 2): render-only animation, one helper.
+    def r16(self):
+        return [p for p in check_ui_rules.check(self.root) if ": UIF-R16 " in p]
+
+    def test_r16_render_properties_in_a_storyboard_are_fine(self):
+        self.write("Windows/MainWindow.xaml", MAIN_WINDOW.replace("<ContentControl />", (
+            '<Grid.Resources><Storyboard x:Key="A">'
+            '<DoubleAnimation Storyboard.TargetProperty="Opacity" To="1" />'
+            '<DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="1" />'
+            '<DoubleAnimation Storyboard.TargetProperty="StrokeDashOffset" To="0" />'
+            '<DoubleAnimation Storyboard.TargetProperty="OpacityMask.(GradientBrush.GradientStops)[1].Offset" To="1" />'
+            '</Storyboard></Grid.Resources>')))
+        self.assertEqual([], self.r16())
+
+    def test_r16_layout_in_a_storyboard(self):
+        self.write("Windows/MainWindow.xaml", MAIN_WINDOW.replace("<ContentControl />", (
+            '<Grid.Resources><Storyboard x:Key="A">'
+            '<DoubleAnimation Storyboard.TargetProperty="Width" To="1" />\n'
+            '<ThicknessAnimation Storyboard.TargetProperty="(FrameworkElement.Margin)" />'
+            '</Storyboard></Grid.Resources>')))
+        problems = self.r16()
+        self.assertEqual(2, len(problems), problems)
+        self.assertTrue(all("MainWindow.xaml:4" in p or "MainWindow.xaml:5" in p for p in problems), problems)
+
+    def test_r16_begin_storyboard_in_xaml(self):
+        self.write("Windows/MainWindow.xaml", MAIN_WINDOW.replace("<ContentControl />", "<Grid.Triggers><EventTrigger><BeginStoryboard /></EventTrigger></Grid.Triggers>"))
+        self.assertEqual(1, len(self.r16()))
+
+    def test_r16_animations_start_only_in_the_helper(self):
+        self.write("Services/Motion.cs", "class Motion { void A(System.Windows.UIElement e) => e.BeginAnimation(null, null); }\n")
+        self.assertEqual([], self.r16())
+        self.write("Windows/X.cs", "class X { void A(System.Windows.UIElement e) { e.BeginAnimation(null, null); var s = new Storyboard(); } }\n")
+        problems = self.r16()
+        self.assertEqual(1, len(problems), problems)
+        self.assertIn("Windows/X.cs:1", problems[0])
+        self.write("Windows/X.cs", "class X {\n    // e.BeginAnimation(...) in a comment is fine\n}\n")
+        self.assertEqual([], self.r16())
+
     def test_r15_hyphens_and_words_containing_filler_are_fine(self):
         self.repo_write("docs/faq.md", "Built-in OCR, 2-5 lines. Robustness and leveraged are other words.\n")
         self.assertEqual([], [p for p in check_ui_rules.check(self.root) if ": UIF-R15 " in p])

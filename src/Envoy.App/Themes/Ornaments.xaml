@@ -3,6 +3,7 @@
                     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                     xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
                     xmlns:c="clr-namespace:Envoy.App.Controls"
+                    xmlns:s="clr-namespace:Envoy.App.Services"
                     mc:Ignorable="po">
 
     <!--
@@ -279,7 +280,10 @@
         </Setter>
     </Style>
 
-    <!-- The Candle states of a provider (static here; 09b animates the flame). -->
+    <!--
+        The Candle states of a provider. Spec 09b animates it through s:Motion.Candle (bound to Tag): a burning flame
+        flickers (Full only), a change gutters, snuffs with rising smoke or relights with a pop.
+    -->
     <Style x:Key="Candle" TargetType="ContentControl">
         <Setter Property="Focusable" Value="False" />
         <Setter Property="IsTabStop" Value="False" />
@@ -288,10 +292,10 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContentControl">
-                    <Grid>
-                        <Ellipse x:Name="Glow" Width="30" Height="30" VerticalAlignment="Top" Margin="0,-2,0,0" Fill="{DynamicResource Candle.Flame}" Opacity="0.45" />
-                        <Ellipse x:Name="Flame" Width="14" Height="24" VerticalAlignment="Top" Margin="0,4,0,0" Fill="{DynamicResource Candle.Flame}" />
-                        <Rectangle x:Name="Smoke" Width="2" Height="18" VerticalAlignment="Top" Margin="0,8,0,0" Fill="{DynamicResource Ink.Soft}" Opacity="0" />
+                    <Grid s:Motion.Candle="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}">
+                        <Ellipse x:Name="Glow" Width="30" Height="30" VerticalAlignment="Top" Margin="0,-2,0,0" Fill="{DynamicResource Candle.Flame}" Opacity="0.45" s:Motion.CandlePart="Glow" />
+                        <Ellipse x:Name="Flame" Width="14" Height="24" VerticalAlignment="Top" Margin="0,4,0,0" Fill="{DynamicResource Candle.Flame}" s:Motion.CandlePart="Flame" />
+                        <Rectangle x:Name="Smoke" Width="2" Height="18" VerticalAlignment="Top" Margin="0,8,0,0" Fill="{DynamicResource Ink.Soft}" Opacity="0" s:Motion.CandlePart="Smoke" />
                         <Rectangle Width="2" Height="5" VerticalAlignment="Top" Margin="0,26,0,0" Fill="{DynamicResource Ink}" />
                         <Border Width="20" Height="40" VerticalAlignment="Bottom" CornerRadius="3" Background="{DynamicResource Candle.Wax}" BorderBrush="{DynamicResource Border.Subtle}" BorderThickness="1" />
                     </Grid>

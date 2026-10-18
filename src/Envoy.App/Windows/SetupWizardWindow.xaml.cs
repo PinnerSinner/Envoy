@@ -24,6 +24,20 @@ public partial class SetupWizardWindow : Window
         AddHandler(Selector.SelectionChangedEvent, new RoutedEventHandler(OnEdited));
         AddHandler(ToggleButton.CheckedEvent, new RoutedEventHandler(OnEdited));
         AddHandler(ToggleButton.UncheckedEvent, new RoutedEventHandler(OnEdited));
+
+        // A new step turns in from the right going forward, from the left going back (spec 09b, REQ-MOT-7).
+        _shown = ViewModel.Current;
+        ViewModel.PropertyChanged += OnViewModelChanged;
+    }
+
+    private OnboardingStep _shown;
+
+    private void OnViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(SetupWizardViewModel.Current) || ViewModel.Current == _shown) return;
+        var direction = ViewModel.Current > _shown ? 1 : -1;
+        _shown = ViewModel.Current;
+        if (IsLoaded) Services.Motion.TurnIn(StepPage, direction);
     }
 
     public SetupWizardViewModel ViewModel { get; }
@@ -64,6 +78,7 @@ public partial class SetupWizardWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         IsClosing = true;
+        ViewModel.PropertyChanged -= OnViewModelChanged;
         ViewModel.OnWindowClosed(); // Skip, unless Finish or Skip already ran
         ViewModel.Dispose(); // releases the live view's preview lease
         base.OnClosed(e);

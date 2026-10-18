@@ -132,7 +132,7 @@ public partial class OverlayWindow : Window, INotifyPropertyChanged
 
     private void Tick()
     {
-        // Fade out over the last two seconds of each message's life.
+        // Fade out like ink over the last two seconds of each message's life (spec 09b: solid until it goes when motion is off).
         var lifetime = TimeSpan.FromSeconds(Math.Max(3, S.MessageLifetimeSeconds));
         var now = DateTime.UtcNow;
         for (var i = _items.Count - 1; i >= 0; i--)
@@ -140,7 +140,7 @@ public partial class OverlayWindow : Window, INotifyPropertyChanged
             var remaining = lifetime - (now - _items[i].ShownAt);
             if (_editMode) _items[i].Opacity = 1;
             else if (remaining <= TimeSpan.Zero) _items.RemoveAt(i);
-            else _items[i].Opacity = Math.Min(1, remaining.TotalSeconds / 2);
+            else _items[i].Opacity = Core.Ux.Motion.LingerOpacity(remaining, Services.Motion.Level);
         }
         UpdateEmptyHint();
 

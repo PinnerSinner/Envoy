@@ -1,12 +1,15 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:c="clr-namespace:Envoy.App.Controls">
+                    xmlns:c="clr-namespace:Envoy.App.Controls"
+                    xmlns:s="clr-namespace:Envoy.App.Services">
 
     <!--
         Shared control library, restyled as the Herald's Writ (spec 09a, REQ-HRD-5): wax-seal primary buttons, gold-edged
         plaques, seal switches, vellum inputs with an ink underline, a gules slider and thin gold scroll bars. Colours always
         come from the active Palette.*.xaml via DynamicResource, so swapping palettes re-skins everything live. Every
         focusable style keeps FocusVisual.Ring (07b); controls on the oak rail use FocusVisual.Ring.Oak.
+        Motion (spec 09b): hover, press, switch and focus responses come from Services/Motion.cs through the s:Motion
+        attached properties, which own the parts' render transforms; no trigger here sets a RenderTransform.
     -->
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="pack://application:,,,/Envoy;component/Themes/Ornaments.xaml" />
@@ -149,18 +152,20 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ButtonBase">
-                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" SnapsToDevicePixels="True" RenderTransformOrigin="0.5,0.5">
-                                                <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
-                    </Border>
+                    <Grid s:Motion.React="Lift">
+                        <!-- the plaque glows gold outside the focus ring while it has keyboard focus (REQ-MOT-3); a ring, so text contrast never changes -->
+                        <Border Margin="-7" CornerRadius="8" BorderBrush="{DynamicResource Or.Light}" BorderThickness="3" IsHitTestVisible="False" s:Motion.FocusGlow="0.7" />
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" SnapsToDevicePixels="True">
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
+                        </Border>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Livery.Primary}" />
-                            <Setter TargetName="Bd" Property="RenderTransform"><Setter.Value><TranslateTransform Y="-1" /></Setter.Value></Setter>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Bd" Property="BorderThickness" Value="1.5" />
-                            <Setter TargetName="Bd" Property="RenderTransform"><Setter.Value><TranslateTransform Y="1" /></Setter.Value></Setter>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Focus.Ring}" />
@@ -186,8 +191,8 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
-                                                <Border CornerRadius="22" Background="{DynamicResource Oak.Deep}" Opacity="0.35" Margin="0,3,0,-3" />
+                    <Grid x:Name="Root" s:Motion.React="Wax">
+                        <Border CornerRadius="22" Background="{DynamicResource Oak.Deep}" Opacity="0.35" Margin="0,3,0,-3" />
                         <Border x:Name="Bd" CornerRadius="22" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
                             <DockPanel Margin="{TemplateBinding Padding}">
                                 <Ellipse DockPanel.Dock="Left" Width="12" Height="12" Margin="0,0,10,0" VerticalAlignment="Center"
@@ -195,14 +200,10 @@
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
                             </DockPanel>
                         </Border>
+                        <!-- the wax brightens under the mouse (REQ-MOT-3) -->
+                        <Border CornerRadius="22" Background="{DynamicResource Or.Light}" IsHitTestVisible="False" s:Motion.HoverGlow="0.14" />
                     </Grid>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="1.03" ScaleY="1.03" /></Setter.Value></Setter>
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Root" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="0.96" ScaleY="0.96" /></Setter.Value></Setter>
-                        </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Focus.Ring}" />
                             <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
@@ -256,8 +257,8 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
-                                                <Grid.ColumnDefinitions>
+                    <Grid x:Name="Root" s:Motion.React="Lift">
+                        <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="9" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="9" />
@@ -270,11 +271,7 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="RenderTransform"><Setter.Value><TranslateTransform Y="-2" /></Setter.Value></Setter>
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Livery.Primary}" />
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Root" Property="RenderTransform"><Setter.Value><TranslateTransform Y="1" /></Setter.Value></Setter>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Focus.Ring}" />
@@ -305,8 +302,8 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
-                    <Grid x:Name="Root" Background="Transparent">
-                                                <Path x:Name="Cloth" Data="{StaticResource Geo.Banner}" Stretch="Fill" Fill="{DynamicResource Oak.Tab}" />
+                    <Grid x:Name="Root" Background="Transparent" s:Motion.React="Tab">
+                        <Path x:Name="Cloth" Data="{StaticResource Geo.Banner}" Stretch="Fill" Fill="{DynamicResource Oak.Tab}" />
                         <Rectangle x:Name="StitchTop" Height="3" VerticalAlignment="Top" Margin="0,0,0,0" Fill="{DynamicResource Ornament.Gold}" Visibility="Collapsed" />
                         <Rectangle x:Name="StitchBottom" Height="3" VerticalAlignment="Bottom" Fill="{DynamicResource Ornament.Gold}" Visibility="Collapsed" />
                         <Rectangle x:Name="Stitch" Margin="7,7,30,7" Stroke="{DynamicResource Or.Light}" StrokeThickness="1" StrokeDashArray="3 2" Opacity="0.7" Visibility="Collapsed" />
@@ -317,15 +314,11 @@
                         </StackPanel>
                     </Grid>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="RenderTransform"><Setter.Value><TranslateTransform X="8" /></Setter.Value></Setter>
-                        </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Cloth" Property="Fill" Value="{DynamicResource Livery.Primary}" />
                             <Setter TargetName="StitchTop" Property="Visibility" Value="Visible" />
                             <Setter TargetName="StitchBottom" Property="Visibility" Value="Visible" />
                             <Setter TargetName="Stitch" Property="Visibility" Value="Visible" />
-                            <Setter TargetName="Root" Property="RenderTransform"><Setter.Value><TranslateTransform X="14" /></Setter.Value></Setter>
                             <Setter Property="Foreground" Value="{DynamicResource Text.OnAccent}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
@@ -350,18 +343,17 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
-                    <Border x:Name="Bd" BorderThickness="1" BorderBrush="{DynamicResource Border.Subtle}" Background="{DynamicResource Bg.PanelAlt}" Padding="12,10">
-                                                <ContentPresenter />
+                    <Border x:Name="Bd" BorderThickness="1" BorderBrush="{DynamicResource Border.Subtle}" Background="{DynamicResource Bg.PanelAlt}" Padding="12,10"
+                            s:Motion.React="Card">
+                        <ContentPresenter />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Or.Dark}" />
-                            <Setter TargetName="Bd" Property="RenderTransform"><Setter.Value><TranslateTransform Y="-3" /></Setter.Value></Setter>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Livery.Primary}" />
                             <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
-                            <Setter TargetName="Bd" Property="RenderTransform"><Setter.Value><TranslateTransform Y="-6" /></Setter.Value></Setter>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Focus.Ring}" />
@@ -392,9 +384,12 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
-                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="2,2,0,0">
-                        <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
-                    </Border>
+                    <Grid>
+                        <Border Margin="-7" CornerRadius="8" BorderBrush="{DynamicResource Or.Light}" BorderThickness="3" IsHitTestVisible="False" s:Motion.FocusGlow="0.7" />
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="2,2,0,0">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" Focusable="False" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+                        </Border>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Livery.Primary}" />
@@ -427,9 +422,12 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="PasswordBox">
-                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="2,2,0,0">
-                        <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" Focusable="False" />
-                    </Border>
+                    <Grid>
+                        <Border Margin="-7" CornerRadius="8" BorderBrush="{DynamicResource Or.Light}" BorderThickness="3" IsHitTestVisible="False" s:Motion.FocusGlow="0.7" />
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="2,2,0,0">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" Focusable="False" />
+                        </Border>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Focus.Ring}" />
@@ -450,6 +448,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
                     <Grid>
+                        <Border Margin="-7" CornerRadius="8" BorderBrush="{DynamicResource Or.Light}" BorderThickness="3" IsHitTestVisible="False" s:Motion.FocusGlow="0.7" />
                         <ToggleButton x:Name="Toggle" Focusable="False" ClickMode="Press"
                                       Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                                       IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
@@ -538,7 +537,8 @@
             </Grid.ColumnDefinitions>
             <Grid Width="62" Height="30" VerticalAlignment="Center">
                 <Border x:Name="Track" CornerRadius="15" Background="{DynamicResource Bg.Input}" BorderBrush="{DynamicResource Or.Dark}" BorderThickness="1.5" />
-                <Grid x:Name="Seal" Width="26" Height="26" HorizontalAlignment="Left" Margin="2,0">
+                <!-- slides 32 px (62 track, 26 seal, 2 + 2 margin) and stamps when checked (REQ-MOT-3) -->
+                <Grid x:Name="Seal" Width="26" Height="26" HorizontalAlignment="Left" Margin="2,0" s:Motion.Switch="32">
                     <Ellipse Fill="{DynamicResource Oak.Deep}" Opacity="0.3" Margin="0,2,0,-2" />
                     <Ellipse x:Name="Wax" Fill="{DynamicResource Wax.Plain}" />
                     <TextBlock x:Name="Mark" Text="E" FontFamily="{StaticResource Font.Wordmark}" FontSize="16" Foreground="{DynamicResource Wax.Text}"
@@ -549,7 +549,6 @@
         </Grid>
         <ControlTemplate.Triggers>
             <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="Seal" Property="HorizontalAlignment" Value="Right" />
                 <Setter TargetName="Wax" Property="Fill" Value="{DynamicResource Wax.Livery}" />
                 <Setter TargetName="Mark" Property="Visibility" Value="Visible" />
                 <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource Livery.Primary}" />

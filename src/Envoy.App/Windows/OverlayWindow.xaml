@@ -1,6 +1,7 @@
 <Window x:Class="Envoy.App.Windows.OverlayWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:s="clr-namespace:Envoy.App.Services"
         Title="Envoy overlay"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ShowInTaskbar="False" ShowActivated="False" Focusable="False"
@@ -36,15 +37,17 @@
         <!--
             The full layout (spec 09a, REQ-HRD-8): a dispatch scroll. Rods top and bottom, vellum (the card background, whose
             alpha keeps the text readable, 07b), a wax seal with the language glyph, the sender as a rubric, the translation,
-            and the original in italic.
+            and the original in italic. Spec 09b (REQ-MOT-5): the scroll unfurls from its top rod, the seal stamps in 0.3 s later
+            (Core Motion.SealDelay), and at the end of its linger time it fades out like ink (Opacity, from the window's tick).
         -->
         <DataTemplate x:Key="FullItem">
-            <StackPanel x:Name="Card" Margin="8,0,8,10" Opacity="{Binding Opacity}">
+            <StackPanel x:Name="Card" Margin="8,0,8,10" Opacity="{Binding Opacity}" s:Motion.Entrance="Unfurl">
                 <Control Style="{StaticResource ScrollRods}" Height="8" />
                 <Border Background="{Binding DataContext.CardBackground, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,9,14,10">
                     <DockPanel LastChildFill="True">
                         <ContentPresenter DockPanel.Dock="Right" ContentTemplate="{StaticResource CopyControls}" Content="{Binding}" />
-                        <ContentControl DockPanel.Dock="Left" Style="{StaticResource DispatchSeal}" Width="38" Height="38" Margin="0,0,12,0" VerticalAlignment="Top" />
+                        <ContentControl DockPanel.Dock="Left" Style="{StaticResource DispatchSeal}" Width="38" Height="38" Margin="0,0,12,0" VerticalAlignment="Top"
+                                        s:Motion.Entrance="Stamp" s:Motion.Delay="0:0:0.3" />
                         <StackPanel>
                             <TextBlock x:Name="Line" TextWrapping="Wrap" FontSize="{Binding DataContext.OverlayFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                        FontFamily="{Binding DataContext.OverlayFontFamily, RelativeSource={RelativeSource AncestorType=Window}}">
@@ -70,14 +73,16 @@
             </StackPanel>
         </DataTemplate>
 
-        <!-- REQ-OUXC-44, REQ-HRD-8: a one-line ribbon per message (small seal, sender, translation); "…" while pending, "⚠" on failure. -->
+        <!-- REQ-OUXC-44, REQ-HRD-8: a one-line ribbon per message (small seal, sender, translation); "…" while pending, "⚠" on failure.
+             It unfurls and its seal stamps like the full dispatch (REQ-MOT-5). -->
         <DataTemplate x:Key="CompactItem">
-            <Border x:Name="Card" Margin="0,0,0,3" Padding="6,3,10,3" Opacity="{Binding Opacity}"
+            <Border x:Name="Card" Margin="0,0,0,3" Padding="6,3,10,3" Opacity="{Binding Opacity}" s:Motion.Entrance="Unfurl"
                     Background="{Binding DataContext.CardBackground, RelativeSource={RelativeSource AncestorType=Window}}"
                     BorderBrush="{DynamicResource Livery.Primary}" BorderThickness="3,0,0,0">
                 <DockPanel LastChildFill="True">
                     <ContentPresenter DockPanel.Dock="Right" ContentTemplate="{StaticResource CopyControls}" Content="{Binding}" />
-                    <ContentControl DockPanel.Dock="Left" Style="{StaticResource DispatchSeal}" Width="22" Height="22" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Top" />
+                    <ContentControl DockPanel.Dock="Left" Style="{StaticResource DispatchSeal}" Width="22" Height="22" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Top"
+                                    s:Motion.Entrance="Stamp" s:Motion.Delay="0:0:0.3" />
                     <TextBlock x:Name="Line" TextWrapping="Wrap" FontSize="{Binding DataContext.CompactFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                FontFamily="{Binding DataContext.OverlayFontFamily, RelativeSource={RelativeSource AncestorType=Window}}">
                         <Run Text="{Binding Channel, Mode=OneWay}" Foreground="{DynamicResource Overlay.Original}" />

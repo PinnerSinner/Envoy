@@ -1,6 +1,7 @@
 <UserControl x:Class="Envoy.App.Pages.AppearancePage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ux="clr-namespace:Envoy.Core.Ux;assembly=Envoy.Core">
     <ScrollViewer Padding="0,0,10,0" VerticalScrollBarVisibility="Auto">
         <StackPanel MaxWidth="900">
             <TextBlock Text="Livery" Style="{StaticResource Text.H2}" />
@@ -39,6 +40,17 @@
                                Text="Follow Windows uses your contrast theme's colours whenever a Windows contrast theme is on." />
                     <TextBlock x:Name="HighContrastStatusText" Text="{Binding HighContrastStatus, Mode=OneWay}" Style="{StaticResource Text.Caption}"
                                TextWrapping="Wrap" Margin="260,0,0,0" />
+
+                    <!-- Motion (spec 09b, REQ-MOT-1): how much the app animates. -->
+                    <Grid Style="{StaticResource SettingRow}" Margin="0,10,0,2">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="220" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource RowLabel}" Content="Motion" />
+                        <ComboBox x:Name="MotionBox" Grid.Column="1" Width="260" HorizontalAlignment="Left" ItemsSource="{Binding MotionModes}"
+                                  DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Settings.Appearance.Motion}"
+                                  AutomationProperties.Name="Motion"
+                                  AutomationProperties.HelpText="How much Envoy animates: follow Windows, full, fades only or off." />
+                    </Grid>
+                    <TextBlock Text="{x:Static ux:MotionText.Help}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="260,0,0,0" />
                 </StackPanel>
             </ContentControl>
 

@@ -14,6 +14,9 @@ public sealed partial class MainViewModel
         new(HighContrastMode.Never, "Never"),
     ];
 
+    /// <summary>The Motion setting's choices (spec 09b, REQ-MOT-1), with plain labels from Core <see cref="MotionText"/>.</summary>
+    public IReadOnlyList<Option> MotionModes { get; } = [.. MotionText.Choices.Select(m => new Option(m, MotionText.LabelOf(m)))];
+
     /// <summary>Whether a Windows contrast theme is on now (the Accessibility caption).</summary>
     public string HighContrastStatus => Host.SystemHighContrast ? AccessibilityText.HighContrastOn : AccessibilityText.HighContrastOff;
 

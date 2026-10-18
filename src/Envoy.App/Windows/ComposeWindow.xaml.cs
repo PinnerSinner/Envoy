@@ -72,6 +72,7 @@ public partial class ComposeWindow : Window
         };
 
         PlaceNearGame();
+        Services.Motion.Unfold(Desk); // after a send folded it away
         Show();
         Activate();
         Input.Focus();
@@ -183,9 +184,11 @@ public partial class ComposeWindow : Window
         {
             var result = await _host.Outgoing.TranslateAsync(text, MyLanguage, Target, cts.Token);
             if (cts.IsCancellationRequested) return null;
+            var changed = Preview.Text != result.Text;
             _translated = result.Text;
             _translatedFor = key;
             Preview.Text = result.Text;
+            if (changed && result.Text.Length > 0) Services.Motion.InkWrite(Preview); // the scribe writes it (REQ-MOT-6)
             UpdateCount();
             PreviewSource.Text = result.ProviderId switch
             {
@@ -305,6 +308,8 @@ public partial class ComposeWindow : Window
         }
 
         if (settings.TypingMethod == TypingMethod.Paste) ClipboardHelper.TrySetText(text);
+        // The desk folds toward the chat as the reply goes (REQ-MOT-6); it must be gone before Envoy types into the game.
+        await Services.Motion.FoldAwayAsync(Desk);
         Hide();
         var sent = false;
         try

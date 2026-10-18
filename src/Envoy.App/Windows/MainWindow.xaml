@@ -14,7 +14,7 @@
     <!-- The war table (spec 09a, REQ-HRD-6; docs/design/herald/WarRoom.dc.html): an oak and damask wall, the banner rail on
          the left, and the page on a vellum charter with a drop-cap header, a lede, a fleuron and a marginal drawing. -->
     <Border BorderBrush="{DynamicResource Or.Dark}" BorderThickness="1" Background="{DynamicResource Damask.Oak}">
-        <Grid>
+        <Grid x:Name="WarTable">
             <Grid.RowDefinitions>
                 <RowDefinition Height="40" />
                 <RowDefinition Height="*" />
@@ -23,6 +23,13 @@
                 <ColumnDefinition Width="264" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
+
+            <!-- ===== Torchlight on the oak (spec 09b, REQ-MOT-8): under the rail and the charter, so it never lights text.
+                 Full motion only; MainWindow shows it (Torches). ===== -->
+            <Canvas x:Name="TorchLights" Grid.RowSpan="2" Grid.ColumnSpan="2" IsHitTestVisible="False" ClipToBounds="True" Visibility="Collapsed">
+                <c:TorchLight x:Name="LeftTorchLight" />
+                <c:TorchLight x:Name="RightTorchLight" />
+            </Canvas>
 
             <!-- ===== Caption bar (drawn on the oak) ===== -->
             <DockPanel Grid.Column="1">
@@ -127,22 +134,20 @@
 
                         <!-- indented past the charter's filigree corners, which sit inside its padding -->
                         <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Text.Aside}" FontSize="14" Margin="40,10,40,0" TextWrapping="Wrap"
-                                   Text="Changes are saved the moment you make them. Envoy reads only what is on screen; it never touches the game." />
+                                   Text="Changes are saved the moment you make them. Envoy reads the chat from your screen and types replies like a keyboard." />
 
                         <!-- marginalia: the page's ink drawing, from PageHeadings.MarginaliaMinWidth (1180 px) wide -->
                         <StackPanel x:Name="Marginalia" DockPanel.Dock="Right" Width="140" Margin="18,6,0,0">
                             <Viewbox Width="130" Height="158" HorizontalAlignment="Center">
-                                <Canvas Width="140" Height="170">
-                                    <Path x:Name="FigureInk" Stroke="{DynamicResource Ink.Soft}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
-                                    <Path x:Name="FigureRed" Stroke="{DynamicResource Livery.Primary}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
-                                </Canvas>
+                                <!-- one Path per stroke (ink, then the last in the livery colour), drawn stroke by stroke on a page change -->
+                                <Canvas x:Name="Figure" Width="140" Height="170" />
                             </Viewbox>
                             <TextBlock x:Name="FigureCaption" Style="{StaticResource Text.Aside}" FontSize="14" HorizontalAlignment="Center" TextAlignment="Center" Margin="0,8,0,0" />
                             <Control Style="{StaticResource Fleuron}" Margin="0,10,0,0" />
                         </StackPanel>
 
                         <!-- ===== Pages (Pages/*.xaml; each shown while its banner tab is checked) ===== -->
-                        <Grid>
+                        <Grid x:Name="PageStage">
                             <p:WarRoomPage x:Name="WarRoomPage" Visibility="{Binding IsChecked, ElementName=NavDashboard, Converter={StaticResource BoolToVisibility}}" />
                             <p:TranslationPage x:Name="TranslationPage" Visibility="{Binding IsChecked, ElementName=NavTranslation, Converter={StaticResource BoolToVisibility}}" />
                             <p:ReadingChatPage x:Name="ReadingChatPage" Visibility="{Binding IsChecked, ElementName=NavCapture, Converter={StaticResource BoolToVisibility}}" />
@@ -156,6 +161,12 @@
                     </DockPanel>
                 </ContentControl>
             </Grid>
+
+            <!-- ===== The two wall torches (REQ-MOT-8): beside the rail and on the right edge; Full motion only. ===== -->
+            <Canvas x:Name="Torches" Grid.RowSpan="2" Grid.ColumnSpan="2" IsHitTestVisible="False" Visibility="Collapsed">
+                <c:TorchFlame x:Name="LeftTorch" Seed="3" />
+                <c:TorchFlame x:Name="RightTorch" Seed="7" />
+            </Canvas>
         </Grid>
     </Border>
 </Window>

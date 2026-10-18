@@ -11,7 +11,7 @@ A11Y2 Button, ToggleButton, TextBox, PasswordBox, ComboBox, Slider and HotkeyBox
 A11Y3 A CheckBox or RadioButton without a Content attribute has a Name or LabeledBy                     REQ-OUXB-26
 A11Y4 No Color, Background, Foreground, BorderBrush, Fill or Stroke attribute starts with '#' in Windows/, Pages/
       or Controls/ (palette keys only; DropShadowEffect Color="Black" is allowed)                       REQ-OUXB-35
-A11Y5 The root Window of SetupWizardWindow.xaml and ComposeWindow.xaml sets
+A11Y5 The root Window of SetupWizardWindow.xaml, ComposeWindow.xaml and TaleWindow.xaml (spec 09b) sets
       KeyboardNavigation.TabNavigation="Cycle"                                                          REQ-OUXB-29
 """
 import glob
@@ -23,7 +23,7 @@ NAMED = {"Button", "ToggleButton", "TextBox", "PasswordBox", "ComboBox", "Slider
 CHOICE = {"CheckBox", "RadioButton"}
 COLOUR_ATTRS = {"Color", "Background", "Foreground", "BorderBrush", "Fill", "Stroke"}
 COLOUR_DIRS = ("Windows/", "Pages/", "Controls/")
-CYCLE_WINDOWS = {"Windows/SetupWizardWindow.xaml", "Windows/ComposeWindow.xaml"}
+CYCLE_WINDOWS = {"Windows/SetupWizardWindow.xaml", "Windows/ComposeWindow.xaml", "Windows/TaleWindow.xaml"}
 NAME_ATTRS = ("AutomationProperties.Name", "AutomationProperties.LabeledBy")
 NULL = "{x:Null}"
 

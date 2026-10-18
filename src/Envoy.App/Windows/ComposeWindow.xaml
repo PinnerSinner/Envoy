@@ -8,7 +8,9 @@
         SizeToContent="Height" Width="720"
         FontFamily="{StaticResource Font.Body}">
     <!-- The scribe's desk (spec 09a, REQ-HRD-9; docs/design/herald/Main.dc.html): an oak frame around a vellum charter. -->
-    <Grid Margin="12">
+    <!-- Spec 09b (REQ-MOT-6): the translation writes itself, "Seal and send" presses, the desk folds away on send and its
+         candle flickers. -->
+    <Grid x:Name="Desk" Margin="12">
         <Grid.Effect>
             <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.6" Color="Black" />
         </Grid.Effect>
@@ -22,6 +24,10 @@
                         <Button x:Name="CloseButton" DockPanel.Dock="Right" Style="{StaticResource Button.Ghost}" FontFamily="{StaticResource Font.Icons}" FontSize="12"
                                 Content="&#xE8BB;" ToolTip="Close (Esc)" Click="OnClose" Width="40" Height="36" Padding="0" VerticalAlignment="Top"
                                 AutomationProperties.Name="Close" TabIndex="5" />
+                        <!-- the scribe's candle (decoration) -->
+                        <Viewbox DockPanel.Dock="Right" Width="20" Height="46" Margin="0,4,14,0" VerticalAlignment="Top" IsHitTestVisible="False">
+                            <ContentControl x:Name="DeskCandle" Style="{StaticResource Candle}" Tag="Lit" />
+                        </Viewbox>
                         <ContentControl x:Name="HeadingCap" DockPanel.Dock="Left" Style="{StaticResource DropCap}" Width="56" Height="56" FontSize="40" Content="R"
                                         VerticalAlignment="Top" Margin="0,0,12,0" />
                         <StackPanel VerticalAlignment="Center">

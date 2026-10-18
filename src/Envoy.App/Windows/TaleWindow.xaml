@@ -1,0 +1,350 @@
+<Window x:Class="Envoy.App.Windows.TaleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:s="clr-namespace:Envoy.App.Services"
+        xmlns:ux="clr-namespace:Envoy.Core.Ux;assembly=Envoy.Core"
+        KeyboardNavigation.TabNavigation="Cycle"
+        Title="{x:Static ux:TaleText.WindowTitle}" Width="1040" Height="700" MinWidth="760" MinHeight="560"
+        WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanMinimize"
+        Background="{DynamicResource Oak.Deep}" Foreground="{DynamicResource Text.Primary}"
+        FontFamily="{StaticResource Font.Body}" Icon="pack://application:,,,/Envoy;component/Assets/envoy.ico">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40" ResizeBorderThickness="0" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <!--
+        The Tale (spec 09b, REQ-MOT-9; docs/design/herald/Explainer.dc.html): six chapters that teach Envoy in about a minute.
+        Each chapter's picture draws itself (s:Motion.Entrance, replayed when the chapter comes on); the caption is a heading
+        and one plain sentence from Core TaleText, read out as a live region. Play/pause, six chapter seals on a rope, Back,
+        Next and Skip; Space, Left, Right and Esc. Under reduced motion or none, each chapter is its finished picture and
+        Next moves on.
+    -->
+    <Window.Resources>
+        <!-- A chapter seal on the progress rope: a small round wax button with its numeral. -->
+        <Style x:Key="TaleSeal" TargetType="Button">
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontFamily" Value="{StaticResource Font.Title}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Background" Value="{DynamicResource Wax.Plain}" />
+            <Setter Property="Foreground" Value="{DynamicResource Wax.Plain.Text}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Ring}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid s:Motion.React="Wax">
+                            <Ellipse Fill="{DynamicResource Oak.Deep}" Opacity="0.35" Margin="0,2,0,-2" />
+                            <Ellipse x:Name="Wax" Fill="{TemplateBinding Background}" Stroke="{DynamicResource Or.Dark}" StrokeThickness="1" />
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Wax" Property="Stroke" Value="{DynamicResource Focus.Ring}" />
+                                <Setter TargetName="Wax" Property="StrokeThickness" Value="2.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Strokes of the chapter drawings: ink, round caps, drawn by s:Motion.Entrance="Draw" when the chapter comes on. -->
+        <Style x:Key="TaleInk" TargetType="Path">
+            <Setter Property="Stroke" Value="{DynamicResource Ink}" />
+            <Setter Property="StrokeThickness" Value="2" />
+            <Setter Property="StrokeStartLineCap" Value="Round" />
+            <Setter Property="StrokeEndLineCap" Value="Round" />
+            <Setter Property="StrokeLineJoin" Value="Round" />
+            <Setter Property="s:Motion.Entrance" Value="Draw" />
+            <Setter Property="s:Motion.OnLoad" Value="False" />
+        </Style>
+
+        <!-- A chat line on a dispatch card (chapter I). -->
+        <Style x:Key="TaleCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Bg.PanelAlt}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Or.Dark}" />
+            <Setter Property="BorderThickness" Value="1,1,1,3" />
+            <Setter Property="Padding" Value="22,8" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+            <Setter Property="s:Motion.Entrance" Value="UnrollX" />
+            <Setter Property="s:Motion.OnLoad" Value="False" />
+        </Style>
+
+        <Style x:Key="TaleRubric" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource Font.Title}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+        </Style>
+
+        <!-- A key plaque (chapter IV). -->
+        <Style x:Key="TaleKey" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Plaque.Gradient}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Or.Dark}" />
+            <Setter Property="BorderThickness" Value="1.5,1.5,1.5,4" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="MinWidth" Value="58" />
+            <Setter Property="Height" Value="58" />
+            <Setter Property="Margin" Value="0,0,12,0" />
+            <Setter Property="Padding" Value="12,0" />
+        </Style>
+    </Window.Resources>
+
+    <Border BorderBrush="{DynamicResource Or.Dark}" BorderThickness="1" Background="{DynamicResource Damask.Oak}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- ===== Caption bar ===== -->
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Style="{StaticResource Button.Chrome}" Content="&#xE921;" Click="OnMinimize" ToolTip="Minimise" AutomationProperties.Name="Minimise the tale" />
+                    <Button Style="{StaticResource Button.Chrome}" Content="&#xE8BB;" Click="OnClose" ToolTip="Close (Esc)" AutomationProperties.Name="Close the tale" />
+                </StackPanel>
+                <TextBlock Text="{x:Static ux:TaleText.Subtitle}" FontFamily="{StaticResource Font.Aside}" FontStyle="Italic" FontSize="14"
+                           Foreground="{DynamicResource Leather.Muted}" VerticalAlignment="Center" Margin="22,0,0,0" />
+            </DockPanel>
+
+            <ContentControl Grid.Row="1" Style="{StaticResource CharterFrame}" Padding="58,46,58,30" Margin="18,0,18,18">
+                <DockPanel>
+                    <!-- header: the title and the chapter counter -->
+                    <DockPanel DockPanel.Dock="Top">
+                        <TextBlock x:Name="ChapterCounter" DockPanel.Dock="Right" Style="{StaticResource Text.Rubric}" VerticalAlignment="Bottom" Margin="0,0,0,6" />
+                        <TextBlock Text="{x:Static ux:TaleText.Title}" FontFamily="{StaticResource Font.Title}" FontSize="34" Foreground="{DynamicResource Livery.Primary}" />
+                    </DockPanel>
+                    <Control DockPanel.Dock="Top" Style="{StaticResource Fleuron}" Margin="0,6,0,6" />
+
+                    <!-- controls: play/pause, the rope of chapter seals, back, next, skip -->
+                    <DockPanel DockPanel.Dock="Bottom" Margin="24,10,24,0">
+                        <Button x:Name="PlayButton" DockPanel.Dock="Left" Click="OnPlay" MinWidth="96" Margin="0,0,18,0" VerticalAlignment="Center"
+                                Content="{x:Static ux:TaleText.Pause}" AutomationProperties.Name="{x:Static ux:TaleText.Pause}" />
+                        <Button x:Name="SkipButton" DockPanel.Dock="Right" Style="{StaticResource Button.Ghost}" Click="OnSkip" Margin="12,0,0,0" VerticalAlignment="Center"
+                                Content="{x:Static ux:TaleText.Skip}" AutomationProperties.Name="{x:Static ux:TaleText.Skip}" />
+                        <Button x:Name="NextButton" DockPanel.Dock="Right" Click="OnNext" Margin="8,0,0,0" VerticalAlignment="Center"
+                                Content="{x:Static ux:TaleText.Next}" AutomationProperties.Name="{x:Static ux:TaleText.Next}" />
+                        <Button x:Name="BackButton" DockPanel.Dock="Right" Click="OnBack" Margin="18,0,0,0" VerticalAlignment="Center"
+                                Content="{x:Static ux:TaleText.Back}" AutomationProperties.Name="{x:Static ux:TaleText.Back}" />
+                        <Grid x:Name="Rope" Height="44" VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.ColumnSpan="6" Height="6" CornerRadius="3" Margin="20,0" Background="{DynamicResource Bg.Input}"
+                                    BorderBrush="{DynamicResource Or.Dark}" BorderThickness="1" />
+                            <!-- how far through the tale: scaled, never resized -->
+                            <Border x:Name="RopeFill" Grid.ColumnSpan="6" Height="6" CornerRadius="3" Margin="20,0" Background="{DynamicResource Livery.Primary}"
+                                    RenderTransformOrigin="0,0.5">
+                                <Border.RenderTransform><ScaleTransform x:Name="RopeScale" ScaleX="0" /></Border.RenderTransform>
+                            </Border>
+                            <Button x:Name="Seal0" Grid.Column="0" Style="{StaticResource TaleSeal}" Tag="0" Click="OnSeal" Content="I" AutomationProperties.Name="Chapter I" />
+                            <Button x:Name="Seal1" Grid.Column="1" Style="{StaticResource TaleSeal}" Tag="1" Click="OnSeal" Content="II" AutomationProperties.Name="Chapter II" />
+                            <Button x:Name="Seal2" Grid.Column="2" Style="{StaticResource TaleSeal}" Tag="2" Click="OnSeal" Content="III" AutomationProperties.Name="Chapter III" />
+                            <Button x:Name="Seal3" Grid.Column="3" Style="{StaticResource TaleSeal}" Tag="3" Click="OnSeal" Content="IV" AutomationProperties.Name="Chapter IV" />
+                            <Button x:Name="Seal4" Grid.Column="4" Style="{StaticResource TaleSeal}" Tag="4" Click="OnSeal" Content="V" AutomationProperties.Name="Chapter V" />
+                            <Button x:Name="Seal5" Grid.Column="5" Style="{StaticResource TaleSeal}" Tag="5" Click="OnSeal" Content="VI" AutomationProperties.Name="Chapter VI" />
+                        </Grid>
+                    </DockPanel>
+
+                    <!-- the caption: a heading and one plain sentence, announced as a live region -->
+                    <StackPanel DockPanel.Dock="Bottom" Margin="24,8,24,0">
+                        <TextBlock x:Name="CaptionHeading" FontFamily="{StaticResource Font.Title}" FontSize="24" Foreground="{DynamicResource Text.Primary}" TextAlignment="Center" />
+                        <TextBlock x:Name="CaptionText" Style="{StaticResource Text.Body}" FontSize="18" TextAlignment="Center" Margin="0,4,0,0"
+                                   AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Tale caption" />
+                        <TextBlock x:Name="StillHint" Text="{x:Static ux:TaleText.StillHint}" Style="{StaticResource Text.Caption}" TextAlignment="Center" Margin="0,4,0,0"
+                                   Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <!-- ===== The stage: six chapters, one shown at a time, drawn at 900 x 330 and scaled to fit ===== -->
+                    <Viewbox Stretch="Uniform" Margin="0,4">
+                        <Grid x:Name="Stage" Width="900" Height="330">
+
+                            <!-- I. A babel upon the field: a battlefield drawing, and chat in three scripts -->
+                            <Grid x:Name="Chapter0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="430" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Viewbox Width="410" Height="260" VerticalAlignment="Center">
+                                    <Canvas Width="420" Height="260">
+                                        <Path Style="{StaticResource TaleInk}" Data="M0,232 C80,222 160,238 250,228 S370,222 420,230" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:0.2" Data="M20,232 C80,172 170,160 250,232" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:0.5" Data="M96,190 V130 h14 v-9 h7 v9 h7 v-9 h7 v9 h7 v61" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:0.8" Data="M124,178 V110 h11 v-9 h7 v9 h7 v-9 h7 v9 h7 v68" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:1" Data="M163,192 V138 h11 v-7 h7 v7 h7 v-7 h7 v7 v56" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:1.2" Data="M137,178 v-16 a7,7 0 0 1 14,0 v16" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:1.4" Stroke="{DynamicResource Gules}" Data="M145,101 V74 l22,7 -22,7" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:1.6" Stroke="{DynamicResource Wax.Azure}" Data="M286,230 V150 l30,9 -30,9" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:1.8" Stroke="{DynamicResource Wax.Vert}" Data="M352,228 V160 l26,8 -26,8" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:2" Data="M300,70 q7,-7 14,0 q7,-7 14,0" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:2.1" Data="M346,92 q6,-6 12,0 q6,-6 12,0" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:2.2" Data="M60,214 l8,-12 8,12 M70,232 v-30" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:2.3" Data="M210,220 l7,-10 7,10 M217,236 v-26" />
+                                    </Canvas>
+                                </Viewbox>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <Border Style="{StaticResource TaleCard}" HorizontalAlignment="Left" s:Motion.Delay="0:0:1.6" BorderBrush="{DynamicResource Gules}">
+                                        <StackPanel>
+                                            <TextBlock Text="龙骑士 · All" Style="{StaticResource TaleRubric}" />
+                                            <TextBlock Text="你好，再来一局吗？" FontSize="22" Foreground="{DynamicResource Text.Primary}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource TaleCard}" HorizontalAlignment="Center" s:Motion.Delay="0:0:2.6" BorderBrush="{DynamicResource Wax.Azure}">
+                                        <StackPanel>
+                                            <TextBlock Text="전략가 · All" Style="{StaticResource TaleRubric}" />
+                                            <TextBlock Text="ㅈㅈ" FontSize="22" Foreground="{DynamicResource Text.Primary}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource TaleCard}" HorizontalAlignment="Right" s:Motion.Delay="0:0:3.6" BorderBrush="{DynamicResource Wax.Vert}">
+                                        <StackPanel>
+                                            <TextBlock Text="Сокол · Team" Style="{StaticResource TaleRubric}" />
+                                            <TextBlock Text="хорошая стена, но я иду на таран" FontSize="22" Foreground="{DynamicResource Text.Primary}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- II. The scout keeps watch: a spyglass, and the game's chat box being read -->
+                            <Grid x:Name="Chapter1" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="420" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Viewbox Width="400" Height="260" VerticalAlignment="Center">
+                                    <Canvas Width="400" Height="260">
+                                        <Path Style="{StaticResource TaleInk}" Data="M50,200 L290,96 l12,26 L62,226 z" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:0.6" Data="M120,172 l12,24 M190,141 l12,25 M250,115 l11,24" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:0.9" Data="M300,92 a10,16 -24 1 0 1,0" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:1.3" Stroke="{DynamicResource Or.Dark}" Data="M320,92 l60,-36 M322,112 l66,-10 M318,130 l58,22" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:1.5" Data="M40,236 c40,-14 80,-14 120,0" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:1.7" Data="M70,236 v-30 l20,-12 20,12 v30" />
+                                    </Canvas>
+                                </Viewbox>
+                                <Border Grid.Column="1" Height="230" VerticalAlignment="Center" Background="{DynamicResource Oak.Deep}" BorderBrush="{DynamicResource Or.Dark}"
+                                        BorderThickness="3" Padding="14,10">
+                                    <Grid>
+                                        <StackPanel>
+                                            <TextBlock Text="{x:Static ux:TaleText.ScreenLabel}" FontFamily="{StaticResource Font.Aside}" FontStyle="Italic" FontSize="14"
+                                                       Foreground="{DynamicResource Leather.Muted}" Margin="0,0,0,40" />
+                                            <TextBlock Text="[All] 龙骑士: 你好，再来一局吗？" FontSize="18" Foreground="{DynamicResource Leather.Text}" Margin="6,4" />
+                                            <TextBlock Text="[All] 전략가: ㅈㅈ" FontSize="18" Foreground="{DynamicResource Leather.Text}" Margin="6,4" />
+                                            <TextBlock Text="[Team] Сокол: хорошая стена, но я иду на таран" FontSize="18" Foreground="{DynamicResource Leather.Text}" Margin="6,4" />
+                                        </StackPanel>
+                                        <Canvas>
+                                            <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:1.2" Stroke="{DynamicResource Or.Light}" StrokeThickness="2.5"
+                                                  Data="M0,62 H418 V176 H0 Z" />
+                                        </Canvas>
+                                        <TextBlock Text="{x:Static ux:TaleText.ScoutReads}" FontFamily="{StaticResource Font.Aside}" FontStyle="Italic" FontSize="15"
+                                                   Foreground="{DynamicResource Or.Light}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,34,4,0"
+                                                   s:Motion.Entrance="Rise" s:Motion.OnLoad="False" s:Motion.Delay="0:0:2.4" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <!-- III. The interpreter answers: the line becomes a sealed dispatch -->
+                            <Grid x:Name="Chapter2" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="300" /><ColumnDefinition Width="130" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Border VerticalAlignment="Center" Background="{DynamicResource Oak.Deep}" BorderBrush="{DynamicResource Or.Dark}" BorderThickness="3" Padding="14,12"
+                                        s:Motion.Entrance="Rise" s:Motion.OnLoad="False">
+                                    <TextBlock Text="[All] 龙骑士: 你好，再来一局吗？" FontSize="18" Foreground="{DynamicResource Leather.Text}" TextWrapping="Wrap" />
+                                </Border>
+                                <Viewbox Grid.Column="1" Width="120" Height="80">
+                                    <Canvas Width="120" Height="80">
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:0.6" Stroke="{DynamicResource Gules}" StrokeThickness="2.2" Data="M6,52 C30,8 70,76 104,34" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:1.5" Stroke="{DynamicResource Gules}" StrokeThickness="2.2" Data="M90,28 l15,5 -4,15" />
+                                        <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:1.2" Stroke="{DynamicResource Or.Dark}" StrokeThickness="2.2" Data="M20,30 c4,-6 10,-6 12,0" />
+                                    </Canvas>
+                                </Viewbox>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center" s:Motion.Entrance="Unfurl" s:Motion.OnLoad="False" s:Motion.Delay="0:0:1.7">
+                                    <Control Style="{StaticResource ScrollRods}" />
+                                    <Border Background="{DynamicResource Vellum.Gradient}" Padding="16,14,18,14">
+                                        <DockPanel>
+                                            <ContentControl DockPanel.Dock="Left" Style="{StaticResource WaxSeal}" Background="{DynamicResource Wax.Gules}" Width="52" Height="52"
+                                                            FontSize="22" Content="中" Margin="0,0,16,0" VerticalAlignment="Top"
+                                                            s:Motion.Entrance="Stamp" s:Motion.OnLoad="False" s:Motion.Delay="0:0:2.2" />
+                                            <StackPanel>
+                                                <TextBlock Text="龙骑士 · All · Chinese" Style="{StaticResource TaleRubric}" />
+                                                <TextBlock Text="Hello! Another round?" FontSize="26" Foreground="{DynamicResource Text.Primary}" Margin="0,2,0,2"
+                                                           s:Motion.Entrance="Ink" s:Motion.OnLoad="False" s:Motion.Delay="0:0:2.6" />
+                                                <TextBlock Text="{x:Static ux:TaleText.ProviderNote}" Style="{StaticResource Text.Aside}"
+                                                           s:Motion.Entrance="Fade" s:Motion.OnLoad="False" s:Motion.Delay="0:0:3.6" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <Control Style="{StaticResource ScrollRods}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- IV. The scribe takes your words: the reply hotkey, and the desk writing Korean -->
+                            <Grid x:Name="Chapter3" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="330" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <!-- one plaque per key of the reply hotkey (TaleWindow fills it) -->
+                                    <StackPanel x:Name="HotkeyKeys" Orientation="Horizontal" HorizontalAlignment="Center" />
+                                    <TextBlock Text="mid-battle, at any moment" FontFamily="{StaticResource Font.Aside}" FontStyle="Italic" FontSize="16"
+                                               Foreground="{DynamicResource Text.Muted}" HorizontalAlignment="Center" Margin="0,14,0,0"
+                                               s:Motion.Entrance="Fade" s:Motion.OnLoad="False" s:Motion.Delay="0:0:1.2" />
+                                </StackPanel>
+                                <Border Grid.Column="1" VerticalAlignment="Center" Background="{DynamicResource Vellum.Gradient}" BorderBrush="{DynamicResource Or.Dark}"
+                                        BorderThickness="2" Padding="22,16" s:Motion.Entrance="Rise" s:Motion.OnLoad="False" s:Motion.Delay="0:0:1">
+                                    <StackPanel>
+                                        <DockPanel Margin="0,0,0,10">
+                                            <ContentControl DockPanel.Dock="Left" Style="{StaticResource DropCap}" Width="48" Height="48" FontSize="34" Content="R" Margin="0,0,10,0" />
+                                            <TextBlock Text="{x:Static ux:TaleText.ReplyTo}" FontFamily="{StaticResource Font.Title}" FontSize="24" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource Text.Primary}" />
+                                        </DockPanel>
+                                        <TextBlock Text="{x:Static ux:TaleText.YourWords}" Style="{StaticResource Text.Rubric}" Margin="0,0,0,2" />
+                                        <TextBlock Text="gg wp, rematch?" FontSize="20" Foreground="{DynamicResource Text.Primary}" Margin="0,0,0,10" />
+                                        <TextBlock Text="{x:Static ux:TaleText.ScribeWrites}" Style="{StaticResource Text.Rubric}" Margin="0,0,0,2" />
+                                        <TextBlock Text="좋은 게임이었어요! 한 판 더?" FontSize="22" Foreground="{DynamicResource Text.Primary}"
+                                                   s:Motion.Entrance="Ink" s:Motion.OnLoad="False" s:Motion.Delay="0:0:2" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <!-- V. The courier rides out: the reply typed into game chat -->
+                            <Grid x:Name="Chapter4" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="300" /></Grid.ColumnDefinitions>
+                                <Border VerticalAlignment="Center" Background="{DynamicResource Oak.Deep}" BorderBrush="{DynamicResource Or.Dark}" BorderThickness="3" Padding="16,12">
+                                    <StackPanel>
+                                        <TextBlock Text="{x:Static ux:TaleText.GameChat}" FontFamily="{StaticResource Font.Aside}" FontStyle="Italic" FontSize="14"
+                                                   Foreground="{DynamicResource Leather.Muted}" Margin="0,0,0,10" />
+                                        <TextBlock Text="[All] 전략가: ㅈㅈ" FontSize="20" Foreground="{DynamicResource Leather.Text}" Margin="0,4" />
+                                        <TextBlock Text="[All] You: 좋은 게임이었어요! 한 판 더?" FontSize="20" Foreground="{DynamicResource Or.Light}" Margin="0,4"
+                                                   s:Motion.Entrance="Ink" s:Motion.OnLoad="False" s:Motion.Delay="0:0:1" />
+                                    </StackPanel>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="24,0,0,0">
+                                    <Viewbox Width="160" Height="100" HorizontalAlignment="Center">
+                                        <Canvas Width="160" Height="100">
+                                            <Path Style="{StaticResource TaleInk}" Data="M10,70 C40,40 90,30 150,40" />
+                                            <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:0.5" Data="M118,30 l20,10 -18,12" />
+                                            <Path Style="{StaticResource TaleInk}" s:Motion.Delay="0:0:0.9" Stroke="{DynamicResource Gules}" Data="M20,88 c30,-8 60,-8 90,0" />
+                                        </Canvas>
+                                    </Viewbox>
+                                    <ContentControl Style="{StaticResource WaxSeal}" Width="56" Height="56" HorizontalAlignment="Center" Margin="0,8,0,8"
+                                                    FontFamily="{StaticResource Font.Wordmark}" FontWeight="Normal" FontSize="26" Content="E"
+                                                    s:Motion.Entrance="Stamp" s:Motion.OnLoad="False" s:Motion.Delay="0:0:2.2" />
+                                    <TextBlock Text="{x:Static ux:TaleText.Delivered}" Style="{StaticResource Text.Aside}" FontSize="17" HorizontalAlignment="Center"
+                                               s:Motion.Entrance="Rise" s:Motion.OnLoad="False" s:Motion.Delay="0:0:2.6" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- VI. Yours to command: three sealed promises, set up or watch again -->
+                            <Grid x:Name="Chapter5" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="260" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <!-- one sealed line per TaleText.Promises entry (TaleWindow fills it) -->
+                                    <StackPanel x:Name="Promises" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <Button x:Name="SetUpButton" Style="{StaticResource Button.Primary}" Click="OnSetUp" Margin="0,0,14,0"
+                                                Content="{x:Static ux:TaleText.SetUp}" AutomationProperties.Name="{x:Static ux:TaleText.SetUp}" />
+                                        <Button x:Name="WatchAgainButton" Click="OnWatchAgain" VerticalAlignment="Center"
+                                                Content="{x:Static ux:TaleText.WatchAgain}" AutomationProperties.Name="{x:Static ux:TaleText.WatchAgain}" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <Control Grid.Column="1" Style="{StaticResource Crest}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                         s:Motion.Entrance="Stamp" s:Motion.OnLoad="False" s:Motion.Delay="0:0:0.4" />
+                            </Grid>
+                        </Grid>
+                    </Viewbox>
+                </DockPanel>
+            </ContentControl>
+        </Grid>
+    </Border>
+</Window>
