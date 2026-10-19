@@ -24,6 +24,23 @@ it into the game chat in theirs.
   <img src="docs/media/readme/how.svg" width="100%" alt="How it works. 1: a player writes in Chinese. 2: Envoy shows the translation over the game. 3: you press Ctrl Shift T, type in English, and Envoy types the Korean reply into chat." />
 </p>
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/herald-settings-dashboard.png" alt="The War Room: what Envoy is doing, notices and setup progress" /></td>
+    <td width="50%"><img src="docs/images/herald-reply.png" alt="The reply desk: type in your language, Envoy writes it in theirs" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/herald-overlay.png" alt="The overlay: each message as a scroll with a seal for its language" /></td>
+    <td><img src="docs/images/herald-tale.png" alt="The Tale: a one-minute illustrated tour inside the app" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/herald-setup-chatarea.png" alt="The setup guide: show Envoy where chat appears" /></td>
+    <td><img src="docs/images/herald-settings-translation.png" alt="Interpreters: free translators by default, your own key if you want one" /></td>
+  </tr>
+</table>
+
+<p align="center"><sub>Screenshots of the real app, taken by CI on every build.</sub></p>
+
 <p align="center">
   <img src="docs/media/readme/features.svg" width="100%" alt="Free to use. Screen only. Every Age game. Gamer slang explained. A phrasebook in 13 languages. Private: no telemetry." />
 </p>

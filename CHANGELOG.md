@@ -5,6 +5,8 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-19
+
 ### Added
 - **The Herald's Writ in motion**: buttons lift and press, wax buttons tilt and brighten, seal switches slide and
   stamp, banner tabs slide out and the chosen one sways, and boxes glow gold when you tab into them. Changing page
