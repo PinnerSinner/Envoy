@@ -5,6 +5,8 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-19
+
 ### Fixed
 - **Translation failed for everyone.** Google and Microsoft's free translators now refuse requests that don't look
   like they come from a browser, so every message ended in "cooling down after repeated failures". Envoy now sends a
@@ -16,7 +18,6 @@ versioning: [SemVer](https://semver.org/).
   The PowerShell window now says which language it is on and that each takes a few minutes, instead of Windows'
   "Operation Running" bar, and the setup guide's list turns to Installed by itself.
 
-## [0.3.0] - 2026-10-19
 
 ### Added
 - **The Herald's Writ in motion**: buttons lift and press, wax buttons tilt and brighten, seal switches slide and
