@@ -191,4 +191,33 @@ public sealed class SettingsStoreDurabilityTests : IDisposable
         Assert.Equal("property=ClaudeKey", warning.Fields);
         Assert.DoesNotContain(_sink.Entries, e => (e.Message + e.Fields + e.Exception).Contains("SECRETVALUE", StringComparison.Ordinal));
     }
+    [Theory]
+    [InlineData("\"Minimal\"", Envoy.Core.Ux.MotionSetting.Auto)]
+    [InlineData("\"\"", Envoy.Core.Ux.MotionSetting.Auto)]
+    [InlineData("\"7\"", Envoy.Core.Ux.MotionSetting.Auto)]
+    [InlineData("99", Envoy.Core.Ux.MotionSetting.Auto)]
+    [InlineData("null", Envoy.Core.Ux.MotionSetting.Auto)]
+    [InlineData("true", Envoy.Core.Ux.MotionSetting.Auto)]
+    [InlineData("\"reduced\"", Envoy.Core.Ux.MotionSetting.Reduced)]
+    [InlineData("\"Off\"", Envoy.Core.Ux.MotionSetting.Off)]
+    [InlineData("1", Envoy.Core.Ux.MotionSetting.Full)]
+    public void Unknown_motion_setting_reads_as_auto_and_the_file_still_loads(string motion, Envoy.Core.Ux.MotionSetting expected)
+    {
+        File.WriteAllText(SettingsPath, $$"""{ "version": 1, "myLanguage": "de", "appearance": { "motion": {{motion}} } }""");
+        var result = Store().LoadWithReport();
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal("de", result.Settings.MyLanguage);
+        Assert.Equal(expected, result.Settings.Appearance.Motion);
+    }
+
+    [Fact]
+    public void Motion_setting_is_saved_by_name_and_round_trips()
+    {
+        var settings = new AppSettings();
+        settings.Appearance.Motion = Envoy.Core.Ux.MotionSetting.Reduced;
+        Store().Save(settings);
+        var json = JsonNode.Parse(File.ReadAllText(SettingsPath))!.AsObject();
+        Assert.Equal("Reduced", (string)json["appearance"]!["motion"]!);
+        Assert.Equal(Envoy.Core.Ux.MotionSetting.Reduced, Store().Load().Appearance.Motion);
+    }
 }

@@ -442,25 +442,44 @@ public static class Motion
 
     /// <summary>
     /// The reply desk folds toward the chat and fades (REQ-MOT-6); the task ends when it has. Reduced fades it out; Off
-    /// ends at once. <see cref="Unfold"/> puts it back before the desk opens again.
+    /// ends at once. <see cref="Unfold"/> puts it back before the desk opens again. The task always ends: a second fold or
+    /// an <see cref="Unfold"/> before this one finishes ends it too, so an awaiting caller is never left waiting.
     /// </summary>
     public static Task FoldAwayAsync(FrameworkElement element)
     {
         ArgumentNullException.ThrowIfNull(element);
-        var done = new TaskCompletionSource();
+        EndFold(element);
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        element.SetValue(FoldProperty, done);
         var parts = TransformOf(element, new Point(0.5, 1));
         Animate(parts.Scale, ScaleTransform.ScaleYProperty, 0.08, CoreMotion.Snap, MotionKind.Move, ease: In);
         Animate(parts.Scale, ScaleTransform.ScaleXProperty, 0.7, CoreMotion.Snap, MotionKind.Move, ease: In);
         Animate(parts.Translate, TranslateTransform.YProperty, 40, CoreMotion.Snap, MotionKind.Move, ease: In);
         Animate(element, UIElement.OpacityProperty, 0, Runs(MotionKind.Move) ? CoreMotion.Snap : CoreMotion.Quick, MotionKind.Fade,
-            ease: In, completed: () => done.TrySetResult());
+            ease: In, completed: () =>
+            {
+                if (ReferenceEquals(element.GetValue(FoldProperty), done)) element.ClearValue(FoldProperty);
+                done.TrySetResult();
+            });
         return done.Task;
     }
 
-    /// <summary>Undoes <see cref="FoldAwayAsync"/>.</summary>
+    /// <summary>The task of a fold still running on an element.</summary>
+    private static readonly DependencyProperty FoldProperty =
+        DependencyProperty.RegisterAttached("Fold", typeof(TaskCompletionSource), typeof(Motion), new PropertyMetadata(null));
+
+    private static void EndFold(FrameworkElement element)
+    {
+        if (element.GetValue(FoldProperty) is not TaskCompletionSource pending) return;
+        element.ClearValue(FoldProperty);
+        pending.TrySetResult();
+    }
+
+    /// <summary>Undoes <see cref="FoldAwayAsync"/>; a fold still running ends its task.</summary>
     public static void Unfold(FrameworkElement element)
     {
         ArgumentNullException.ThrowIfNull(element);
+        EndFold(element);
         ExistingTransformOf(element)?.Reset();
         Stop(element, UIElement.OpacityProperty);
         element.Opacity = 1;
@@ -468,12 +487,16 @@ public static class Motion
 
     // ================= Loops that live with an element =================
 
-    /// <summary>A loop that runs while its element is loaded, visible and the level is Full.</summary>
+    /// <summary>
+    /// A loop that runs while its element is loaded, visible, its window is not minimised (a minimised window keeps
+    /// IsVisible) and the level is Full.
+    /// </summary>
     private sealed class LoopLease
     {
         private readonly FrameworkElement _owner;
         private readonly Action _start;
         private readonly Action _stop;
+        private Window? _window;
         private bool _running;
         private bool _wanted = true;
 
@@ -482,15 +505,32 @@ public static class Motion
             _owner = owner;
             _start = start;
             _stop = stop;
-            owner.Loaded += (_, _) => { LevelChanged -= Update; LevelChanged += Update; Update(); };
-            owner.Unloaded += (_, _) => { LevelChanged -= Update; Halt(); };
+            owner.Loaded += (_, _) => { Attach(); Update(); };
+            owner.Unloaded += (_, _) => { Detach(); Halt(); };
             owner.IsVisibleChanged += (_, _) => Update();
             if (owner.IsLoaded)
             {
-                LevelChanged += Update;
+                Attach();
                 Update();
             }
         }
+
+        private void Attach()
+        {
+            Detach();
+            LevelChanged += Update;
+            _window = Window.GetWindow(_owner);
+            if (_window is not null) _window.StateChanged += OnWindowState;
+        }
+
+        private void Detach()
+        {
+            LevelChanged -= Update;
+            if (_window is not null) _window.StateChanged -= OnWindowState;
+            _window = null;
+        }
+
+        private void OnWindowState(object? sender, EventArgs e) => Update();
 
         /// <summary>Sets whether the loop should run; a change starts or stops it, and <paramref name="restart"/> restarts a running one.</summary>
         public void Want(bool wanted, bool restart)
@@ -502,7 +542,7 @@ public static class Motion
 
         public void Update()
         {
-            var run = _wanted && _owner.IsLoaded && _owner.IsVisible && Runs(MotionKind.Loop);
+            var run = _wanted && _owner.IsLoaded && _owner.IsVisible && _window is not { WindowState: WindowState.Minimized } && Runs(MotionKind.Loop);
             if (run)
             {
                 _start(); // restart: the loop's shape may depend on state that just changed
@@ -871,9 +911,12 @@ public static class Motion
         {
             var state = ParseCandle(GetCandle(candle)) ?? CandleState.Lit;
             RefreshLoop(candle, state != CandleState.Snuffed, restart: change != CandleChange.None);
-            if (change != CandleChange.None && candle.IsVisible) PlayCandleChange(candle, change);
+            // The pop or gutter replaces the flame's scale loops for a moment; the flicker starts again when it ends.
+            if (change != CandleChange.None && candle.IsVisible) PlayCandleChange(candle, change, () => RefreshLoop(candle, Burning(candle), restart: true));
         });
     }
+
+    private static bool Burning(Panel candle) => (ParseCandle(GetCandle(candle)) ?? CandleState.Lit) != CandleState.Snuffed;
 
     private static UIElement? PartOf(Panel candle, string name) =>
         candle.Children.OfType<UIElement>().FirstOrDefault(c => GetCandlePart(c) == name);
@@ -907,7 +950,8 @@ public static class Motion
         if (PartOf(candle, "Glow") is { } glow) Stop(glow, UIElement.OpacityProperty);
     }
 
-    private static void PlayCandleChange(Panel candle, CandleChange change)
+    /// <param name="flickerAgain">Runs when a change that animates the flame's scale has finished.</param>
+    private static void PlayCandleChange(Panel candle, CandleChange change, Action flickerAgain)
     {
         var flame = PartOf(candle, "Flame");
         switch (change)
@@ -919,12 +963,13 @@ public static class Motion
             case CandleChange.Relight when flame is not null:
                 var pop = TransformOf(flame, new Point(0.5, 1));
                 Animate(pop.Scale, ScaleTransform.ScaleXProperty, 1, CoreMotion.Snap, MotionKind.Move, from: 0.2, ease: Back(0.8));
-                Animate(pop.Scale, ScaleTransform.ScaleYProperty, 1, CoreMotion.Snap, MotionKind.Move, from: 0.2, ease: Back(0.8));
+                Animate(pop.Scale, ScaleTransform.ScaleYProperty, 1, CoreMotion.Snap, MotionKind.Move, from: 0.2, ease: Back(0.8), completed: flickerAgain);
                 FadeIn(flame, CoreMotion.Quick);
                 break;
             case CandleChange.Gutter or CandleChange.Flare when flame is not null:
                 var sway = TransformOf(flame, new Point(0.5, 1));
-                Animate(sway.Scale, ScaleTransform.ScaleYProperty, 1, CoreMotion.Unroll, MotionKind.Move, from: change == CandleChange.Gutter ? 1.5 : 0.6, ease: Out);
+                Animate(sway.Scale, ScaleTransform.ScaleYProperty, 1, CoreMotion.Unroll, MotionKind.Move, from: change == CandleChange.Gutter ? 1.5 : 0.6, ease: Out,
+                    completed: flickerAgain);
                 break;
         }
     }

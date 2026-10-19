@@ -151,7 +151,7 @@
                     <StackPanel DockPanel.Dock="Bottom" Margin="24,8,24,0">
                         <TextBlock x:Name="CaptionHeading" FontFamily="{StaticResource Font.Title}" FontSize="24" Foreground="{DynamicResource Text.Primary}" TextAlignment="Center" />
                         <TextBlock x:Name="CaptionText" Style="{StaticResource Text.Body}" FontSize="18" TextAlignment="Center" Margin="0,4,0,0"
-                                   AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Tale caption" />
+                                   AutomationProperties.LiveSetting="Polite" />
                         <TextBlock x:Name="StillHint" Text="{x:Static ux:TaleText.StillHint}" Style="{StaticResource Text.Caption}" TextAlignment="Center" Margin="0,4,0,0"
                                    Visibility="Collapsed" />
                     </StackPanel>
@@ -284,8 +284,8 @@
                                         BorderThickness="2" Padding="22,16" s:Motion.Entrance="Rise" s:Motion.OnLoad="False" s:Motion.Delay="0:0:1">
                                     <StackPanel>
                                         <DockPanel Margin="0,0,0,10">
-                                            <ContentControl DockPanel.Dock="Left" Style="{StaticResource DropCap}" Width="48" Height="48" FontSize="34" Content="R" Margin="0,0,10,0" />
-                                            <TextBlock Text="{x:Static ux:TaleText.ReplyTo}" FontFamily="{StaticResource Font.Title}" FontSize="24" VerticalAlignment="Center"
+                                            <ContentControl DockPanel.Dock="Left" Style="{StaticResource DropCap}" Width="48" Height="48" FontSize="34" Content="{x:Static ux:TaleText.ReplyToDropCap}" Margin="0,0,10,0" />
+                                            <TextBlock Text="{x:Static ux:TaleText.ReplyToRest}" AutomationProperties.Name="{x:Static ux:TaleText.ReplyTo}" FontFamily="{StaticResource Font.Title}" FontSize="24" VerticalAlignment="Center"
                                                        Foreground="{DynamicResource Text.Primary}" />
                                         </DockPanel>
                                         <TextBlock Text="{x:Static ux:TaleText.YourWords}" Style="{StaticResource Text.Rubric}" Margin="0,0,0,2" />

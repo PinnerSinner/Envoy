@@ -809,6 +809,10 @@ internal static class SmokeTest
                 var torches = full && palette != ThemeResolver.HighContrast;
                 Check(main.Torches.IsVisible == torches && main.TorchLights.IsVisible == torches,
                     $"the torches are {(main.Torches.IsVisible ? "lit" : "out")} with motion {setting} ({palette})");
+                // The CI desktop is too narrow for the marginal column: drive the layout rule so the drawing is shown and redrawn.
+                main.LayoutWarTable(PageHeadings.MarginaliaMinWidth + 80);
+                await Pump();
+                Check(main.Marginalia.IsVisible, $"the marginal drawing is hidden for the motion check (motion {setting}, {palette})");
                 main.Navigate(PageIds.Translation); // the charter unrolls, the drawing redraws, the candles burn
                 await Pump();
                 main.Navigate(PageIds.Appearance);
@@ -821,7 +825,9 @@ internal static class SmokeTest
                 Services.Motion.InkWrite(compose.Preview); // the scribe writes
                 wizard.Show();
                 await Pump();
+                var step = wizard.ViewModel.Current;
                 wizard.ViewModel.NextCommand.Execute(null); // the step page turns
+                Check(wizard.ViewModel.Current != step, $"Next did not leave the {step} step, so no page turned (motion {setting}, {palette})");
                 holder.Show();
                 await Pump();
                 candle.Tag = nameof(CandleState.Snuffed); // smoke rises
@@ -847,6 +853,35 @@ internal static class SmokeTest
                 Check(Services.Motion.ExistingTransformOf(wizard.StepPage) is null or { IsIdentity: true },
                     $"the guide's page did not finish turning (motion {setting}, {palette})");
                 Check(wizard.StepPage.Opacity == 1, $"the guide's page did not fade in (motion {setting}, {palette})");
+
+                // Full really moves: the relit candle flickers (its scale loop came back after the pop) and the torches burn.
+                // Off moves nothing.
+                var flame = await MoverUnderAsync(candle);
+                Check(full ? flame is not null : flame is null,
+                    $"the lit candle {(flame is null ? "is still" : "moves: " + flame)} with motion {setting} ({palette})");
+                if (torches)
+                    Check(await MoverUnderAsync(main.Torches) is not null, $"the torches do not burn with motion {setting} ({palette})");
+
+                // The compact layout's dispatches come in too, and then nothing in the overlay moves (CompactItem).
+                var compactWas = host.Settings.Overlay.Compact;
+                try
+                {
+                    host.Settings.Overlay.Compact = true;
+                    overlay.ApplySettings();
+                    host.ShowDemoMessages();
+                    await Pump();
+                    Check(ReferenceEquals(overlay.Items.ItemTemplate, overlay.FindResource(OverlayWindow.CompactItemKey)),
+                        $"the compact overlay does not use CompactItem (motion {setting}, {palette})");
+                    if (full) await Task.Delay(SettleTime);
+                    await Pump();
+                    var compactMoving = await MoverUnderAsync(overlay);
+                    Check(compactMoving is null, $"the compact overlay still animates {compactMoving} (motion {setting}, {palette})");
+                }
+                finally
+                {
+                    host.Settings.Overlay.Compact = compactWas;
+                    overlay.ApplySettings();
+                }
 
                 // The desk folds toward the chat when a reply is sent, and opens whole again.
                 var fold = Services.Motion.FoldAwayAsync(compose.Desk);
@@ -894,6 +929,9 @@ internal static class SmokeTest
                     Check(tale.Player.Chapter == i, $"Right reached chapter {tale.Player.Chapter + 1}, not {i + 1} (motion {setting}, {palette})");
                     Check(tale.CaptionHeadingText == chapters[i].Heading && tale.CaptionSentence == chapters[i].Sentence,
                         $"chapter {i + 1}'s caption reads '{tale.CaptionHeadingText}: {tale.CaptionSentence}' ({palette})");
+                    // The live region is announced by its automation name, so that name must be the caption itself.
+                    var spoken = System.Windows.Automation.Peers.UIElementAutomationPeer.CreatePeerForElement(tale.CaptionText)?.GetName();
+                    Check(spoken == chapters[i].Sentence, $"chapter {i + 1}'s caption is announced as '{spoken}' ({palette})");
                     for (var k = 0; k < chapters.Count; k++)
                         Check(tale.ChapterView(k).IsVisible == (k == i), $"chapter {k + 1} visibility is wrong on chapter {i + 1} ({palette})");
                     Check(tale.ChapterView(i).ActualWidth > 0, $"chapter {i + 1} did not render (motion {setting}, {palette})");

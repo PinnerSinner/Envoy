@@ -138,4 +138,38 @@ public class TalePlayerTests
         player.Advance(TimeSpan.Zero);
         Assert.Equal(2, raised);
     }
+    [Fact]
+    public void Dropping_autoplay_while_playing_makes_a_still_tale()
+    {
+        var player = new TalePlayer(autoPlay: true);
+        player.Next();
+        var playing = 0;
+        player.PlayingChanged += () => playing++;
+        player.SetAutoPlay(false);
+        Assert.False(player.AutoPlay);
+        Assert.False(player.IsPlaying);
+        Assert.Equal(1, playing);
+        player.Advance(TalePlayer.ChapterLength * 2);
+        Assert.Equal(1, player.Chapter); // time no longer moves it
+        Assert.Equal(TaleCommand.Next, player.CommandFor(TaleKey.Space));
+        player.TogglePlay();
+        Assert.False(player.IsPlaying);
+        player.Next();
+        Assert.False(player.IsPlaying); // Next moves a still tale without playing it
+        Assert.Equal(2, player.Chapter);
+    }
+
+    [Fact]
+    public void Regaining_autoplay_leaves_the_tale_paused_until_play()
+    {
+        var player = new TalePlayer(autoPlay: false);
+        player.SetAutoPlay(true);
+        Assert.True(player.AutoPlay);
+        Assert.False(player.IsPlaying);
+        Assert.Equal(TaleCommand.TogglePlay, player.CommandFor(TaleKey.Space));
+        player.TogglePlay();
+        Assert.True(player.IsPlaying);
+        player.SetAutoPlay(true); // no change
+        Assert.True(player.IsPlaying);
+    }
 }

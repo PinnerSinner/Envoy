@@ -39,8 +39,7 @@ public partial class TaleWindow : Window
             AutomationProperties.SetName(SealFor(i), _chapters[i].SealName);
             SealFor(i).ToolTip = _chapters[i].SealName;
         }
-        PlayButton.Visibility = Player.AutoPlay ? Visibility.Visible : Visibility.Collapsed;
-        StillHint.Visibility = Player.AutoPlay ? Visibility.Collapsed : Visibility.Visible;
+        ShowMode();
 
         _timer = new DispatcherTimer(TimeSpan.FromMilliseconds(100), DispatcherPriority.Background, (_, _) => Tick(), Dispatcher) { IsEnabled = false };
         Player.ChapterChanged += ShowChapter;
@@ -52,6 +51,27 @@ public partial class TaleWindow : Window
             ShowPlaying();
         };
         IsVisibleChanged += (_, _) => ShowPlaying();
+        // A minimised window stays IsVisible: the tale waits there and goes on when restored.
+        StateChanged += (_, _) => ShowPlaying();
+        Services.Motion.LevelChanged += OnLevelChanged;
+    }
+
+    /// <summary>
+    /// The level changed while the tale is open (the Motion setting or Windows' "Show animations"): below Full it becomes
+    /// a still tale at once; back at Full it can play again from where it is.
+    /// </summary>
+    private void OnLevelChanged()
+    {
+        Player.SetAutoPlay(Services.Motion.Level == MotionLevel.Full);
+        ShowMode();
+        ShowPlaying();
+    }
+
+    /// <summary>Play shows for a tale that can play by itself; a still tale shows the hint instead.</summary>
+    private void ShowMode()
+    {
+        PlayButton.Visibility = Player.AutoPlay ? Visibility.Visible : Visibility.Collapsed;
+        StillHint.Visibility = Player.AutoPlay ? Visibility.Collapsed : Visibility.Visible;
     }
 
     /// <summary>The playhead (the smoke test steps it).</summary>
@@ -128,7 +148,7 @@ public partial class TaleWindow : Window
         var label = Player.IsPlaying ? TaleText.Pause : TaleText.Play;
         PlayButton.Content = label;
         AutomationProperties.SetName(PlayButton, label);
-        if (Player.IsPlaying && IsVisible)
+        if (Player.IsPlaying && IsVisible && WindowState != WindowState.Minimized)
         {
             _clock.Restart();
             _timer.Start();
@@ -252,6 +272,7 @@ public partial class TaleWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _timer.Stop();
+        Services.Motion.LevelChanged -= OnLevelChanged;
         Player.ChapterChanged -= ShowChapter;
         Player.PlayingChanged -= ShowPlaying;
         base.OnClosed(e);

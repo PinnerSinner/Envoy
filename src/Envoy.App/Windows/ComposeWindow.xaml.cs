@@ -28,6 +28,12 @@ public partial class ComposeWindow : Window
     private bool _opening;
     private bool _recalling;
 
+    /// <summary>A send or copy is under way: Enter, Send and Copy are ignored until it ends, so one reply goes once.</summary>
+    private bool _sending;
+
+    /// <summary>The desk is folding away after a send: opening it again waits until the reply has gone.</summary>
+    private bool _folding;
+
     /// <summary>
     /// Replies sent or copied this session (REQ-OUXC-39). Lives on this window, which App reuses for the whole session;
     /// memory only, never saved or logged.
@@ -50,6 +56,8 @@ public partial class ComposeWindow : Window
 
     public void Open(IntPtr targetWindow)
     {
+        // A reply is on its way to the game: the desk is folding and is about to hide, so the hotkey does nothing yet.
+        if (_folding) return;
         // Opened again while open: the box itself is in front, so keep the target chosen the first time.
         _target = SendTargetGuard.TargetOnOpen(_target, targetWindow, IsVisible);
         _opening = true;
@@ -282,15 +290,39 @@ public partial class ComposeWindow : Window
 
     private async Task CopyAsync()
     {
-        var input = Input.Text;
-        var target = Target;
-        var text = await TranslateNowAsync();
-        if (string.IsNullOrEmpty(text)) return;
-        if (ClipboardHelper.TrySetText(OutgoingText.Sanitize(AppendOriginal(text)))) Remember(input, target);
-        Hide();
+        if (_sending) return;
+        _sending = true;
+        try
+        {
+            var input = Input.Text;
+            var target = Target;
+            var text = await TranslateNowAsync();
+            if (string.IsNullOrEmpty(text)) return;
+            if (ClipboardHelper.TrySetText(OutgoingText.Sanitize(AppendOriginal(text)))) Remember(input, target);
+            Hide();
+        }
+        finally
+        {
+            _sending = false;
+        }
     }
 
     private async Task SendAsync()
+    {
+        if (_sending) return;
+        _sending = true;
+        try
+        {
+            await SendOnceAsync();
+        }
+        finally
+        {
+            _sending = false;
+            _folding = false;
+        }
+    }
+
+    private async Task SendOnceAsync()
     {
         var settings = _host.Settings.Compose;
         var input = Input.Text;
@@ -309,8 +341,12 @@ public partial class ComposeWindow : Window
 
         if (settings.TypingMethod == TypingMethod.Paste) ClipboardHelper.TrySetText(text);
         // The desk folds toward the chat as the reply goes (REQ-MOT-6); it must be gone before Envoy types into the game.
-        await Services.Motion.FoldAwayAsync(Desk);
+        // At most a second: a fold that never reports its end must not hold the reply back.
+        _folding = true;
+        var fold = Services.Motion.FoldAwayAsync(Desk);
+        await Task.WhenAny(fold, Task.Delay(TimeSpan.FromSeconds(1)));
         Hide();
+        _folding = false;
         var sent = false;
         try
         {

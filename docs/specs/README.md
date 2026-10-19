@@ -51,7 +51,7 @@ MUST counts are the requirements whose level is MUST. Folded and removed rows ar
 | 11 | [08b-ci-release.md](08b-ci-release.md) | Workflow restructure and `release` job, coverage gate, CodeQL, SBOM, time budget, OCR end-to-end test, threat model, compatibility matrix, release checklist | Implemented | 10 | 16 | 0 |
 | 12 | [09a-herald-redesign.md](09a-herald-redesign.md) | The Herald's Writ look in every window, ornament kit, liveries, fonts, no em dashes, 07a carry-over fixes | Implemented | 12 | 1 | 0 |
 | 13 | [09b-herald-motion.md](09b-herald-motion.md) | Motion policy, reactive controls, overlay and desk animation, candles, the Tale window | Implemented | 11 | 1 | 1 |
-| | **Total** | | | **152** | **111** | **8** |
+| | **Total** | | | **175** | **113** | **9** |
 
 Superseded pointers are deleted when their split step starts: `08-quality-security-ci.md` went with 08a's first
 commit, and `07-onboarding-ux-accessibility.md` (split into 07a, 07b and 07c) with 07a's first commit.

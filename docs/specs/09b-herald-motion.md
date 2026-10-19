@@ -85,7 +85,8 @@ Owners of the concepts this spec adds: Core `Motion`, `MotionPolicy` and `Motion
 1. **What Off and Reduced mean for state changes** (REQ-MOT-1). A change of state still lands: under Off every call shows
    its end state at once, and under Reduced everything but fades does. So a checked switch's seal, the active tab's
    offset and a hovered button's lift still take their place (as in 09a's static look), without moving there. Loops
-   (flames, sway, pulse, torches) run at Full only and only while their element is visible. The level is process-wide,
+   (flames, sway, pulse, torches) run at Full only and only while their element is visible and its window is not
+   minimised (a minimised WPF window stays `IsVisible`, so the loop also follows the window's `StateChanged`). The level is process-wide,
    like the palette, and is set at ApplySettings position 10 (09b's slot), in `Start` and when Windows' "Show
    animations" changes (App's `SystemParameters` listener).
 2. **The setting** (REQ-MOT-1) is a Motion row in the Livery page's Accessibility frame, so the contract §8.6 order of
@@ -102,9 +103,12 @@ Owners of the concepts this spec adds: Core `Motion`, `MotionPolicy` and `Motion
    solid until it goes.
 6. **Reply desk** (REQ-MOT-6): the desk folds as the reply is sent, before Envoy types it, because the desk must be gone
    for the keystrokes to reach the game; this delays typing by 320 ms at Full (150 ms with fades only). Copy and the
-   clipboard send mode close without folding. The desk's candle is a small `Candle` in its heading.
+   clipboard send mode close without folding. One send or copy runs at a time: Enter, "Seal & send" and Copy do nothing
+   until it ends, the reply hotkey does nothing while the desk folds, and the wait for the fold is capped at 1 s. A fold
+   that is replaced or undone still ends its task, so a reply is never typed twice or held back. The desk's candle is a small `Candle` in its heading.
 7. **Candles** (REQ-MOT-7): the button stays "Retry now" (09a Deviation 7); the relight pop plays whenever a candle
-   goes from snuffed to lit or guttering. A guide step turns with a 24 px slide and a fade, from the right going
+   goes from snuffed to lit or guttering. The pop and the gutter briefly take over the flame's scale, and the flicker
+   starts again when they end. A guide step turns with a 24 px slide and a fade, from the right going
    forward and from the left going back.
 8. **Torches** (REQ-MOT-8, SHOULD, done): `TorchFlame` has 14 blobs, 4 smoke puffs and 3 sparks with periods from a
    fixed seed, merged by a blur, and `TorchLight` wavers through three overlapping oscillations. The light sits under
@@ -119,12 +123,19 @@ Owners of the concepts this spec adds: Core `Motion`, `MotionPolicy` and `Motion
    longer says "it never touches the game"). "Offered, not forced": the guide's last step has a "Watch a one-minute
    tour" button that finishes the guide and opens the Tale; nothing records whether it was watched. The tray item is
    "Play the tale…".
+   The caption sentence is the live region and has no other automation name, so Narrator reads the sentence itself.
+   Chapter IV's "Reply to 전략가, in Korean" is drawn as a drop cap and the rest of the line, and the line's automation
+   name is the whole phrase. When the motion level drops below Full while the Tale is open it becomes a still tale at
+   once (Play hides, the hint shows); back at Full, Play returns and the tale stays paused until pressed. A minimised
+   Tale stops its clock and goes on when restored.
 10. **REQ-MOT-11** (COULD, deferred): no `Viewport3D` seal. The 2D seals stay; a 3D seal adds GPU cost to the settings
     window for little gain.
 11. **Verification** (REQ-MOT-12): the smoke sections are `motion({palette})` (Off and Full: page change, candles,
-    torches, overlay dispatches, the desk's ink and fold, the guide's page turn; after the animations settle every part
-    is back at rest and the overlay is sampled for movement) and `tale({palette})` (all six chapters with Right under Off
-    and Full, Left, Space, Esc, the a11y audit on the first palette, `OpenTale` single instance), plus a
+    torches, overlay dispatches in both layouts, the desk's ink and fold, the guide's page turn, which must leave its
+    step; the marginal column is forced on so the drawing redraws; after the animations settle every part is back at
+    rest and both overlay layouts are sampled for movement, while at Full the relit candle and the torches must still
+    move and at Off nothing may) and `tale({palette})` (all six chapters with Right under Off
+    and Full, each caption's automation name equal to its sentence, Left, Space, Esc, the a11y audit on the first palette, `OpenTale` single instance), plus a
     `{palette}-tale.png` screenshot. The rest of the smoke run uses Motion Off, so screenshots show finished frames.
     R16 also keeps `BeginAnimation`, `BeginStoryboard` and `new Storyboard` inside `Services/Motion.cs`, and the helper
     refuses any property outside its allowed list at run time. The motion checks were type-checked on Linux; they run
@@ -134,4 +145,7 @@ Owners of the concepts this spec adds: Core `Motion`, `MotionPolicy` and `Motion
     the FAQ adds "Envoy reads the screen like OBS and presses keys like a keyboard". R15 bans the prefix `never touch`
     in its files only; code comments elsewhere are unaffected.
 13. **MUST count**: this spec has 11 MUST rows (REQ-MOT-13 was added after the index counted 10); the index row now
-    says 11.
+    says 11, and the index total now sums every row, 09a and 09b included.
+14. **The setting on disk** (REQ-MOT-1): `Appearance.Motion` is saved by name, and a name this build does not know
+    (one a newer Envoy wrote) or any other value loads as Auto through `MotionSettingJsonConverter` instead of failing
+    the whole settings file.

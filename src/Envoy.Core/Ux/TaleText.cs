@@ -75,7 +75,10 @@ public static class TaleText
     public const string ScreenLabel = "the game, as you see it";
     public const string ScoutReads = "the scout reads these lines";
     public const string ProviderNote = "by Google Translate, free, in under a breath";
-    public const string ReplyTo = "eply to 전략가, in Korean";
+    /// <summary>Chapter IV's desk heading, drawn as a drop cap (<see cref="ReplyToDropCap"/>) and the rest; read whole.</summary>
+    public const string ReplyTo = "Reply to 전략가, in Korean";
+    public static string ReplyToDropCap => ReplyTo[..1];
+    public static string ReplyToRest => ReplyTo[1..];
     public const string YourWords = "Your words";
     public const string ScribeWrites = "The scribe writes";
     public const string GameChat = "game chat";

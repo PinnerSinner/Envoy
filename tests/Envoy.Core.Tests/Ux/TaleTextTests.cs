@@ -16,6 +16,14 @@ public class TaleTextTests
             ]);
 
     [Fact]
+    public void The_desk_heading_is_whole_and_splits_into_drop_cap_and_rest()
+    {
+        Assert.StartsWith("Reply to ", TaleText.ReplyTo, StringComparison.Ordinal);
+        Assert.Equal("R", TaleText.ReplyToDropCap);
+        Assert.Equal(TaleText.ReplyTo, TaleText.ReplyToDropCap + TaleText.ReplyToRest);
+    }
+
+    [Fact]
     public void There_are_six_chapters_in_order()
     {
         var chapters = TaleText.Chapters("Ctrl+Shift+T");

@@ -42,7 +42,18 @@ public sealed class TalePlayer
     }
 
     /// <summary>The tale can play by itself (Full motion). False: each chapter is a still and Next moves on.</summary>
-    public bool AutoPlay { get; }
+    public bool AutoPlay { get; private set; }
+
+    /// <summary>
+    /// Follows a change of motion level while the tale is open (REQ-MOT-10). Turning autoplay off stops a playing tale
+    /// for good, so it becomes a still tale; turning it on leaves the tale paused until Play.
+    /// </summary>
+    public void SetAutoPlay(bool autoPlay)
+    {
+        if (AutoPlay == autoPlay) return;
+        AutoPlay = autoPlay;
+        if (!autoPlay) SetPlaying(false);
+    }
 
     /// <summary>0-based chapter shown now.</summary>
     public int Chapter { get; private set; }

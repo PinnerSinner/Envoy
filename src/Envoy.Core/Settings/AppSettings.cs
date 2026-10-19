@@ -307,7 +307,8 @@ public sealed class AccessibilitySettings
 /// </summary>
 public sealed class AppearanceSettings
 {
-    /// <summary>Auto follows Windows' "Show animations" (REQ-MOT-1).</summary>
+    /// <summary>Auto follows Windows' "Show animations" (REQ-MOT-1). Saved by name; an unknown name reads as Auto.</summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(MotionSettingJsonConverter))]
     public Ux.MotionSetting Motion { get; set; } = Ux.MotionSetting.Auto;
 }
 
