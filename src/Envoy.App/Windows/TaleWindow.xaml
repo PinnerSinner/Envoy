@@ -109,8 +109,8 @@
 
             <ContentControl Grid.Row="1" Style="{StaticResource CharterFrame}" Padding="58,46,58,30" Margin="18,0,18,18">
                 <DockPanel>
-                    <!-- header: the title and the chapter counter -->
-                    <DockPanel DockPanel.Dock="Top">
+                    <!-- header: the title and the chapter counter, indented past the charter's filigree corners -->
+                    <DockPanel DockPanel.Dock="Top" Margin="44,0,44,0">
                         <TextBlock x:Name="ChapterCounter" DockPanel.Dock="Right" Style="{StaticResource Text.Rubric}" VerticalAlignment="Bottom" Margin="0,0,0,6" />
                         <TextBlock Text="{x:Static ux:TaleText.Title}" FontFamily="{StaticResource Font.Title}" FontSize="34" Foreground="{DynamicResource Livery.Primary}" />
                     </DockPanel>
