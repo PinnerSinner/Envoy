@@ -39,7 +39,7 @@ public sealed class EdgeFreeTranslator(HttpClient http, TimeProvider? clock = nu
             using var message = new HttpRequestMessage(HttpMethod.Post, url)
             {
                 Content = JsonContent.Create(new[] { new { Text = request.Text } }),
-            };
+            }.AsBrowser();
             message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
             using var response = await ProviderHttp.SendAsync(http, message, Id, cancellationToken).ConfigureAwait(false);
@@ -79,7 +79,7 @@ public sealed class EdgeFreeTranslator(HttpClient http, TimeProvider? clock = nu
         try
         {
             if (_token is { } again && _clock.GetUtcNow() < _tokenExpires) return again;
-            using var message = new HttpRequestMessage(HttpMethod.Get, AuthUrl);
+            using var message = new HttpRequestMessage(HttpMethod.Get, AuthUrl).AsBrowser();
             using var response = await ProviderHttp.SendAsync(http, message, Id, ct).ConfigureAwait(false);
             // Whatever the auth endpoint says, it is a hiccup on Microsoft's side, not the user's fault.
             var body = await ProviderHttp.ReadBodyAsync(response, Id, _clock,

@@ -1,0 +1,10 @@
+# An Age of Empires IV lobby: the chat area also covers the settings panel. Sender-less Latin-script lines are game
+# UI, not chat, so nothing but the real message is emitted (and nothing is sent to a translator).
+@frame
+ 10  28 | RVE
+ 32  50 | Game Mode
+ 54  72 | Standard Landmarks, Sacred, Wonder Standard Resources, Age I Start, Concealed Map
+ 76  94 | Allow Observers
+ 98 116 | 龙骑士: 你好，再来一局吗？
+@expect
+chat | - | 龙骑士 | 你好，再来一局吗？

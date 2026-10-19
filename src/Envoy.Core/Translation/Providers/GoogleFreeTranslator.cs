@@ -20,7 +20,7 @@ public sealed class GoogleFreeTranslator(HttpClient http, TimeProvider? clock = 
         var sl = request.SourceLanguage is null ? "auto" : ToGoogle(request.SourceLanguage);
         var url = $"{Endpoint}?client=gtx&sl={sl}&tl={ToGoogle(request.TargetLanguage)}&dt=t&q={Uri.EscapeDataString(request.Text)}";
 
-        using var message = new HttpRequestMessage(HttpMethod.Get, url);
+        using var message = new HttpRequestMessage(HttpMethod.Get, url).AsBrowser();
         using var response = await ProviderHttp.SendAsync(http, message, Id, cancellationToken).ConfigureAwait(false);
         // A 403 from the keyless endpoint means "too many requests from this IP", not a bad key.
         var json = await ProviderHttp.ReadBodyAsync(response, Id, clock ?? TimeProvider.System,

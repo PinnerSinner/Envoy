@@ -5,6 +5,17 @@ versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Translation failed for everyone.** Google and Microsoft's free translators now refuse requests that don't look
+  like they come from a browser, so every message ended in "cooling down after repeated failures". Envoy now sends a
+  browser User-Agent to both.
+- **Lobby and menu text showed up as messages.** Lines with no player name in Latin script (for example "Game Mode",
+  "Allow Observers" or the lobby settings) are no longer translated or shown. A sender-less line in another script,
+  such as the wrapped end of a Chinese message, still is.
+- **Installing text recognition looked frozen.** **Install all missing** installs every pack behind one admin prompt.
+  The PowerShell window now says which language it is on and that each takes a few minutes, instead of Windows'
+  "Operation Running" bar, and the setup guide's list turns to Installed by itself.
+
 ## [0.3.0] - 2026-10-19
 
 ### Added

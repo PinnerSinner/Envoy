@@ -13,6 +13,23 @@ public class ChatPipelineUnderstandingTests
     private static IReadOnlyList<OcrLine> Lines(params string[] texts) => OcrLine.FromTexts(texts, H, 4);
 
     [Fact]
+    public async Task Game_ui_text_without_a_sender_is_not_translated()
+    {
+        // Lobby settings caught in the chat area: no sender, Latin script. None of it is chat.
+        var t = new FakeTranslator();
+        var p = new ChatPipeline(t, new ChatPipelineOptions());
+        Assert.Empty(await p.ProcessAsync(Lines("Game Mode", "Allow Observers", "Standard Landmarks, Sacred, Wonder")));
+        Assert.Empty(t.Requests);
+    }
+
+    [Fact]
+    public async Task A_foreign_fragment_without_a_sender_is_still_translated()
+    {
+        var p = new ChatPipeline(new FakeTranslator(), new ChatPipelineOptions());
+        Assert.Single(await p.ProcessAsync(Lines("应该先占领金矿")));
+    }
+
+    [Fact]
     public async Task System_lines_hidden_by_default()
     {
         var t = new FakeTranslator();

@@ -1,10 +1,10 @@
-# The first capture starts in the middle of a message nobody has seen: one fragment, emitted once.
+# The first capture starts in the middle of a message nobody has seen. In a script that is not the reader's it is
+# emitted once as a fragment; here it is English, so it is dropped (game UI text looks exactly like this).
 @frame
  10  28 | the middle of the map so watch out
  32  50 | for their scouts
  54  72 | Kim: thanks for the warning
 @expect
-fragment | - | - | the middle of the map so watch out for their scouts
 chat | - | Kim | thanks for the warning
 @frame
  10  28 | for their scouts

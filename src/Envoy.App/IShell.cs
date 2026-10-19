@@ -16,8 +16,11 @@ public interface IShell
     /// <summary>Opens a URL, a settings URI or a file/folder in the data folder with the shell.</summary>
     void OpenUrl(string urlOrDataPath);
 
-    /// <summary>Installs the Windows OCR pack for an Envoy language code (asks for admin); opens Language settings if that fails.</summary>
-    void InstallOcrPack(string languageTag);
+    /// <summary>
+    /// Installs the Windows OCR packs for these Envoy language codes in one elevated PowerShell run (one admin prompt);
+    /// opens Language settings if that fails. Returns whether the install started.
+    /// </summary>
+    bool InstallOcrPack(IReadOnlyList<string> languageTags);
 
     /// <summary>An information box, owned by the main window when it is open.</summary>
     void ShowInfo(string title, string message);

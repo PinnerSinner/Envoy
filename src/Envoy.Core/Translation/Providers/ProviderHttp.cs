@@ -8,6 +8,21 @@ namespace Envoy.Core.Translation.Providers;
 /// </summary>
 internal static class ProviderHttp
 {
+    /// <summary>
+    /// The User-Agent the keyless providers send. Google's and Microsoft's free endpoints serve the pages and the Edge
+    /// browser that call them; a request with no User-Agent is treated as a bot and redirected to a captcha page.
+    /// </summary>
+    public const string BrowserUserAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0";
+
+    /// <summary>Marks <paramref name="request"/> as coming from a browser (keyless providers only).</summary>
+    public static HttpRequestMessage AsBrowser(this HttpRequestMessage request)
+    {
+        request.Headers.TryAddWithoutValidation("User-Agent", BrowserUserAgent);
+        request.Headers.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+        return request;
+    }
+
     /// <summary>Longest <c>Retry-After</c> Envoy honours (REQ-TRR-2).</summary>
     public static readonly TimeSpan MaxRetryAfter = TimeSpan.FromHours(1);
 

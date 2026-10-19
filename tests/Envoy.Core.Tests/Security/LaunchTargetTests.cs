@@ -101,6 +101,9 @@ public class LaunchTargetTests
         Assert.Equal(OcrPackInstall.PowerShellArguments("ja"), LaunchTarget.OcrInstallArguments("ja"));
         Assert.Null(LaunchTarget.OcrInstallArguments("xx"));
         Assert.Null(LaunchTarget.OcrInstallArguments("ja'; calc"));
-        Assert.Null(LaunchTarget.OcrInstallArguments(null));
+        Assert.Null(LaunchTarget.OcrInstallArguments((string?)null));
+        Assert.Equal(OcrPackInstall.PowerShellArguments(["ja", "ko"]), LaunchTarget.OcrInstallArguments(["ja", "ko"]));
+        Assert.Null(LaunchTarget.OcrInstallArguments(["ja", "ja'; calc"]));
+        Assert.Null(LaunchTarget.OcrInstallArguments(Array.Empty<string>()));
     }
 }

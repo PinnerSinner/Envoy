@@ -1,4 +1,5 @@
-# With byName on, a line with no ':' that starts with a known player's name is a notice; short names never are.
+# With byName on, a line with no ':' that starts with a known player's name is a notice; short names never are, so
+# "Al will boom now" stays a Latin-script fragment and is dropped.
 @me Hoplite
 @players Zhang Wei, Al
 @set byName=true hideSystem=false
@@ -8,7 +9,6 @@
  76  94 | Hoplite was defeated
  98 116 | Kim: wow
 @expect
-fragment | - | - | Al will boom now
 system | - | - | Zhang Wei has advanced to the Castle Age
 system | - | - | Hoplite was defeated
 chat | - | Kim | wow

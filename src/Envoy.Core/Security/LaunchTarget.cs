@@ -109,12 +109,16 @@ public static class LaunchTarget
     /// The elevated PowerShell arguments from <see cref="OcrPackInstall.PowerShellArguments"/> when the code is in
     /// <see cref="LanguageCatalog"/> with a safe tag; otherwise null.
     /// </summary>
-    public static string? OcrInstallArguments(string? languageCode)
+    public static string? OcrInstallArguments(string? languageCode) =>
+        string.IsNullOrWhiteSpace(languageCode) ? null : OcrInstallArguments([languageCode]);
+
+    /// <summary>The arguments for one elevated PowerShell run that installs every listed pack, or null if any code is unknown.</summary>
+    public static string? OcrInstallArguments(IReadOnlyList<string>? languageCodes)
     {
-        if (string.IsNullOrWhiteSpace(languageCode)) return null;
+        if (languageCodes is null || languageCodes.Count == 0 || languageCodes.Any(string.IsNullOrWhiteSpace)) return null;
         try
         {
-            return OcrPackInstall.PowerShellArguments(languageCode);
+            return OcrPackInstall.PowerShellArguments(languageCodes);
         }
         catch (ArgumentException)
         {

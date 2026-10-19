@@ -67,6 +67,8 @@ public class ProviderContractTests
         Assert.Contains("tl=en", req.Uri.Query, StringComparison.Ordinal);
         Assert.Contains("q=" + Uri.EscapeDataString(Request.Text), req.Uri.OriginalString, StringComparison.Ordinal);
         if (scenario == "success") Assert.Equal("zh-CN", result!.DetectedSourceLanguage);
+        // Without a browser User-Agent Google answers with a captcha redirect instead of a translation.
+        Assert.Contains("Mozilla/5.0", req.Headers["User-Agent"], StringComparison.Ordinal);
     }
 
     [Theory]
@@ -97,6 +99,8 @@ public class ProviderContractTests
         Assert.Contains("to=en", translate.Uri.Query, StringComparison.Ordinal);
         Assert.Equal("Bearer " + token, translate.Headers["Authorization"]);
         Assert.Contains("\"text\":", translate.Body, StringComparison.Ordinal);
+        Assert.Contains("Mozilla/5.0", requests[0].Headers["User-Agent"], StringComparison.Ordinal);
+        Assert.Contains("Mozilla/5.0", translate.Headers["User-Agent"], StringComparison.Ordinal);
     }
 
     [Fact]

@@ -32,6 +32,9 @@ public sealed class SetupWizardViewModel : ObservableObject, IDisposable
     private bool? _testSucceeded;
     private bool _finished;
     private bool _disposed;
+    private readonly DispatcherTimer _ocrWatch;
+    private DateTime _ocrWatchUntil;
+    private bool _ocrInstalling;
 
     internal SetupWizardViewModel(AppHost host, IShell shell, Dispatcher dispatcher, OnboardingStep start)
     {
@@ -50,6 +53,10 @@ public sealed class SetupWizardViewModel : ObservableObject, IDisposable
         SelectRegionCommand = new RelayCommand(_shell.SelectRegion);
         RecheckDisplayCommand = new RelayCommand(RefreshDisplay);
         InstallOcrCommand = new RelayCommand<string>(InstallOcr);
+        InstallAllOcrCommand = new RelayCommand(InstallAllOcr, () => _ocrRows.Any(r => !r.Installed));
+        // While an install runs, look again every few seconds so rows turn to Installed by themselves.
+        _ocrWatch = new DispatcherTimer(DispatcherPriority.Background, dispatcher) { Interval = TimeSpan.FromSeconds(5) };
+        _ocrWatch.Tick += OnOcrWatchTick;
         RecheckOcrCommand = new RelayCommand(RecheckOcr);
         TestTranslateCommand = new AsyncRelayCommand(TestTranslateAsync, ReportCommandError);
         OpenHotkeysCommand = new RelayCommand(() => _shell.ShowPage(PageIds.Hotkeys));
@@ -153,6 +160,16 @@ public sealed class SetupWizardViewModel : ObservableObject, IDisposable
 
     /// <summary>Parameter: the Envoy language code whose OCR pack to install.</summary>
     public RelayCommand<string> InstallOcrCommand { get; }
+
+    /// <summary>Installs every missing pack in the list in one run, behind one admin prompt.</summary>
+    public RelayCommand InstallAllOcrCommand { get; }
+
+    /// <summary>True from starting an install until every pack it asked for is in, or 20 minutes pass.</summary>
+    public bool OcrInstalling
+    {
+        get => _ocrInstalling;
+        private set => SetProperty(ref _ocrInstalling, value);
+    }
 
     /// <summary>Re-queries Windows and re-applies the settings (the OCR notice follows).</summary>
     public RelayCommand RecheckOcrCommand { get; }
@@ -305,11 +322,34 @@ public sealed class SetupWizardViewModel : ObservableObject, IDisposable
         }
         OcrRows = OcrReadiness.Recommend(Settings.MyLanguage, Settings.Capture.OcrLanguages, installed);
         OnPropertyChanged(nameof(MissingOcrCount));
+        InstallAllOcrCommand?.RaiseCanExecuteChanged();
     }
 
     private void InstallOcr(string? code)
     {
-        if (!string.IsNullOrEmpty(code)) _shell.InstallOcrPack(code);
+        if (!string.IsNullOrEmpty(code)) StartOcrInstall([code]);
+    }
+
+    private void InstallAllOcr() => StartOcrInstall([.. _ocrRows.Where(r => !r.Installed).Select(r => r.Code)]);
+
+    private void StartOcrInstall(IReadOnlyList<string> codes)
+    {
+        if (codes.Count == 0 || !_shell.InstallOcrPack(codes)) return;
+        _ocrWatchUntil = DateTime.UtcNow.AddMinutes(20);
+        OcrInstalling = true;
+        _ocrWatch.Start();
+    }
+
+    private void OnOcrWatchTick(object? sender, EventArgs e)
+    {
+        if (_disposed) { _ocrWatch.Stop(); return; }
+        LoadOcrRows();
+        if (_ocrRows.All(r => r.Installed) || DateTime.UtcNow > _ocrWatchUntil)
+        {
+            _ocrWatch.Stop();
+            OcrInstalling = false;
+            _applier.ApplyNow();
+        }
     }
 
     private void RecheckOcr()
@@ -360,6 +400,8 @@ public sealed class SetupWizardViewModel : ObservableObject, IDisposable
         Host.GameWindowChanged -= RefreshDisplay;
         Host.HotkeyResultsChanged -= OnHostChanged;
         Host.RegionMoved -= OnHostChanged;
+        _ocrWatch.Stop();
+        _ocrWatch.Tick -= OnOcrWatchTick;
         CapturePreview.Dispose();
     }
 }

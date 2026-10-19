@@ -170,7 +170,7 @@
                     <StackPanel x:Name="OcrPanel" Visibility="{Binding IsOcrStep, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,10">
                             Windows reads each script with a free text recognition pack. Install the ones for your language and your opponents'.
-                            Installing asks for administrator permission.
+                            Installing asks for administrator permission once, then runs in a PowerShell window.
                         </TextBlock>
                         <ItemsControl x:Name="OcrRowList" ItemsSource="{Binding OcrRows, Mode=OneWay}" Focusable="False">
                             <ItemsControl.ItemTemplate>
@@ -198,8 +198,16 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <Button Content="Check again" Command="{Binding RecheckOcrCommand}" HorizontalAlignment="Left" Margin="0,10,0,0"
-                                AutomationProperties.Name="Check text recognition packs again" />
+                        <TextBlock Style="{StaticResource Text.Body}" Margin="0,10,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding OcrInstalling, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                            Installing in the PowerShell window. Each language can take a few minutes. This list updates by itself, so you can carry on with the next step.
+                        </TextBlock>
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button Content="Install all missing" Command="{Binding InstallAllOcrCommand}" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Install every missing text recognition pack" />
+                            <Button Content="Check again" Command="{Binding RecheckOcrCommand}"
+                                    AutomationProperties.Name="Check text recognition packs again" />
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- 5. Test translation (REQ-OUXA-8) -->

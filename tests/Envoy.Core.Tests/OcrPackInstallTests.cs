@@ -33,11 +33,24 @@ public class OcrPackInstallTests
     }
 
     [Fact]
-    public void PowerShellArguments_MatchesLegacyString()
+    public void PowerShellArguments_InstallsEveryPackInOneRun_AndSaysWhatItIsDoing()
     {
-        Assert.Equal(
-            "-NoProfile -Command \"Add-WindowsCapability -Online -Name 'Language.OCR~~~ko-KR~0.0.1.0'; Write-Host 'Done - restart Envoy to use it.'; Start-Sleep 4\"",
-            OcrPackInstall.PowerShellArguments("ko"));
+        var args = OcrPackInstall.PowerShellArguments(["zh-CN", "ko", "ja", "ru"]);
+        Assert.StartsWith("-NoProfile -ExecutionPolicy Bypass -Command \"", args, StringComparison.Ordinal);
+        Assert.EndsWith("\"", args, StringComparison.Ordinal);
+        Assert.Contains("$caps = @('Language.OCR~~~zh-CN~0.0.1.0','Language.OCR~~~ko-KR~0.0.1.0','Language.OCR~~~ja-JP~0.0.1.0','Language.OCR~~~ru-RU~0.0.1.0')", args, StringComparison.Ordinal);
+        Assert.Contains("$names = @('Chinese (Simplified)','Korean','Japanese','Russian')", args, StringComparison.Ordinal);
+        Assert.Contains("$ProgressPreference = 'SilentlyContinue'", args, StringComparison.Ordinal);
+        Assert.Contains("can take a few minutes", args, StringComparison.Ordinal);
+        // Exactly one pair of double quotes: the -Command wrapper. Nothing inside can close it.
+        Assert.Equal(2, args.Count(c => c == '"'));
+    }
+
+    [Fact]
+    public void PowerShellArguments_OneLanguage_StillUsesTheSameScript()
+    {
+        Assert.Equal(OcrPackInstall.PowerShellArguments(["ko"]), OcrPackInstall.PowerShellArguments("ko"));
+        Assert.Contains("$caps = @('Language.OCR~~~ko-KR~0.0.1.0')", OcrPackInstall.PowerShellArguments("ko"), StringComparison.Ordinal);
     }
 
     [Theory]

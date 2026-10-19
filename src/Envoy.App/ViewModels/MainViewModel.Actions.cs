@@ -50,7 +50,7 @@ public sealed partial class MainViewModel
 
     private void InstallOcr(string? code)
     {
-        if (code is not null) _shell.InstallOcrPack(code);
+        if (code is not null) _shell.InstallOcrPack([code]);
     }
 
     private void TestVoice()

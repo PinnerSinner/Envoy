@@ -551,11 +551,12 @@ public partial class App : Application, IShell
     public void OpenUrl(string urlOrDataPath) => _ = ShellLauncher.TryOpen(urlOrDataPath, Host.DataFolder);
 
     /// <inheritdoc />
-    public void InstallOcrPack(string languageTag)
+    public bool InstallOcrPack(IReadOnlyList<string> languageTags)
     {
+        if (ShellLauncher.InstallOcrPack(languageTags)) return true;
         // Declined admin prompt or unknown language: point them at Windows language settings instead.
-        if (!ShellLauncher.InstallOcrPack(languageTag))
-            _ = ShellLauncher.TryOpen(OcrPackInstall.SettingsFallbackUri, Host.DataFolder);
+        _ = ShellLauncher.TryOpen(OcrPackInstall.SettingsFallbackUri, Host.DataFolder);
+        return false;
     }
 
     /// <inheritdoc />

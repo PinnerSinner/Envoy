@@ -303,6 +303,13 @@ public sealed class ChatPipeline : IDisposable
         if (TextSimilarity.TextElementCount(chat.Text) < options.MinCharacters) return false;
         // Lines that are only punctuation/digits are almost always OCR noise from the game UI.
         if (!chat.Text.Any(char.IsLetter) && SlangGlossary.Match(chat.Text) is null) return false;
+        // A line with no sender is either the wrapped tail of a message whose head scrolled away, or game UI text
+        // (lobby settings, menus, map names) caught in the chat area. Keep it only when its script names a language
+        // other than ours: a Chinese tail is worth translating, "Game Mode" or "Allow Observers" is not.
+        if (chat.Kind == ChatLineKind.Fragment
+            && (ScriptDetector.GuessLanguage(chat.Text) is not { } fragmentLanguage
+                || LanguageCatalog.SameLanguage(fragmentLanguage, options.MyLanguage)))
+            return false;
         if (IsMe(chat.Sender, options)) return false;
         if (MuteList.IsMuted(chat.Sender, options.MutedPlayers)) return false;
         return options.Channels switch

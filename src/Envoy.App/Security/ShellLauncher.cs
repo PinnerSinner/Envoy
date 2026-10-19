@@ -32,10 +32,10 @@ public static class ShellLauncher
     /// Installs the Windows OCR pack for an Envoy language code with an elevated Windows PowerShell. Returns false when
     /// the code is unknown or unsafe, or the user declines the admin prompt.
     /// </summary>
-    public static bool InstallOcrPack(string languageTag)
+    public static bool InstallOcrPack(IReadOnlyList<string> languageTags)
     {
-        var arguments = LaunchTarget.OcrInstallArguments(languageTag);
-        if (arguments is null) return Rejected(nameof(InstallOcrPack), languageTag);
+        var arguments = LaunchTarget.OcrInstallArguments(languageTags);
+        if (arguments is null) return Rejected(nameof(InstallOcrPack), string.Join(",", languageTags ?? []));
         var powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),
             "WindowsPowerShell", "v1.0", "powershell.exe");
         return Start(new ProcessStartInfo(powershell, arguments) { UseShellExecute = true, Verb = "runas" });
