@@ -1400,8 +1400,27 @@ internal static class SmokeTest
     {
         main.Navigate(PageIds.Dashboard);
         var notice = NoticeFactory.OcrMissing(["ja"])!;
-        host.Notices!.Submit(notice, gameForeground: false); // ApplySettings re-checks OCR and may have withdrawn the setup seed
-        await Pump();
+        // ApplySettings re-checks OCR and withdraws any OCR key this machine does not need, so the setup seed may be gone,
+        // and an apply that lands during the pump (an earlier section's debounced edit) withdraws this one too. Re-seed
+        // after such an apply; the check below still needs the seed listed once nothing else applies.
+        var applied = false;
+        void OnApplied() => applied = true;
+        host.SettingsApplied += OnApplied;
+        try
+        {
+            for (var round = 0; round < 3; round++)
+            {
+                applied = false;
+                host.Notices!.Submit(notice, gameForeground: false);
+                await Pump();
+                if (!applied) break;
+                Log("notices: a settings apply landed during the pump; seeding the notice again");
+            }
+        }
+        finally
+        {
+            host.SettingsApplied -= OnApplied;
+        }
         var page = (WarRoomPage)main.PageFor(PageIds.Dashboard);
         var vm = (MainViewModel)main.DataContext;
         Check(vm.Notices.Any(n => n.Key == notice.Key), "the seeded notice is not in the view model's list");
